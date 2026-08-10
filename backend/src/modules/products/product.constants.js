@@ -1,0 +1,46 @@
+const PRODUCT_TYPES = [
+  "SIMPLE",
+  "VARIABLE",
+  "BUNDLE",
+  "SERVICE",
+];
+
+const PRODUCT_STATUSES = [
+  "DRAFT",
+  "ACTIVE",
+  "INACTIVE",
+  "ARCHIVED",
+];
+
+const CHANNEL_CODES = [
+  "WEBSITE",
+  "MOBILE",
+  "KIOSK",
+  "POS",
+  "MARKETPLACE",
+  "B2B",
+];
+
+const PUBLISH_STATUSES = [
+  "DRAFT",
+  "PUBLISHED",
+  "UNPUBLISHED",
+];
+
+const IMAGE_ROLES = [
+  "PRIMARY",
+  "GALLERY",
+  "SWATCH",
+  "LIFESTYLE",
+  "MANUAL",
+  "VIDEO",
+  "DOCUMENT",
+];
+
+module.exports = {
+  PRODUCT_TYPES,
+  PRODUCT_STATUSES,
+  CHANNEL_CODES,
+  PUBLISH_STATUSES,
+  IMAGE_ROLES,
+};

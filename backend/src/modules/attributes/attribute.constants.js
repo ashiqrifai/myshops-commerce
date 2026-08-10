@@ -1,0 +1,30 @@
+const ATTRIBUTE_INPUT_TYPES = [
+  "TEXT",
+  "NUMBER",
+  "BOOLEAN",
+  "SINGLE_SELECT",
+  "MULTI_SELECT",
+  "COLOR_SWATCH",
+  "DATE",
+  "RICH_TEXT",
+];
+
+const ATTRIBUTE_DATA_TYPES = [
+  "STRING",
+  "NUMBER",
+  "BOOLEAN",
+  "DATE",
+  "JSON",
+];
+
+const SELECT_INPUT_TYPES = [
+  "SINGLE_SELECT",
+  "MULTI_SELECT",
+  "COLOR_SWATCH",
+];
+
+module.exports = {
+  ATTRIBUTE_INPUT_TYPES,
+  ATTRIBUTE_DATA_TYPES,
+  SELECT_INPUT_TYPES,
+};

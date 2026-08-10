@@ -1,0 +1,24 @@
+.address-input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--storefront-border, #d8d8d8);
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 0 14px;
+  color: var(--storefront-text, #111111);
+  font-size: 14px;
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.address-input:focus {
+  border-color: var(--storefront-primary, #111111);
+  box-shadow: 0 0 0 3px rgb(0 0 0 / 6%);
+}
+
+.address-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
