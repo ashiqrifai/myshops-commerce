@@ -17,6 +17,12 @@ import type {
   PreBookingCampaignStatus,
 } from "@/types/preBooking";
 
+import type {
+  MediaAsset,
+} from "@/types/media";
+
+import MediaAssetPicker from "@/components/media/MediaAssetPicker";
+
 interface PreBookingCampaignFormProps {
   campaign?: PreBookingCampaign | null;
 
@@ -211,6 +217,56 @@ export default function PreBookingCampaignForm({
     useState(
       campaign?.description ||
         ""
+    );
+
+  const [
+    bannerAssetId,
+    setBannerAssetId,
+  ] =
+    useState<string | null>(
+      campaign?.bannerAssetId ||
+        null
+    );
+
+  const [
+    selectedBannerAsset,
+    setSelectedBannerAsset,
+  ] =
+    useState<MediaAsset | null>(
+      null
+    );
+
+  const [
+    isBannerPickerOpen,
+    setIsBannerPickerOpen,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    mobileBannerAssetId,
+    setMobileBannerAssetId,
+  ] =
+    useState<string | null>(
+      campaign?.mobileBannerAssetId ||
+        null
+    );
+
+  const [
+    selectedMobileBannerAsset,
+    setSelectedMobileBannerAsset,
+  ] =
+    useState<MediaAsset | null>(
+      null
+    );
+
+  const [
+    isMobileBannerPickerOpen,
+    setIsMobileBannerPickerOpen,
+  ] =
+    useState(
+      false
     );
 
   const [
@@ -493,6 +549,10 @@ export default function PreBookingCampaignForm({
           description.trim() ||
           null,
 
+        bannerAssetId,
+
+        mobileBannerAssetId,
+
         status,
 
         bookingStartAt:
@@ -658,6 +718,184 @@ export default function PreBookingCampaignForm({
               className="admin-input min-h-[110px]"
               placeholder="Internal or customer-facing campaign description..."
             />
+          </div>
+        </div>
+      </section>
+
+      {/* Campaign Banner */}
+
+      <section className="rounded-xl border border-[#e1e3e5] bg-white p-5">
+        <div>
+          <h2 className="text-lg font-semibold text-[#202223]">
+            Campaign banner
+          </h2>
+
+          <p className="mt-1 text-sm text-[#6d7175]">
+            Select the hero banner displayed on the public pre-booking campaign page.
+          </p>
+        </div>
+
+        <div className="mt-5">
+          {selectedBannerAsset ? (
+            <div className="mb-4 overflow-hidden rounded-xl border border-[#e1e3e5] bg-[#f6f6f7]">
+              {selectedBannerAsset.publicUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={
+                    selectedBannerAsset.publicUrl
+                  }
+                  alt={
+                    selectedBannerAsset.altText ||
+                    selectedBannerAsset.title ||
+                    "Campaign banner"
+                  }
+                  className="h-48 w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-48 items-center justify-center text-sm text-[#6d7175]">
+                  Banner selected
+                </div>
+              )}
+            </div>
+          ) : bannerAssetId ? (
+            <div className="mb-4 rounded-xl border border-[#e1e3e5] bg-[#f6f6f7] p-4">
+              <p className="text-sm font-medium text-[#202223]">
+                Existing campaign banner selected
+              </p>
+
+              <p className="mt-1 break-all text-xs text-[#6d7175]">
+                {bannerAssetId}
+              </p>
+            </div>
+          ) : (
+            <div className="mb-4 flex h-36 items-center justify-center rounded-xl border border-dashed border-[#babfc3] bg-[#f6f6f7]">
+              <p className="text-sm text-[#6d7175]">
+                No campaign banner selected
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                setIsBannerPickerOpen(
+                  true
+                )
+              }
+              className="rounded-lg bg-[#202223] px-4 py-2 text-sm font-semibold text-white hover:bg-black"
+            >
+              {bannerAssetId
+                ? "Change banner"
+                : "Select banner"}
+            </button>
+
+            {bannerAssetId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setBannerAssetId(
+                    null
+                  );
+
+                  setSelectedBannerAsset(
+                    null
+                  );
+                }}
+                className="rounded-lg border border-[#babfc3] bg-white px-4 py-2 text-sm font-semibold text-[#202223] hover:bg-[#f6f6f7]"
+              >
+                Remove banner
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      {/* Mobile Campaign Banner */}
+
+      <section className="rounded-xl border border-[#e1e3e5] bg-white p-5">
+        <div>
+          <h2 className="text-lg font-semibold text-[#202223]">
+            Campaign banner — Mobile
+          </h2>
+
+          <p className="mt-1 text-sm text-[#6d7175]">
+            Select the mobile hero image. If none is selected, the desktop banner will be used.
+          </p>
+        </div>
+
+        <div className="mt-5">
+          {selectedMobileBannerAsset ? (
+            <div className="mb-4 mx-auto max-w-[360px] overflow-hidden rounded-xl border border-[#e1e3e5] bg-[#f6f6f7]">
+              {selectedMobileBannerAsset.publicUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={
+                    selectedMobileBannerAsset.publicUrl
+                  }
+                  alt={
+                    selectedMobileBannerAsset.altText ||
+                    selectedMobileBannerAsset.title ||
+                    "Mobile campaign banner"
+                  }
+                  className="h-64 w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-64 items-center justify-center text-sm text-[#6d7175]">
+                  Mobile banner selected
+                </div>
+              )}
+            </div>
+          ) : mobileBannerAssetId ? (
+            <div className="mb-4 rounded-xl border border-[#e1e3e5] bg-[#f6f6f7] p-4">
+              <p className="text-sm font-medium text-[#202223]">
+                Existing mobile campaign banner selected
+              </p>
+
+              <p className="mt-1 break-all text-xs text-[#6d7175]">
+                {mobileBannerAssetId}
+              </p>
+            </div>
+          ) : (
+            <div className="mb-4 flex h-36 items-center justify-center rounded-xl border border-dashed border-[#babfc3] bg-[#f6f6f7]">
+              <p className="text-sm text-[#6d7175]">
+                No mobile banner selected — desktop banner will be used
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                setIsMobileBannerPickerOpen(
+                  true
+                )
+              }
+              className="rounded-lg bg-[#202223] px-4 py-2 text-sm font-semibold text-white hover:bg-black"
+            >
+              {mobileBannerAssetId
+                ? "Change mobile banner"
+                : "Select mobile banner"}
+            </button>
+
+            {mobileBannerAssetId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileBannerAssetId(
+                    null
+                  );
+
+                  setSelectedMobileBannerAsset(
+                    null
+                  );
+                }}
+                className="rounded-lg border border-[#babfc3] bg-white px-4 py-2 text-sm font-semibold text-[#202223] hover:bg-[#f6f6f7]"
+              >
+                Remove mobile banner
+              </button>
+            ) : null}
           </div>
         </div>
       </section>
@@ -1023,6 +1261,81 @@ export default function PreBookingCampaignForm({
             : submitLabel}
         </button>
       </div>
+      <MediaAssetPicker
+        isOpen={
+          isMobileBannerPickerOpen
+        }
+        selectedAssetId={
+          mobileBannerAssetId
+        }
+        title="Select mobile campaign banner"
+        description="Choose the mobile hero image from the MyShops Media Library."
+        classification="MARKETING"
+        allowPdf={
+          false
+        }
+        allowVideo={
+          false
+        }
+        onClose={() =>
+          setIsMobileBannerPickerOpen(
+            false
+          )
+        }
+        onSelect={(
+          asset
+        ) => {
+          setMobileBannerAssetId(
+            asset.id
+          );
+
+          setSelectedMobileBannerAsset(
+            asset
+          );
+
+          setIsMobileBannerPickerOpen(
+            false
+          );
+        }}
+      />
+
+      <MediaAssetPicker
+        isOpen={
+          isBannerPickerOpen
+        }
+        selectedAssetId={
+          bannerAssetId
+        }
+        title="Select campaign banner"
+        description="Choose an image from the MyShops Media Library."
+        classification="MARKETING"
+        allowPdf={
+          false
+        }
+        allowVideo={
+          false
+        }
+        onClose={() =>
+          setIsBannerPickerOpen(
+            false
+          )
+        }
+        onSelect={(
+          asset
+        ) => {
+          setBannerAssetId(
+            asset.id
+          );
+
+          setSelectedBannerAsset(
+            asset
+          );
+
+          setIsBannerPickerOpen(
+            false
+          );
+        }}
+      />
     </form>
   );
 }

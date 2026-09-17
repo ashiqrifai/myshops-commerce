@@ -358,6 +358,15 @@ const {
       const candidates =
         [
           location
+            .warehouse_stock_on_hand,
+
+          location
+            .warehouse_available_stock,
+
+          location
+            .warehouse_actual_available_stock,
+
+          location
             .location_stock_on_hand,
   
           location
@@ -765,10 +774,14 @@ const {
   
         const zohoLocations =
           Array.isArray(
-            detail.locations
+            detail.warehouses
           )
-            ? detail.locations
-            : [];
+            ? detail.warehouses
+            : Array.isArray(
+                detail.locations
+              )
+              ? detail.locations
+              : [];
   
         const locationById =
           new Map();
@@ -779,6 +792,8 @@ const {
         ) {
           const locationId =
             text(
+              location
+                .warehouse_id ||
               location
                 .location_id
             );

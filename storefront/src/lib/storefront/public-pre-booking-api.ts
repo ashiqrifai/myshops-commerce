@@ -237,12 +237,29 @@ export interface PublicPreBookingProduct {
   preBookingUrl: string;
 }
 
+export interface PublicPreBookingCampaignBanner {
+  id: string;
+  publicUrl: string | null;
+  previewUrl: string | null;
+  thumbnailUrl: string | null;
+  title: string | null;
+  altText: string | null;
+}
+
 export interface PublicPreBookingCampaign {
   id: string;
   code: string;
   name: string;
   slug: string;
   description: string | null;
+
+  banner:
+    | PublicPreBookingCampaignBanner
+    | null;
+
+  mobileBanner:
+    | PublicPreBookingCampaignBanner
+    | null;
 
   status: string;
 

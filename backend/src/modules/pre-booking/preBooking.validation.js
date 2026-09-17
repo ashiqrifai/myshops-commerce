@@ -143,6 +143,24 @@ const {
         nullable: true,
       })
       .isString(),
+
+    body("bannerAssetId")
+      .optional({
+        nullable: true,
+      })
+      .isUUID()
+      .withMessage(
+        "Banner asset ID must be a valid UUID."
+      ),
+
+    body("mobileBannerAssetId")
+      .optional({
+        nullable: true,
+      })
+      .isUUID()
+      .withMessage(
+        "Mobile banner asset ID must be a valid UUID."
+      ),
   
     body("status")
       .optional()

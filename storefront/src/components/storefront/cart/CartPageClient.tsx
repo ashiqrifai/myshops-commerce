@@ -256,31 +256,15 @@ export default function CartPageClient() {
             }
           />
 
-          {/* Buy Now Pay Later */}
-
-          {mobileTotal >
-          0 ? (
-            <div className="space-y-3">
-              <TabbyPromo
-                amount={
-                  mobileTotal
-                }
-                currencyCode={
-                  currencyCode
-                }
-                source="cart"
-              />
-
-              <TamaraWidget
-                key={`cart-tamara-${mobileTotal}`}
-                amount={
-                  mobileTotal
-                }
-                country="AE"
-                language="en"
-              />
-            </div>
-          ) : null}
+          {/*
+           * Buy Now Pay Later
+           *
+           * TEMPORARILY DISABLED:
+           * Tabby and Tamara promotional widgets.
+           *
+           * Integration code is retained so these
+           * providers can be enabled again later.
+           */}
 
           {/* Coupon */}
 

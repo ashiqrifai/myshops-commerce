@@ -1052,6 +1052,14 @@ const {
             normalizeNullable(
               payload.description
             ),
+
+          bannerAssetId:
+            payload.bannerAssetId ||
+            null,
+
+          mobileBannerAssetId:
+            payload.mobileBannerAssetId ||
+            null,
   
           status:
             payload.status ||
@@ -1178,6 +1186,8 @@ const {
         "status",
         "bookingStartAt",
         "bookingEndAt",
+        "bannerAssetId",
+        "mobileBannerAssetId",
         "allowCard",
         "allowTabby",
         "allowTamara",

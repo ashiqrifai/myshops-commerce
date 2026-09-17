@@ -342,6 +342,50 @@ export async function generateMetadata({
 |--------------------------------------------------------------------------
 */
 
+const resolveCampaignMediaUrl = (
+  value?: string | null
+): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  if (
+    value.startsWith("http://") ||
+    value.startsWith("https://")
+  ) {
+    return value;
+  }
+
+  /*
+   * This URL is rendered into browser HTML.
+   * Always use the public API origin for media.
+   * API_URL is intentionally not used because it
+   * points to 127.0.0.1 for server-side API calls.
+   */
+  const configuredApiUrl =
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://api.vkposme.tech/api/v1";
+
+  const apiOrigin =
+    configuredApiUrl
+      .replace(
+        /\/api\/v1\/?$/,
+        ""
+      )
+      .replace(
+        /\/+$/,
+        ""
+      );
+
+  const normalizedPath =
+    value.startsWith("/")
+      ? value
+      : `/${value}`;
+
+  return `${apiOrigin}${normalizedPath}`;
+};
+
+
 export default async function PreBookingCampaignPage({
   params,
 }: RouteProps) {
@@ -397,6 +441,24 @@ export default async function PreBookingCampaignPage({
     |--------------------------------------------------------------------------
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Campaign Banner
+    |--------------------------------------------------------------------------
+    */
+
+    const desktopBannerUrl =
+      resolveCampaignMediaUrl(
+        campaign.banner
+          ?.publicUrl
+      );
+
+    const mobileBannerUrl =
+      resolveCampaignMediaUrl(
+        campaign.mobileBanner
+          ?.publicUrl
+      ) ||
+      desktopBannerUrl;
 
     /*
     |--------------------------------------------------------------------------
@@ -509,30 +571,61 @@ export default async function PreBookingCampaignPage({
             |--------------------------------------------------------------------------
             */}
 
-            <section className="overflow-hidden rounded-[22px] bg-slate-950 px-6 py-8 text-white sm:px-8 lg:px-10">
-              <div className="max-w-4xl">
-               
+            <section className="relative min-h-[260px] overflow-hidden rounded-[22px] bg-slate-950 text-white sm:min-h-[300px] lg:min-h-[340px]">
+              {desktopBannerUrl ? (
+                <picture className="absolute inset-0">
+                  {mobileBannerUrl ? (
+                    <source
+                      media="(max-width: 767px)"
+                      srcSet={
+                        mobileBannerUrl
+                      }
+                    />
+                  ) : null}
 
-                <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
-                  {
-                    campaign.name
-                  }
-                </h1>
-
-                {campaign.description ? (
-                  <p className="mt-3 max-w-3xl text-sm leading-6 text-white/70">
-                    {
-                      campaign.description
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={
+                      desktopBannerUrl
                     }
-                  </p>
-                ) : null}
+                    alt={
+                      campaign.banner
+                        ?.altText ||
+                      campaign.banner
+                        ?.title ||
+                      campaign.name
+                    }
+                    className="h-full w-full object-cover"
+                  />
+                </picture>
+              ) : null}
 
-<div className="mt-5">
-  <span className="inline-flex h-9 items-center rounded-full bg-amber-400 px-4 text-xs font-black uppercase text-slate-950">
-    Coming Soon
-  </span>
-</div>
+              {desktopBannerUrl ? (
+                <div className="absolute inset-0 bg-black/30" />
+              ) : null}
 
+              <div className="relative z-10 flex min-h-[260px] items-center px-6 py-8 sm:min-h-[300px] sm:px-8 lg:min-h-[340px] lg:px-10">
+                <div className="max-w-4xl">
+                  <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
+                    {
+                      campaign.name
+                    }
+                  </h1>
+
+                  {campaign.description ? (
+                    <p className="mt-3 max-w-3xl text-sm leading-6 text-white/80">
+                      {
+                        campaign.description
+                      }
+                    </p>
+                  ) : null}
+
+                  <div className="mt-5">
+                    <span className="inline-flex h-9 items-center rounded-full bg-amber-400 px-4 text-xs font-black uppercase text-slate-950">
+                      Coming Soon
+                    </span>
+                  </div>
+                </div>
               </div>
             </section>
 
@@ -545,10 +638,18 @@ export default async function PreBookingCampaignPage({
             <section className="py-8">
               <div className="mb-5">
                 <h2 className="text-2xl font-black text-storefront-text">
-                  Coming Soon
+                  Available for pre-booking
                 </h2>
 
-               
+                <p className="mt-1 text-sm text-storefront-muted">
+                  {
+                    variantCards.length
+                  }{" "}
+                  {variantCards.length === 1
+                    ? "variant"
+                    : "variants"}{" "}
+                  currently available
+                </p>
               </div>
 
               {variantCards.length ===
@@ -562,13 +663,14 @@ export default async function PreBookingCampaignPage({
                   />
 
                   <h3 className="mt-4 text-lg font-black text-storefront-text">
-                    Products coming soon
+                    No variants currently available
                   </h3>
 
                   <p className="mt-2 max-w-md text-sm leading-6 text-storefront-muted">
-                    Pre-booking is not
-                    open yet. Please
-                    check back soon.
+                    There are currently
+                    no allocated variants
+                    available for
+                    pre-booking.
                   </p>
                 </div>
               ) : (

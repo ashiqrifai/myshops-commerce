@@ -329,7 +329,18 @@ const buildPaymentOptions = (
       tamaraEligible &&
       !tamaraChecking,
   },
-];
+].filter(
+  (option): boolean => {
+    const hiddenPaymentCodes: string[] = [
+      "TABBY",
+      "TAMARA",
+    ];
+
+    return !hiddenPaymentCodes.includes(
+      String(option.code)
+    );
+  }
+);
 
 
 

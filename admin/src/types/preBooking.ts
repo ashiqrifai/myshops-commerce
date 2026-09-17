@@ -341,6 +341,14 @@ import type {
     description?:
       | string
       | null;
+
+    bannerAssetId?:
+      | string
+      | null;
+
+    mobileBannerAssetId?:
+      | string
+      | null;
   
     status:
       PreBookingCampaignStatus;
@@ -459,6 +467,14 @@ import type {
     slug: string;
   
     description?:
+      | string
+      | null;
+
+    bannerAssetId?:
+      | string
+      | null;
+
+    mobileBannerAssetId?:
       | string
       | null;
   

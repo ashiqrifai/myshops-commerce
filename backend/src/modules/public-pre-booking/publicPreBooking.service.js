@@ -1927,11 +1927,138 @@ const loadProtectionSchemes =
 |--------------------------------------------------------------------------
 */
 
+const resolveCampaignBannerAssets =
+  async (
+    campaign
+  ) => {
+    const ids =
+      [
+        campaign.bannerAssetId,
+        campaign.mobileBannerAssetId,
+      ].filter(
+        Boolean
+      );
+
+    if (
+      !ids.length
+    ) {
+      return {
+        banner:
+          null,
+
+        mobileBanner:
+          null,
+      };
+    }
+
+    const assets =
+      await db.MediaAsset.findAll({
+        where: {
+          id: {
+            [Op.in]:
+              ids,
+          },
+
+          companyId:
+            campaign.companyId,
+
+          isActive:
+            true,
+        },
+
+        attributes: [
+          "id",
+          "publicUrl",
+          "thumbnailPath",
+          "previewPath",
+          "title",
+          "altText",
+        ],
+
+        raw:
+          true,
+      });
+
+    const byId =
+      new Map(
+        assets.map(
+          (
+            asset
+          ) => [
+            String(
+              asset.id
+            ),
+            asset,
+          ]
+        )
+      );
+
+    const serialize =
+      (
+        id
+      ) => {
+        if (!id) {
+          return null;
+        }
+
+        const asset =
+          byId.get(
+            String(
+              id
+            )
+          );
+
+        if (!asset) {
+          return null;
+        }
+
+        return {
+          id:
+            asset.id,
+
+          publicUrl:
+            asset.publicUrl ||
+            null,
+
+          previewUrl:
+            asset.previewPath ||
+            null,
+
+          thumbnailUrl:
+            asset.thumbnailPath ||
+            null,
+
+          title:
+            asset.title ||
+            null,
+
+          altText:
+            asset.altText ||
+            null,
+        };
+      };
+
+    return {
+      banner:
+        serialize(
+          campaign.bannerAssetId
+        ),
+
+      mobileBanner:
+        serialize(
+          campaign.mobileBannerAssetId
+        ),
+    };
+  };
+
+
 const buildCampaignSummary =
   ({
     campaign,
     bookingStatus,
     productCount,
+    banner = null,
+    mobileBanner = null,
   }) => ({
     id:
       campaign.id,
@@ -1948,6 +2075,10 @@ const buildCampaignSummary =
     description:
       campaign.description ||
       null,
+
+    banner,
+
+    mobileBanner,
 
     status:
       campaign.status,
@@ -3479,6 +3610,14 @@ const getCampaign =
         context
       );
 
+    const {
+      banner,
+      mobileBanner,
+    } =
+      await resolveCampaignBannerAssets(
+        context.campaign
+      );
+
     return {
       company: {
         id:
@@ -3504,6 +3643,10 @@ const getCampaign =
 
           productCount:
             products.length,
+
+          banner,
+
+          mobileBanner,
         }),
 
       products,

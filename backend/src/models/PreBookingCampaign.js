@@ -40,6 +40,16 @@ const {
           type: DataTypes.TEXT,
           allowNull: true,
         },
+
+        bannerAssetId: {
+          type: DataTypes.UUID,
+          allowNull: true,
+        },
+
+        mobileBannerAssetId: {
+          type: DataTypes.UUID,
+          allowNull: true,
+        },
   
         status: {
           type: DataTypes.ENUM(
