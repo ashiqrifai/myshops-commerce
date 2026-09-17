@@ -88,6 +88,21 @@ const RESERVED_COLUMNS = [
   "sortOrder",
   "isFeatured",
   "isSearchable",
+  "erpId",
+  "isDirectDelivery",
+  "directDeliverySupplierCode",
+  "directDeliveryLeadTimeDays",
+  "directDeliveryNote",
+
+  "expressDeliveryEnabled",
+
+  "expressDeliveryHours",
+
+  "deliveryMinDays",
+
+  "deliveryMaxDays",
+
+  "deliveryNote",
   "websiteVisible",
   "websitePublishStatus",
   "websiteTitle",
@@ -118,6 +133,18 @@ const RESERVED_COLUMNS = [
   "width",
   "height",
   "dimensionUnit",
+
+  "variantOverrideDeliverySettings",
+
+  "variantExpressDeliveryEnabled",
+
+  "variantExpressDeliveryHours",
+
+  "variantDeliveryMinDays",
+
+  "variantDeliveryMaxDays",
+
+  "variantDeliveryNote",
   "variantMediaGroup",
   "variantMediaImportMode",
   "variantMediaAssetId",

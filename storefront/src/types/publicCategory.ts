@@ -170,3 +170,23 @@ export interface PublicCategoryQuery {
   sort?: string;
   channel?: "WEBSITE" | "KIOSK";
 }
+
+export interface PublicCategoryListData {
+  company: Pick<
+    StorefrontCompany,
+    "id" | "name" | "code" | "currency"
+  >;
+
+  categories: PublicCategory[];
+
+  meta: {
+    channel: "WEBSITE" | "KIOSK";
+    total: number;
+    generatedAt: string;
+  };
+}
+
+export interface PublicCategoryListApiResponse {
+  success: boolean;
+  data: PublicCategoryListData;
+}

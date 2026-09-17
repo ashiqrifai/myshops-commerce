@@ -187,16 +187,48 @@ const {
           secondUntil:
             payload.validUntil,
         });
-
-      if (
-        dateOverlap
-      ) {
-        throw new AppError(
-          "Another pricing tier already exists for this quantity and date range.",
-          409,
-          "VARIANT_PRICE_OVERLAP"
-        );
-      }
+        if (
+          dateOverlap
+        ) {
+          /*
+          |--------------------------------------------------------------------------
+          | Allow intentional promotional overlays
+          |--------------------------------------------------------------------------
+          |
+          | The same variant + price list may have:
+          |
+          | - an always-valid base price
+          | - a scheduled promotional price
+          |
+          | provided they use different priorities.
+          |
+          | Lower priority number wins in the price resolver.
+          |--------------------------------------------------------------------------
+          */
+        
+          const existingPriority =
+            Number(
+              row.priority ??
+                100
+            );
+        
+          const incomingPriority =
+            Number(
+              payload.priority ??
+                100
+            );
+        
+          if (
+            existingPriority ===
+            incomingPriority
+          ) {
+            throw new AppError(
+              "Another pricing tier already exists for this quantity and date range with the same priority.",
+              409,
+              "VARIANT_PRICE_OVERLAP"
+            );
+          }
+        }
     }
   };
 
@@ -481,35 +513,39 @@ async ({
     ];
   }
 
-  const include =
-    VARIANT_PRICE_INCLUDE.map(
-      (item) => {
-        if (
-          item.as !==
-          "variant"
-        ) {
-          return item;
-        }
+  const hasVariantFilters =
+  Reflect.ownKeys(
+    variantWhere
+  ).length >
+  0;
 
-        return {
-          ...item,
-
-          required:
-            Boolean(
-              productId ||
-                search
-            ) ||
-            item.required,
-
-          where:
-            Object.keys(
-              variantWhere
-            ).length
-              ? variantWhere
-              : undefined,
-        };
+const include =
+  VARIANT_PRICE_INCLUDE.map(
+    (item) => {
+      if (
+        item.as !==
+        "variant"
+      ) {
+        return item;
       }
-    );
+
+      return {
+        ...item,
+
+        required:
+          Boolean(
+            productId ||
+              search
+          ) ||
+          item.required,
+
+        where:
+          hasVariantFilters
+            ? variantWhere
+            : undefined,
+      };
+    }
+  );
 
   const normalizedPage =
     Number(page);

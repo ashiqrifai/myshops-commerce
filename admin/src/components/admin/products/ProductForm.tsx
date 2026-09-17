@@ -14,9 +14,11 @@ import {
   Settings2,
   Shapes,
   Store,
+  Truck,
 } from "lucide-react";
 
 import { useGetBrandsQuery } from "@/store/api/brandApi";
+import { useGetSuppliersQuery } from "@/store/api/supplierApi";
 import ProductCategorySelector from "./ProductCategorySelector";
 import ProductMediaManager from "./ProductMediaManager";
 import ProductSpecificationEditor from "./ProductSpecificationEditor";
@@ -59,11 +61,21 @@ const defaults: ProductFormValues = {
   sortOrder: 0,
   isFeatured: false,
   isSearchable: true,
+
+  // Direct delivery / supplier fulfillment
+  isDirectDelivery: false,
+  alwaysAvailableForSale: false,
+  directDeliverySupplierId: null,
+  directDeliveryLeadTimeDays: null,
+  directDeliveryNote: null,
+
   metaTitle: null,
   metaDescription: null,
   metaKeywords: null,
   canonicalUrl: null,
+
   images: [],
+
   channels: [
     {
       channelCode: "WEBSITE",
@@ -80,6 +92,7 @@ const defaults: ProductFormValues = {
       channelDescription: null,
     },
   ],
+
   attributeValues: [],
   variants: [],
 };
@@ -108,6 +121,19 @@ export default function ProductForm({
 
   const brands = brandsResponse?.data || [];
 
+  const {
+    data: suppliersResponse,
+  } = useGetSuppliersQuery({
+    page: 1,
+    pageSize: 200,
+    isActive: true,
+    sortBy: "name",
+    sortDirection: "ASC",
+  });
+
+  const suppliers =
+    suppliersResponse?.data || [];
+
   useEffect(() => {
     setValues(product ? mapProduct(product) : defaults);
     setSlugEdited(Boolean(product?.slug));
@@ -124,6 +150,21 @@ export default function ProductForm({
     if (!values.name.trim()) return "Product name is required.";
     if (!values.slug.trim()) return "Product URL slug is required.";
     if (!values.primaryCategoryId) return "Select a primary category.";
+
+    if (
+      values.isDirectDelivery &&
+      !values.directDeliverySupplierId
+    ) {
+      return "Select a supplier for this direct-delivery product.";
+    }
+
+    if (
+      values.isDirectDelivery &&
+      values.directDeliveryLeadTimeDays !== null &&
+      Number(values.directDeliveryLeadTimeDays) < 0
+    ) {
+      return "Direct-delivery lead time cannot be negative.";
+    }
 
     if (
       values.variants.some(
@@ -468,11 +509,134 @@ if (
             </Field>
           </Card>
 
+          <Card
+  icon={<Truck size={18} />}
+  title="Fulfillment"
+  description="Configure how this product can be sold and fulfilled."
+>
+  <Toggle
+    label="Always Available For Sale"
+    description="Allow customers to purchase this product when physical stock is unavailable. Express delivery and store pickup still require actual stock."
+    checked={
+      values.alwaysAvailableForSale
+    }
+    onChange={(checked) =>
+      setField(
+        "alwaysAvailableForSale",
+        checked
+      )
+    }
+  />
+
+  <Toggle
+    label="Direct delivery"
+    description="Enable when this product is not stocked by MyShops and will be delivered directly by the supplier."
+    checked={values.isDirectDelivery}
+    onChange={(checked) => {
+      setValues((current) => ({
+        ...current,
+        isDirectDelivery: checked,
+        directDeliverySupplierId: checked
+          ? current.directDeliverySupplierId
+          : null,
+        directDeliveryLeadTimeDays: checked
+          ? current.directDeliveryLeadTimeDays
+          : null,
+        directDeliveryNote: checked
+          ? current.directDeliveryNote
+          : null,
+      }));
+    }}
+  />
+
+            {values.isDirectDelivery ? (
+              <div className="space-y-5 rounded-xl border border-[#e1e3e5] bg-[#fafbfb] p-4">
+                <Field label="Supplier" required>
+                  <select
+                    value={values.directDeliverySupplierId || ""}
+                    onChange={(event) =>
+                      setField(
+                        "directDeliverySupplierId",
+                        event.target.value || null
+                      )
+                    }
+                    className="admin-input"
+                  >
+                    <option value="">Select supplier</option>
+
+                    {suppliers.map((supplier) => (
+                      <option
+                        key={supplier.id}
+                        value={supplier.id}
+                      >
+                        {supplier.name} · {supplier.code}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="Lead time (days)">
+                  <input
+                    type="number"
+                    min={0}
+                    max={365}
+                    value={
+                      values.directDeliveryLeadTimeDays ??
+                      ""
+                    }
+                    onChange={(event) =>
+                      setField(
+                        "directDeliveryLeadTimeDays",
+                        event.target.value === ""
+                          ? null
+                          : Number(event.target.value)
+                      )
+                    }
+                    className="admin-input"
+                    placeholder="e.g. 2"
+                  />
+                </Field>
+
+                <Field label="Delivery note">
+                  <textarea
+                    rows={3}
+                    maxLength={500}
+                    value={values.directDeliveryNote || ""}
+                    onChange={(event) =>
+                      setField(
+                        "directDeliveryNote",
+                        event.target.value
+                      )
+                    }
+                    className="admin-input min-h-[90px] resize-y py-3"
+                    placeholder="e.g. Delivered directly by the supplier within 2–3 working days."
+                  />
+                </Field>
+
+                <div className="rounded-lg border border-[#f3d9a4] bg-[#fff8e6] p-3 text-xs leading-5 text-[#6d4c00]">
+                  Direct-delivery products do not use MyShops location inventory and should not be offered for store pickup.
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[#dfe3e8] bg-[#f6f6f7] p-4 text-xs leading-5 text-[#6d7175]">
+                This product uses normal MyShops location inventory. Website availability can be calculated from consolidated available stock.
+              </div>
+            )}
+          </Card>
+
           <section className="rounded-2xl border border-[#e1e3e5] bg-white p-5 shadow-sm">
             <h2 className="text-sm font-semibold">Product summary</h2>
             <dl className="mt-4 space-y-3 text-sm">
               <Summary label="Brand" value={selectedBrand?.name || "No brand"} />
               <Summary label="Type" value={values.productType} />
+              <Summary
+                label="Fulfillment"
+                value={
+                  values.isDirectDelivery
+                    ? "Supplier direct"
+                    : "MyShops stock"
+                }
+              />
               <Summary label="Categories" value={String(values.categoryIds.length)} />
               <Summary label="Images" value={String(values.images.length)} />
               <Summary label="Variants" value={String(values.variants.length)} />
@@ -512,38 +676,137 @@ if (
   );
 }
 
-function mapProduct(product: Product): ProductFormValues {
+function mapProduct(
+  product: Product
+): ProductFormValues {
   return {
-    name: product.name,
-    slug: product.slug,
-    productType: product.productType,
-    status: product.status,
-    parentSku: product.parentSku || null,
-    brandId: product.brandId || null,
-    primaryCategoryId: product.primaryCategoryId || null,
+    name:
+      product.name,
+
+    slug:
+      product.slug,
+
+    productType:
+      product.productType,
+
+    status:
+      product.status,
+
+    parentSku:
+      product.parentSku ||
+      null,
+
+    brandId:
+      product.brandId ||
+      null,
+
+    primaryCategoryId:
+      product.primaryCategoryId ||
+      null,
+
     categoryIds:
-      product.categoryAssignments?.map((assignment) => assignment.categoryId) || [],
-    shortDescription: product.shortDescription || null,
-    description: product.description || null,
-    features: product.features || [],
-    whatsInTheBox: product.whatsInTheBox || [],
-    warrantyText: product.warrantyText || null,
-    taxCode: product.taxCode || null,
-    taxPercent: Number(product.taxPercent || 0),
-    sortOrder: product.sortOrder || 0,
-    isFeatured: product.isFeatured,
-    isSearchable: product.isSearchable,
-    metaTitle: product.metaTitle || null,
-    metaDescription: product.metaDescription || null,
-    metaKeywords: product.metaKeywords || null,
-    canonicalUrl: product.canonicalUrl || null,
-    images: product.images || [],
-    channels: product.channels || [],
-    attributeValues: product.attributeValues || [],
-    variants: product.variants || [],
+      product.categoryAssignments?.map(
+        (
+          assignment
+        ) =>
+          assignment.categoryId
+      ) || [],
+
+    shortDescription:
+      product.shortDescription ||
+      null,
+
+    description:
+      product.description ||
+      null,
+
+    features:
+      product.features ||
+      [],
+
+    whatsInTheBox:
+      product.whatsInTheBox ||
+      [],
+
+    warrantyText:
+      product.warrantyText ||
+      null,
+
+    taxCode:
+      product.taxCode ||
+      null,
+
+    taxPercent:
+      Number(
+        product.taxPercent ||
+        0
+      ),
+
+    sortOrder:
+      product.sortOrder ||
+      0,
+
+    isFeatured:
+      product.isFeatured,
+
+    isSearchable:
+      product.isSearchable,
+    
+      alwaysAvailableForSale:
+      product.alwaysAvailableForSale ===
+      true,
+    
+
+    // Direct delivery / supplier fulfillment
+    isDirectDelivery:
+      product.isDirectDelivery ===
+      true,
+
+    directDeliverySupplierId:
+      product.directDeliverySupplierId ||
+      null,
+
+    directDeliveryLeadTimeDays:
+      product.directDeliveryLeadTimeDays ??
+      null,
+
+    directDeliveryNote:
+      product.directDeliveryNote ||
+      null,
+
+    metaTitle:
+      product.metaTitle ||
+      null,
+
+    metaDescription:
+      product.metaDescription ||
+      null,
+
+    metaKeywords:
+      product.metaKeywords ||
+      null,
+
+    canonicalUrl:
+      product.canonicalUrl ||
+      null,
+
+    images:
+      product.images ||
+      [],
+
+    channels:
+      product.channels ||
+      [],
+
+    attributeValues:
+      product.attributeValues ||
+      [],
+
+    variants:
+      product.variants ||
+      [],
   };
 }
-
 function Card({
   title,
   description,

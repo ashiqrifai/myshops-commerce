@@ -5,23 +5,47 @@ const sectionTypes = [
     name: "Announcement Bar",
     code: "ANNOUNCEMENT_BAR",
     description:
-      "A configurable announcement or promotional message displayed above the header.",
+      "Carousel-style announcement strip displayed above the storefront header.",
     category: "GLOBAL",
     icon: "Megaphone",
     supportedChannels: ["WEBSITE", "KIOSK"],
     displayOrder: 10,
     defaultSettings: {
-      backgroundColor: "#111111",
-      textColor: "#FFFFFF",
+      enabled: true,
+      autoplay: true,
+      autoplayDelayMs: 4000,
+      transition: "FADE",
       height: 36,
-      alignment: "CENTER",
-      behavior: "STATIC",
-      dismissible: false,
+      mobileHeight: 36,
+      backgroundColor: "#28ABB5",
+      textColor: "#FFFFFF",
+      hideOnMobile: false,
     },
     defaultContent: {
-      text: "Welcome to MyShops",
-      linkText: "",
-      linkUrl: "",
+      slides: [
+        {
+          id: "announcement-1",
+          text: "Free Delivery in Dubai, Abu Dhabi & Sharjah",
+          linkText: "",
+          linkUrl: "",
+          desktopImageUrl: "",
+          mobileImageUrl: "",
+          backgroundColor: "#28ABB5",
+          textColor: "#FFFFFF",
+          isActive: true,
+        },
+        {
+          id: "announcement-2",
+          text: "Use code SAVE10 for 10% off mobiles",
+          linkText: "",
+          linkUrl: "",
+          desktopImageUrl: "",
+          mobileImageUrl: "",
+          backgroundColor: "#28ABB5",
+          textColor: "#FFFFFF",
+          isActive: true,
+        },
+      ],
     },
   },
 
@@ -93,6 +117,18 @@ const sectionTypes = [
     defaultContent: {
       slides: [],
     },
+  },
+
+  {
+    name: "Hero Promo Grid",
+    code: "HERO_PROMO_GRID",
+    description: "Main carousel with two side promos and brand strip.",
+    category: "HERO",
+    icon: "PanelsTopLeft",
+    supportedChannels: ["WEBSITE", "KIOSK"],
+    displayOrder: 15,
+    defaultSettings: { autoplay: true, autoplayDelayMs: 5000, showArrows: true, showDots: true, heroHeightDesktop: 450, heroHeightMobile: 300, showBrandStrip: true },
+    defaultContent: { slides: [], promoCards: [], brandItems: [] },
   },
 
   {
@@ -353,6 +389,105 @@ const sectionTypes = [
     },
   },
 
+
+  {
+    name: "Pre-Booking",
+    code: "PRE_BOOKING",
+  
+    description:
+      "Campaign-driven pre-booking section with CMS-controlled banner, countdown, CTA and product carousel.",
+  
+    category: "MARKETING",
+  
+    icon: "CalendarClock",
+  
+    supportedChannels: [
+      "WEBSITE",
+      "KIOSK",
+    ],
+  
+    displayOrder: 35,
+  
+    defaultSettings: {
+      layout: "SIDE_BANNER",
+  
+      showLaunchDate: true,
+  
+      showBookingDeadline: true,
+  
+      showCountdown: true,
+  
+      showAvailabilityBadge: true,
+  
+      showNavigation: true,
+  
+      maximumProducts: 8,
+  
+      backgroundColor: "#FFFFFF",
+  
+      textColor: "#111827",
+  
+      accentColor: "#28ABB5",
+  
+      borderRadius: 18,
+    },
+  
+    defaultContent: {
+      /*
+      |--------------------------------------------------------------------------
+      | Campaign Source
+      |--------------------------------------------------------------------------
+      |
+      | The selected pre-booking campaign is the source of truth for:
+      |
+      | - booking start/end dates
+      | - campaign status
+      | - products
+      | - bundles
+      | - protection
+      | - allocations
+      |--------------------------------------------------------------------------
+      */
+  
+      campaignId: null,
+  
+      /*
+      |--------------------------------------------------------------------------
+      | Marketing Content
+      |--------------------------------------------------------------------------
+      */
+  
+      badge: "PRE-BOOK NOW",
+  
+      title: "Pre-Book Now",
+  
+      subtitle: "",
+  
+      buttonLabel: "View All",
+  
+      /*
+       * Leave blank by default.
+       *
+       * Public storefront resolver will later generate:
+       *
+       * /pre-booking/{campaign-slug}
+       */
+      buttonUrl: "",
+  
+      openInNewTab: false,
+  
+      /*
+      |--------------------------------------------------------------------------
+      | CMS Media
+      |--------------------------------------------------------------------------
+      */
+  
+      desktopAssetId: null,
+  
+      mobileAssetId: null,
+    },
+  },
+
   {
     name: "Promotion Banner",
     code: "PROMOTION_BANNER",
@@ -376,6 +511,215 @@ const sectionTypes = [
       subtitle: "",
       buttonText: "",
       buttonUrl: "",
+    },
+  },
+
+  {
+    name:
+      "Promotion Banner Grid",
+  
+    code:
+      "PROMOTION_BANNER_GRID",
+  
+    description:
+      "Responsive promotional artwork arranged with a dynamic 12-column grid.",
+  
+    category:
+      "MARKETING",
+  
+    icon:
+      "Grid3X3",
+  
+    supportedChannels: [
+      "WEBSITE",
+      "KIOSK",
+    ],
+  
+    displayOrder:
+      15,
+  
+    defaultSettings: {
+      layoutPreset:
+        "TWO_EQUAL",
+  
+      heightMode:
+        "UNIFORM",
+  
+      mobileDisplayMode:
+        "STACK",
+  
+      desktopGap:
+        12,
+  
+      tabletGap:
+        8,
+  
+      mobileGap:
+        6,
+  
+      desktopHeight:
+        180,
+  
+      tabletHeight:
+        160,
+  
+      mobileHeight:
+        140,
+  
+      borderRadius:
+        8,
+  
+      sectionPaddingTop:
+        0,
+  
+      sectionPaddingBottom:
+        0,
+    },
+  
+    defaultContent: {
+      title:
+        "",
+  
+      subtitle:
+        "",
+  
+      items: [
+        {
+          id:
+            "promotion-banner-1",
+  
+          desktopAssetId:
+            null,
+  
+          tabletAssetId:
+            null,
+  
+          mobileAssetId:
+            null,
+  
+          altText:
+            "",
+  
+          /*
+          |--------------------------------------------------------------------------
+          | Whole Banner Click
+          |--------------------------------------------------------------------------
+          */
+  
+          linkUrl:
+            "",
+  
+          openInNewTab:
+            false,
+  
+          /*
+          |--------------------------------------------------------------------------
+          | CTA
+          |--------------------------------------------------------------------------
+          */
+  
+          buttonLabel:
+            "Shop Now",
+  
+          buttonUrl:
+            "",
+  
+          buttonPosition:
+            "LEFT",
+  
+          /*
+          |--------------------------------------------------------------------------
+          | Layout
+          |--------------------------------------------------------------------------
+          */
+  
+          desktopSpan:
+            6,
+  
+          tabletSpan:
+            3,
+  
+          mobileSpan:
+            1,
+  
+          desktopHeight:
+            180,
+  
+          tabletHeight:
+            160,
+  
+          mobileHeight:
+            140,
+  
+          imageFit:
+            "COVER",
+  
+          imagePosition:
+            "CENTER",
+        },
+  
+        {
+          id:
+            "promotion-banner-2",
+  
+          desktopAssetId:
+            null,
+  
+          tabletAssetId:
+            null,
+  
+          mobileAssetId:
+            null,
+  
+          altText:
+            "",
+  
+          linkUrl:
+            "",
+  
+          openInNewTab:
+            false,
+  
+          /*
+          |--------------------------------------------------------------------------
+          | CTA
+          |--------------------------------------------------------------------------
+          */
+  
+          buttonLabel:
+            "Shop Now",
+  
+          buttonUrl:
+            "",
+  
+          buttonPosition:
+            "LEFT",
+  
+          desktopSpan:
+            6,
+  
+          tabletSpan:
+            3,
+  
+          mobileSpan:
+            1,
+  
+          desktopHeight:
+            180,
+  
+          tabletHeight:
+            160,
+  
+          mobileHeight:
+            140,
+  
+          imageFit:
+            "COVER",
+  
+          imagePosition:
+            "CENTER",
+        },
+      ],
     },
   },
 
@@ -467,6 +811,110 @@ const sectionTypes = [
       subtitle:
         "Receive the latest products, offers and electronics news.",
       buttonText: "Subscribe",
+    },
+  },
+
+  {
+    name:
+      "Visit a MyShops Store",
+  
+    code:
+      "STORE_VISIT_CAROUSEL",
+  
+    description:
+      "Fixed store-visit content panel with a responsive carousel of MyShops store locations.",
+  
+    category:
+      "MARKETING",
+  
+    icon:
+      "Store",
+  
+    supportedChannels: [
+      "WEBSITE",
+      "KIOSK",
+    ],
+  
+    displayOrder:
+      55,
+  
+    defaultSettings: {
+      autoplay:
+        true,
+  
+      autoplayInterval:
+        5000,
+  
+      showArrows:
+        true,
+  
+      showDots:
+        true,
+  
+      loop:
+        true,
+  
+      desktopHeight:
+        420,
+  
+      mobileImageHeight:
+        220,
+  
+      leftWidthPercent:
+        28,
+  
+      borderRadius:
+        22,
+  
+      backgroundColor:
+        "#F7F7F7",
+  
+      textColor:
+        "#111111",
+  
+      imageFit:
+        "COVER",
+  
+      itemsDesktop:
+        3,
+  
+      itemsTablet:
+        2,
+  
+      itemsMobile:
+        1,
+  
+      cardImageHeightDesktop:
+        190,
+  
+      cardImageHeightMobile:
+        170,
+  
+      sectionPaddingX:
+        24,
+  
+      sectionPaddingY:
+        20,
+    },
+  
+    defaultContent: {
+      eyebrow:
+        "VISIT US",
+  
+      title:
+        "Visit a MyShops Store",
+  
+      description:
+        "Experience the latest technology in person at a MyShops store near you.",
+  
+      buttonLabel:
+        "Find a Store",
+  
+      buttonUrl:
+        "/stores",
+  
+      stores:
+        [],
     },
   },
 

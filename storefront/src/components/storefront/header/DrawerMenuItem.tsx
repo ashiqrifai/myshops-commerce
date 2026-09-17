@@ -78,9 +78,22 @@ export default function DrawerMenuItem({
 
   return (
     <Link
-      href={getItemUrl(item)}
-      onClick={onNavigate}
-      tabIndex={open ? 0 : -1}
+      href={
+        getItemUrl(
+          item
+        )
+      }
+      prefetch={
+        false
+      }
+      onClick={
+        onNavigate
+      }
+      tabIndex={
+        open
+          ? 0
+          : -1
+      }
       className="flex min-h-11 items-center justify-between gap-4 px-6 py-2.5 transition-colors hover:bg-slate-100 focus-visible:bg-slate-100 focus-visible:outline-none"
     >
       <span className="min-w-0">

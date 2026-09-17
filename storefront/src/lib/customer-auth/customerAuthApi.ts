@@ -35,11 +35,11 @@ interface CustomerAuthEnvelope {
     message?:
       string;
 
-      details?: Array<{
-        field?: string;
-        message?: string;
-        value?: unknown;
-      }>;
+    details?: Array<{
+      field?: string;
+      message?: string;
+      value?: unknown;
+    }>;
   };
 
   message?:
@@ -53,19 +53,33 @@ interface CustomerMeEnvelope {
     CustomerAccount;
 
   error?: {
-    code?:
-      string;
-
-    message?:
-      string;
+    code?: string;
+    message?: string;
   };
 
-  message?:
-    string;
+  message?: string;
+}
+
+interface CustomerMessageEnvelope {
+  success: boolean;
+
+  message?: string;
+
+  error?: {
+    code?: string;
+    message?: string;
+
+    details?: Array<{
+      field?: string;
+      message?: string;
+      value?: unknown;
+    }>;
+  };
 }
 
 export class CustomerAuthApiError extends Error {
   status: number;
+
   code:
     | string
     | undefined;
@@ -77,12 +91,9 @@ export class CustomerAuthApiError extends Error {
   }: {
     message: string;
     status: number;
-    code?:
-      string;
+    code?: string;
   }) {
-    super(
-      message
-    );
+    super(message);
 
     this.name =
       "CustomerAuthApiError";
@@ -133,13 +144,16 @@ const getDeviceId =
     return generated;
   };
 
-  const parseError = async (
-    response: Response
+const parseError =
+  async (
+    response:
+      Response
   ) => {
     let payload:
       | CustomerAuthEnvelope
+      | CustomerMessageEnvelope
       | undefined;
-  
+
     try {
       payload =
         await response.json();
@@ -147,10 +161,12 @@ const getDeviceId =
       payload =
         undefined;
     }
-  
+
     const validationDetails =
-      payload?.error?.details;
-  
+      payload
+        ?.error
+        ?.details;
+
     const firstValidationMessage =
       Array.isArray(
         validationDetails
@@ -169,18 +185,23 @@ const getDeviceId =
               )
           )?.message
         : undefined;
-  
+
     throw new CustomerAuthApiError({
       status:
         response.status,
-  
+
       code:
-        payload?.error?.code,
-  
+        payload
+          ?.error
+          ?.code,
+
       message:
         firstValidationMessage ||
-        payload?.error?.message ||
-        payload?.message ||
+        payload
+          ?.error
+          ?.message ||
+        payload
+          ?.message ||
         `Customer authentication request failed. HTTP ${response.status}`,
     });
   };
@@ -196,18 +217,17 @@ const request =
     path: string;
 
     method?:
-      "GET" |
-      "POST" |
-      "PATCH" |
-      "PUT" |
-      "DELETE";
+      | "GET"
+      | "POST"
+      | "PATCH"
+      | "PUT"
+      | "DELETE";
 
-    body?:
-      unknown;
+    body?: unknown;
 
     accessToken?:
-      string |
-      null;
+      | string
+      | null;
   }): Promise<T> => {
     const headers:
       Record<
@@ -263,33 +283,21 @@ const request =
     }
 
     return (
-      await response
-        .json()
+      await response.json()
     ) as T;
   };
 
 export const registerCustomer =
   async (
     input: {
-      firstName:
-        string;
-
-      lastName?:
-        string;
-
-      email:
-        string;
-
-      mobile?:
-        string;
-
-      password:
-        string;
-
+      firstName: string;
+      lastName?: string;
+      email: string;
+      mobile?: string;
+      password: string;
       preferredLanguage?:
-        "en" |
-        "ar";
-
+        | "en"
+        | "ar";
       marketingConsent?:
         boolean;
     }
@@ -313,12 +321,9 @@ export const registerCustomer =
       !payload.data
     ) {
       throw new CustomerAuthApiError({
-        status:
-          500,
-
+        status: 500,
         code:
           "INVALID_CUSTOMER_REGISTER_RESPONSE",
-
         message:
           "The registration API returned an invalid response.",
       });
@@ -330,11 +335,8 @@ export const registerCustomer =
 export const loginCustomer =
   async (
     input: {
-      email:
-        string;
-
-      password:
-        string;
+      email: string;
+      password: string;
     }
   ) => {
     const payload =
@@ -356,18 +358,95 @@ export const loginCustomer =
       !payload.data
     ) {
       throw new CustomerAuthApiError({
-        status:
-          500,
-
+        status: 500,
         code:
           "INVALID_CUSTOMER_LOGIN_RESPONSE",
-
         message:
           "The login API returned an invalid response.",
       });
     }
 
     return payload.data;
+  };
+
+export const forgotCustomerPassword =
+  async (
+    input: {
+      email: string;
+    }
+  ) => {
+    const payload =
+      await request<
+        CustomerMessageEnvelope
+      >({
+        path:
+          "/public/customer-auth/forgot-password",
+
+        method:
+          "POST",
+
+        body:
+          input,
+      });
+
+    if (
+      !payload.success
+    ) {
+      throw new CustomerAuthApiError({
+        status: 500,
+        code:
+          "INVALID_FORGOT_PASSWORD_RESPONSE",
+        message:
+          "The password reset API returned an invalid response.",
+      });
+    }
+
+    return {
+      message:
+        payload.message ||
+        "If an account exists for that email address, a password reset link has been sent.",
+    };
+  };
+
+export const resetCustomerPassword =
+  async (
+    input: {
+      token: string;
+      password: string;
+      confirmPassword: string;
+    }
+  ) => {
+    const payload =
+      await request<
+        CustomerMessageEnvelope
+      >({
+        path:
+          "/public/customer-auth/reset-password",
+
+        method:
+          "POST",
+
+        body:
+          input,
+      });
+
+    if (
+      !payload.success
+    ) {
+      throw new CustomerAuthApiError({
+        status: 500,
+        code:
+          "INVALID_RESET_PASSWORD_RESPONSE",
+        message:
+          "The password reset API returned an invalid response.",
+      });
+    }
+
+    return {
+      message:
+        payload.message ||
+        "Your password has been reset successfully.",
+    };
   };
 
 export const refreshCustomer =
@@ -391,12 +470,9 @@ export const refreshCustomer =
       !payload.data
     ) {
       throw new CustomerAuthApiError({
-        status:
-          500,
-
+        status: 500,
         code:
           "INVALID_CUSTOMER_REFRESH_RESPONSE",
-
         message:
           "The refresh API returned an invalid response.",
       });
@@ -425,12 +501,9 @@ export const getCurrentCustomer =
       !payload.data
     ) {
       throw new CustomerAuthApiError({
-        status:
-          500,
-
+        status: 500,
         code:
           "INVALID_CUSTOMER_ME_RESPONSE",
-
         message:
           "The customer profile API returned an invalid response.",
       });
@@ -442,8 +515,7 @@ export const getCurrentCustomer =
 export const logoutCustomer =
   async () => {
     await request<{
-      success:
-        boolean;
+      success: boolean;
     }>({
       path:
         "/public/customer-auth/logout",
@@ -462,8 +534,7 @@ export const logoutCustomerFromAllDevices =
       string
   ) => {
     await request<{
-      success:
-        boolean;
+      success: boolean;
     }>({
       path:
         "/public/customer-auth/logout-all",

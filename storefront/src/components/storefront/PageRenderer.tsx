@@ -20,14 +20,25 @@ export default function PageRenderer({
           ?.desktop !== false
     )
     .sort(
-      (first, second) =>
+      (
+        first,
+        second
+      ) =>
         first.displayOrder -
         second.displayOrder
     );
 
-  if (!visibleSections.length) {
+  /*
+  |--------------------------------------------------------------------------
+  | Empty State
+  |--------------------------------------------------------------------------
+  */
+
+  if (
+    !visibleSections.length
+  ) {
     return (
-      <main className="flex flex-1 items-center justify-center px-4 py-20 sm:px-6">
+      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6">
         <div className="w-full max-w-2xl rounded-storefront-card border border-storefront bg-storefront-surface p-8 text-center shadow-sm">
           <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-storefront-secondary text-2xl">
             🛍️
@@ -53,13 +64,37 @@ export default function PageRenderer({
     );
   }
 
+  /*
+  |--------------------------------------------------------------------------
+  | Homepage Sections
+  |--------------------------------------------------------------------------
+  |
+  | gap-4 = 16px
+  |
+  | This is now the standard vertical space
+  | between every CMS section.
+  |
+  |--------------------------------------------------------------------------
+  */
+
   return (
-    <main className="flex-1">
+    <main
+      className="
+        flex
+        flex-1
+        flex-col
+        gap-4
+      "
+    >
       {visibleSections.map(
         (section) => (
           <SectionRenderer
-            key={section.id}
-            section={section}
+            key={
+              section.id
+            }
+            section={
+              section
+            }
           />
         )
       )}

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+
 import {
   useEffect,
   useMemo,
@@ -14,15 +15,12 @@ import {
   X,
 } from "lucide-react";
 
-
 import type {
   StorefrontNavigationItem,
   StorefrontNavigationMenu,
   StorefrontSection,
   StorefrontThemeSettings,
 } from "@/types/storefront";
-
-
 
 interface MainNavigationProps {
   section:
@@ -61,10 +59,12 @@ interface PromotionSettings {
   ctaUrl?: string | null;
   textColor?: string;
   backgroundColor?: string;
+
   textAlign?:
     | "LEFT"
     | "CENTER"
     | "RIGHT";
+
   overlay?:
     | "NONE"
     | "LIGHT"
@@ -72,49 +72,89 @@ interface PromotionSettings {
 }
 
 interface MobileNavigationLevel {
-  title: string;
-  items: StorefrontNavigationItem[];
+  title:
+    string;
+
+  items:
+    StorefrontNavigationItem[];
 }
 
-const getBackendBaseUrl = () => {
-  return (
-    process.env
-      .NEXT_PUBLIC_BACKEND_URL ||
-    "http://localhost:5080"
-  ).replace(/\/$/, "");
-};
+/*
+|--------------------------------------------------------------------------
+| Backend URL
+|--------------------------------------------------------------------------
+*/
+
+const getBackendBaseUrl =
+  () => {
+    return (
+      process.env
+        .NEXT_PUBLIC_BACKEND_URL ||
+      "http://localhost:5080"
+    ).replace(
+      /\/$/,
+      ""
+    );
+  };
+
+/*
+|--------------------------------------------------------------------------
+| Media URL
+|--------------------------------------------------------------------------
+*/
 
 const resolveMediaUrl = (
-  value?: string | null
+  value?:
+    string |
+    null
 ) => {
   if (!value) {
     return null;
   }
 
   if (
-    value.startsWith("http://") ||
-    value.startsWith("https://") ||
-    value.startsWith("data:")
+    value.startsWith(
+      "http://"
+    ) ||
+    value.startsWith(
+      "https://"
+    ) ||
+    value.startsWith(
+      "data:"
+    )
   ) {
     return value;
   }
 
   const normalizedPath =
-    value.startsWith("/")
+    value.startsWith(
+      "/"
+    )
       ? value
       : `/${value}`;
 
-      return `${getBackendBaseUrl()}${normalizedPath}`;
+  return `${getBackendBaseUrl()}${normalizedPath}`;
 };
 
+/*
+|--------------------------------------------------------------------------
+| Navigation URL
+|--------------------------------------------------------------------------
+*/
+
 const getNavigationUrl = (
-  item: StorefrontNavigationItem
+  item:
+    StorefrontNavigationItem
 ) => {
-  if (item.url?.trim()) {
+  if (
+    item.url?.trim()
+  ) {
     return item.url.trim();
   }
 
-  switch (item.itemType) {
+  switch (
+    item.itemType
+  ) {
     case "CATEGORY":
       return item.referenceId
         ? `/category/${item.referenceId}`
@@ -140,39 +180,73 @@ const getNavigationUrl = (
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| Sort Items
+|--------------------------------------------------------------------------
+*/
+
 const sortNavigationItems = (
   items:
     | StorefrontNavigationItem[]
     | undefined
 ) => {
-  return [...(items || [])]
-    .filter((item) => item.isActive)
+  return [
+    ...(items ||
+      []),
+  ]
+    .filter(
+      (
+        item
+      ) =>
+        item.isActive
+    )
     .sort(
-      (a, b) =>
-        (a.displayOrder || 0) -
-        (b.displayOrder || 0)
+      (
+        a,
+        b
+      ) =>
+        (a.displayOrder ||
+          0) -
+        (b.displayOrder ||
+          0)
     );
 };
 
+/*
+|--------------------------------------------------------------------------
+| Promotion Helpers
+|--------------------------------------------------------------------------
+*/
+
 const isPromotionItem = (
-  item: StorefrontNavigationItem
+  item:
+    StorefrontNavigationItem
 ) => {
-  return item.itemType === "PROMOTION";
+  return (
+    item.itemType ===
+    "PROMOTION"
+  );
 };
 
 const getPromotionSettings = (
-  item: StorefrontNavigationItem
+  item:
+    StorefrontNavigationItem
 ): PromotionSettings => {
   const settings =
-    item.settings || {};
+    item.settings ||
+    {};
 
   const promotion =
     settings.promotion;
 
   if (
     promotion &&
-    typeof promotion === "object" &&
-    !Array.isArray(promotion)
+    typeof promotion ===
+      "object" &&
+    !Array.isArray(
+      promotion
+    )
   ) {
     return promotion as PromotionSettings;
   }
@@ -180,12 +254,21 @@ const getPromotionSettings = (
   return {};
 };
 
+/*
+|--------------------------------------------------------------------------
+| Badge
+|--------------------------------------------------------------------------
+*/
+
 function NavigationBadge({
   item,
 }: {
-  item: StorefrontNavigationItem;
+  item:
+    StorefrontNavigationItem;
 }) {
-  if (!item.badgeText) {
+  if (
+    !item.badgeText
+  ) {
     return null;
   }
 
@@ -193,56 +276,91 @@ function NavigationBadge({
     <span
       className="ml-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
       style={{
-        color: item.badgeColor
-          ? "#FFFFFF"
-          : "#111318",
+        color:
+          item.badgeColor
+            ? "#FFFFFF"
+            : "#111318",
 
         backgroundColor:
           item.badgeColor ||
           "#F5D547",
       }}
     >
-      {item.badgeText}
+      {
+        item.badgeText
+      }
     </span>
   );
 }
+
+/*
+|--------------------------------------------------------------------------
+| Navigation Link
+|--------------------------------------------------------------------------
+*/
 
 function NavigationLink({
   item,
   className = "",
   onClick,
 }: {
-  item: StorefrontNavigationItem;
-  className?: string;
-  onClick?: () => void;
+  item:
+    StorefrontNavigationItem;
+
+  className?:
+    string;
+
+  onClick?:
+    () => void;
 }) {
   const href =
-    getNavigationUrl(item);
+    getNavigationUrl(
+      item
+    );
 
   const content = (
     <>
-      <span>{item.label}</span>
+      <span>
+        {
+          item.label
+        }
+      </span>
 
       <NavigationBadge
-        item={item}
+        item={
+          item
+        }
       />
     </>
   );
 
-  if (href === "#") {
+  if (
+    href === "#"
+  ) {
     return (
       <span
-        className={className}
-        onClick={onClick}
+        className={
+          className
+        }
+        onClick={
+          onClick
+        }
       >
-        {content}
+        {
+          content
+        }
       </span>
     );
   }
 
   return (
     <Link
-      href={href}
+      href={
+        href
+      }
+      prefetch={
+        false
+      }
       target={
         item.openInNewTab
           ? "_blank"
@@ -253,23 +371,40 @@ function NavigationLink({
           ? "noopener noreferrer"
           : undefined
       }
-      className={className}
-      onClick={onClick}
+      className={
+        className
+      }
+      onClick={
+        onClick
+      }
     >
-      {content}
+      {
+        content
+      }
     </Link>
   );
 }
+
+/*
+|--------------------------------------------------------------------------
+| Promotion Card
+|--------------------------------------------------------------------------
+*/
 
 function PromotionCard({
   item,
   showImages,
 }: {
-  item: StorefrontNavigationItem;
-  showImages: boolean;
+  item:
+    StorefrontNavigationItem;
+
+  showImages:
+    boolean;
 }) {
   const promotion =
-    getPromotionSettings(item);
+    getPromotionSettings(
+      item
+    );
 
   const imageUrl =
     showImages
@@ -289,7 +424,8 @@ function PromotionCard({
     "#";
 
   const textAlignment =
-    promotion.textAlign === "CENTER"
+    promotion.textAlign ===
+    "CENTER"
       ? "text-center items-center"
       : promotion.textAlign ===
           "RIGHT"
@@ -297,7 +433,8 @@ function PromotionCard({
         : "text-left items-start";
 
   const overlayClass =
-    promotion.overlay === "DARK"
+    promotion.overlay ===
+    "DARK"
       ? "bg-black/55"
       : promotion.overlay ===
           "LIGHT"
@@ -309,20 +446,22 @@ function PromotionCard({
       className="group/promo relative flex min-h-[205px] overflow-hidden rounded-2xl border border-black/[0.08] shadow-[0_8px_25px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(15,23,42,0.16)]"
       style={{
         backgroundColor:
-          promotion.backgroundColor ||
+          promotion
+            .backgroundColor ||
           "#303030",
 
         color:
-          promotion.textColor ||
+          promotion
+            .textColor ||
           "#FFFFFF",
       }}
     >
       {imageUrl ? (
-        // Using a normal image here allows
-        // backend-hosted dynamic media.
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={imageUrl}
+          src={
+            imageUrl
+          }
           alt={
             item.mediaAsset
               ?.altText ||
@@ -341,7 +480,10 @@ function PromotionCard({
       >
         {promotion.eyebrow ? (
           <span className="text-[11px] font-bold uppercase tracking-[0.16em] opacity-85">
-            {promotion.eyebrow}
+            {
+              promotion
+                .eyebrow
+            }
           </span>
         ) : null}
 
@@ -352,34 +494,45 @@ function PromotionCard({
 
         {promotion.subtitle ? (
           <span className="text-sm font-medium opacity-90">
-            {promotion.subtitle}
+            {
+              promotion
+                .subtitle
+            }
           </span>
         ) : null}
 
         {promotion.description ? (
           <span className="text-xs leading-relaxed opacity-80">
             {
-              promotion.description
+              promotion
+                .description
             }
           </span>
         ) : null}
 
         {promotion.ctaText ? (
           <span className="mt-3 inline-flex w-fit items-center rounded-full bg-white px-4 py-2 text-xs font-black text-black shadow-sm transition-transform group-hover/promo:translate-x-1">
-            {promotion.ctaText}
+            {
+              promotion
+                .ctaText
+            }
           </span>
         ) : null}
       </div>
     </div>
   );
 
-  if (href === "#") {
+  if (
+    href === "#"
+  ) {
     return card;
   }
 
   return (
     <Link
-      href={href}
+      href={
+        href
+      }
       target={
         item.openInNewTab
           ? "_blank"
@@ -392,32 +545,52 @@ function PromotionCard({
       }
       className="block"
     >
-      {card}
+      {
+        card
+      }
     </Link>
   );
 }
+
+/*
+|--------------------------------------------------------------------------
+| Desktop Mega Menu
+|--------------------------------------------------------------------------
+*/
 
 function DesktopMegaMenu({
   item,
   columns,
   showImages,
 }: {
-  item: StorefrontNavigationItem;
-  columns: number;
-  showImages: boolean;
+  item:
+    StorefrontNavigationItem;
+
+  columns:
+    number;
+
+  showImages:
+    boolean;
 }) {
   const children =
     sortNavigationItems(
       item.children
     ).filter(
-      (child) =>
-        child.desktopVisible !== false
+      (
+        child
+      ) =>
+        child.desktopVisible !==
+        false
     );
 
   const normalItems =
     children.filter(
-      (child) =>
-        !isPromotionItem(child)
+      (
+        child
+      ) =>
+        !isPromotionItem(
+          child
+        )
     );
 
   const promotionItems =
@@ -427,21 +600,28 @@ function DesktopMegaMenu({
 
   const safeColumnCount =
     Math.min(
-      Math.max(columns, 1),
+      Math.max(
+        columns,
+        1
+      ),
       6
     );
 
   const groupedItems =
     Array.from(
       {
-        length: safeColumnCount,
+        length:
+          safeColumnCount,
       },
       () =>
         [] as StorefrontNavigationItem[]
     );
 
   normalItems.forEach(
-    (child, index) => {
+    (
+      child,
+      index
+    ) => {
       const requestedColumn =
         Number(
           child.columnNumber
@@ -451,159 +631,180 @@ function DesktopMegaMenu({
         Number.isFinite(
           requestedColumn
         ) &&
-        requestedColumn > 0
+        requestedColumn >
+          0
           ? Math.min(
-              requestedColumn - 1,
-              safeColumnCount - 1
+              requestedColumn -
+                1,
+              safeColumnCount -
+                1
             )
           : index %
             safeColumnCount;
 
       groupedItems[
         columnIndex
-      ].push(child);
+      ].push(
+        child
+      );
     }
   );
 
   return (
     <div className="storefront-mega-menu invisible absolute left-0 top-full z-50 w-full translate-y-3 opacity-0 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
-  <div
-  className={[
-    "border-t border-black/[0.05]",
-    "bg-white text-[#111318]",
-    "shadow-[0_24px_70px_rgba(15,23,42,0.16)]",
+      <div
+        className={[
+          "border-t border-black/[0.05]",
+          "bg-white text-[#111318]",
+          "shadow-[0_24px_70px_rgba(15,23,42,0.16)]",
 
-    /*
-     * Force every navigation destination
-     * inside the white mega menu to use
-     * dark text, regardless of item type.
-     */
-    "[&_a]:!text-[#111318]",
-    "[&_button]:!text-[#111318]",
+          "[&_a]:!text-[#111318]",
+          "[&_button]:!text-[#111318]",
 
-    /*
-     * Teal hover colour for all links.
-     */
-    "[&_a:hover]:!text-[#1597A1]",
-    "[&_button:hover]:!text-[#1597A1]",
-  ].join(" ")}
->
-      <div className="mx-auto grid max-w-[1440px] grid-cols-12 gap-8 px-8 py-8">
-        <div
-          className={
-            promotionItems.length
-              ? "col-span-8"
-              : "col-span-12"
-          }
-        >
+          "[&_a:hover]:!text-[#1597A1]",
+          "[&_button:hover]:!text-[#1597A1]",
+        ].join(
+          " "
+        )}
+      >
+        <div className="mx-auto grid max-w-[1440px] grid-cols-12 gap-8 px-8 py-8">
           <div
-            className="grid gap-x-8 gap-y-6"
-            style={{
-              gridTemplateColumns:
-                `repeat(${safeColumnCount}, minmax(0, 1fr))`,
-            }}
+            className={
+              promotionItems.length
+                ? "col-span-8"
+                : "col-span-12"
+            }
           >
-            {groupedItems.map(
-              (
-                columnItems,
-                columnIndex
-              ) => (
-                <div
-                  key={
-                    columnIndex
-                  }
-                  className="space-y-1"
-                >
-                  {columnItems.map(
-                    (child) => (
-                      <div
-                        key={
-                          child.id
-                        }
-                        className="mb-4"
-                      >
-                        <NavigationLink
-  item={child}
-  className="flex items-center py-2 text-sm font-semibold !text-[#111318] transition-colors hover:!text-[#1597A1]"
-/>
-
-                        {child
-                          .description ? (
-                          <p className="mt-1 text-xs leading-relaxed text-[#667085]">
-                            {
-                              child.description
+            <div
+              className="grid gap-x-8 gap-y-6"
+              style={{
+                gridTemplateColumns:
+                  `repeat(${safeColumnCount}, minmax(0, 1fr))`,
+              }}
+            >
+              {groupedItems.map(
+                (
+                  columnItems,
+                  columnIndex
+                ) => (
+                  <div
+                    key={
+                      columnIndex
+                    }
+                    className="space-y-1"
+                  >
+                    {columnItems.map(
+                      (
+                        child
+                      ) => (
+                        <div
+                          key={
+                            child.id
+                          }
+                          className="mb-4"
+                        >
+                          <NavigationLink
+                            item={
+                              child
                             }
-                          </p>
-                        ) : null}
+                            className="flex items-center py-2 text-sm font-semibold !text-[#111318] transition-colors hover:!text-[#1597A1]"
+                          />
 
-                        {child
-                          .children
-                          ?.length ? (
-                          <div className="mt-2 space-y-1.5 border-l border-black/10 pl-3">
-                            {sortNavigationItems(
-                              child.children
-                            )
-                              .filter(
-                                (
-                                  nested
-                                ) =>
-                                  nested.desktopVisible !==
-                                  false
+                          {child.description ? (
+                            <p className="mt-1 text-xs leading-relaxed text-[#667085]">
+                              {
+                                child.description
+                              }
+                            </p>
+                          ) : null}
+
+                          {child.children
+                            ?.length ? (
+                            <div className="mt-2 space-y-1.5 border-l border-black/10 pl-3">
+                              {sortNavigationItems(
+                                child.children
                               )
-                              .map(
-                                (
-                                  nested
-                                ) => (
-                                  <NavigationLink
-  key={nested.id}
-  item={nested}
-  className="flex items-center py-1 text-xs font-medium !text-[#667085] transition-colors hover:!text-[#1597A1]"
-/>
+                                .filter(
+                                  (
+                                    nested
+                                  ) =>
+                                    nested.mobileVisible !==
+                                    false
                                 )
-                              )}
-                          </div>
-                        ) : null}
-                      </div>
-                    )
-                  )}
-                </div>
-              )
-            )}
+                                .map(
+                                  (
+                                    nested
+                                  ) => (
+                                    <NavigationLink
+                                      key={
+                                        nested.id
+                                      }
+                                      item={
+                                        nested
+                                      }
+                                      className="flex items-center py-1 text-xs font-medium !text-[#667085] transition-colors hover:!text-[#1597A1]"
+                                    />
+                                  )
+                                )}
+                            </div>
+                          ) : null}
+                        </div>
+                      )
+                    )}
+                  </div>
+                )
+              )}
+            </div>
           </div>
-        </div>
 
-        {promotionItems.length ? (
-          <div className="col-span-4 grid gap-4">
-            {promotionItems
-              .slice(0, 2)
-              .map((promotion) => (
-                <PromotionCard
-                  key={
-                    promotion.id
-                  }
-                  item={
+          {promotionItems.length ? (
+            <div className="col-span-4 grid gap-4">
+              {promotionItems
+                .slice(
+                  0,
+                  2
+                )
+                .map(
+                  (
                     promotion
-                  }
-                  showImages={
-                    showImages
-                  }
-                />
-              ))}
-          </div>
-        ) : null}
+                  ) => (
+                    <PromotionCard
+                      key={
+                        promotion.id
+                      }
+                      item={
+                        promotion
+                      }
+                      showImages={
+                        showImages
+                      }
+                    />
+                  )
+                )}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
-  </div>
   );
 }
+
+/*
+|--------------------------------------------------------------------------
+| Desktop Navigation
+|--------------------------------------------------------------------------
+*/
 
 function DesktopNavigation({
   menu,
   settings,
-  theme,
 }: {
-  menu: StorefrontNavigationMenu;
-  settings: NavigationSettings;
+  menu:
+    StorefrontNavigationMenu;
+
+  settings:
+    NavigationSettings;
+
   theme?:
     | StorefrontThemeSettings;
 }) {
@@ -611,8 +812,11 @@ function DesktopNavigation({
     sortNavigationItems(
       menu.items
     ).filter(
-      (item) =>
-        item.desktopVisible !== false
+      (
+        item
+      ) =>
+        item.desktopVisible !==
+        false
     );
 
   const columns =
@@ -625,100 +829,137 @@ function DesktopNavigation({
 
   return (
     <nav
-    aria-label="Main navigation"
-    className="relative hidden border-b border-black bg-[#050505] text-white shadow-sm lg:block"
+      aria-label="Main navigation"
+      className="relative hidden border-b border-[#E5E7EB] bg-white text-black shadow-sm lg:block"
       style={{
         backgroundColor:
-          "#050505",
+          "#FFFFFF",
 
         color:
-          "#FFFFFF",
+          "#000000",
       }}
     >
-      <div className="mx-auto flex min-h-[48px] max-w-[1440px] items-stretch justify-center gap-0 px-4 lg:px-8">
-        {items.map((item) => {
-          const hasChildren =
-            Boolean(
-              item.children
-                ?.length
+      <div className="mx-auto flex min-h-[48px] max-w-[1440px] items-stretch justify-center gap-0 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {items.map(
+          (
+            item
+          ) => {
+            const hasChildren =
+              Boolean(
+                item.children
+                  ?.length
+              );
+
+            return (
+              <div
+                  key={item.id}
+                  className="group static flex shrink-0 items-stretch after:my-3 after:w-px after:bg-[#D1D5DB] last:after:hidden"
+                >
+                  <NavigationLink
+                    item={
+                      item
+                    }
+                    className={[
+                      "storefront-desktop-nav-link relative flex shrink-0 items-center whitespace-nowrap px-3 py-3 text-[13px] font-bold tracking-[0.01em] text-black transition-colors hover:text-[#1597A1]",
+
+                      item.label
+                        .toLowerCase()
+                        .includes(
+                          "express"
+                        )
+                        ? "italic text-[#1597A1]"
+                        : "",
+                    ].join(
+                      " "
+                    )}
+                  />
+
+                {hasChildren ? (
+                  <DesktopMegaMenu
+                    item={
+                      item
+                    }
+                    columns={
+                      Number.isFinite(
+                        columns
+                      )
+                        ? columns
+                        : 4
+                    }
+                    showImages={
+                      settings.showImages !==
+                      false
+                    }
+                  />
+                ) : null}
+              </div>
             );
-
-          return (
-            <div
-              key={item.id}
-              className="group static flex items-stretch"
-            >
-              <NavigationLink
-                item={item}
-                className={[
-                  "storefront-desktop-nav-link relative flex items-center px-4 py-3 text-[14px] font-bold tracking-[0.01em] text-white transition-colors hover:text-[#53C7CF]",
-                  item.label
-                    .toLowerCase()
-                    .includes("express")
-                    ? "italic text-[#53C7CF]"
-                    : "",
-                ].join(" ")}
-              />
-
-              {hasChildren ? (
-                <DesktopMegaMenu
-                  item={item}
-                  columns={
-                    Number.isFinite(
-                      columns
-                    )
-                      ? columns
-                      : 4
-                  }
-                  showImages={
-                    settings.showImages !==
-                    false
-                  }
-                />
-              ) : null}
-            </div>
-          );
-        })}
+          }
+        )}
       </div>
     </nav>
   );
 }
 
+/*
+|--------------------------------------------------------------------------
+| Mobile Drawer Item
+|--------------------------------------------------------------------------
+*/
 
 function MobileDrawerItem({
   item,
   onNavigate,
   onOpenChildren,
 }: {
-  item: StorefrontNavigationItem;
-  onNavigate: () => void;
-  onOpenChildren: (
-    item: StorefrontNavigationItem
-  ) => void;
+  item:
+    StorefrontNavigationItem;
+
+  onNavigate:
+    () => void;
+
+  onOpenChildren:
+    (
+      item:
+        StorefrontNavigationItem
+    ) => void;
 }) {
   const children =
     sortNavigationItems(
       item.children
     ).filter(
-      (child) =>
-        child.mobileVisible !== false
+      (
+        child
+      ) =>
+        child.mobileVisible !==
+        false
     );
 
   const hasChildren =
-    children.length > 0;
+    children.length >
+    0;
 
   const imageUrl =
     resolveMediaUrl(
-      item.mediaAsset?.thumbnailUrl ||
-        item.mediaAsset?.previewUrl ||
-        item.mediaAsset?.publicUrl
+      item.mediaAsset
+        ?.thumbnailUrl ||
+        item.mediaAsset
+          ?.previewUrl ||
+        item.mediaAsset
+          ?.publicUrl
     );
 
-  if (isPromotionItem(item)) {
+  if (
+    isPromotionItem(
+      item
+    )
+  ) {
     return (
       <div className="px-4 py-3">
         <PromotionCard
-          item={item}
+          item={
+            item
+          }
           showImages
         />
       </div>
@@ -732,9 +973,12 @@ function MobileDrawerItem({
           <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-black/[0.06] bg-[#f8fafc]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={imageUrl}
+              src={
+                imageUrl
+              }
               alt={
-                item.mediaAsset?.altText ||
+                item.mediaAsset
+                  ?.altText ||
                 item.label
               }
               className="h-full w-full object-contain p-1.5"
@@ -743,13 +987,18 @@ function MobileDrawerItem({
         ) : (
           <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-storefront-secondary text-sm font-bold text-storefront-primary">
             {item.label
-              .slice(0, 1)
+              .slice(
+                0,
+                1
+              )
               .toUpperCase()}
           </div>
         )}
 
         <NavigationLink
-          item={item}
+          item={
+            item
+          }
           onClick={
             hasChildren
               ? undefined
@@ -763,12 +1012,16 @@ function MobileDrawerItem({
             type="button"
             aria-label={`Open ${item.label}`}
             onClick={() =>
-              onOpenChildren(item)
+              onOpenChildren(
+                item
+              )
             }
             className="flex size-10 shrink-0 items-center justify-center rounded-full text-storefront-muted transition hover:bg-storefront-secondary hover:text-storefront-primary"
           >
             <ChevronRight
-              size={19}
+              size={
+                19
+              }
             />
           </button>
         ) : null}
@@ -777,21 +1030,39 @@ function MobileDrawerItem({
   );
 }
 
+/*
+|--------------------------------------------------------------------------
+| Mobile Navigation
+|--------------------------------------------------------------------------
+*/
+
 function MobileNavigation({
   menu,
   theme,
 }: {
-  menu: StorefrontNavigationMenu;
+  menu:
+    StorefrontNavigationMenu;
+
   theme?:
     | StorefrontThemeSettings;
 }) {
-  const [open, setOpen] =
-    useState(false);
+  const [
+    open,
+    setOpen,
+  ] =
+    useState(
+      false
+    );
 
-  const [levels, setLevels] =
+  const [
+    levels,
+    setLevels,
+  ] =
     useState<
       MobileNavigationLevel[]
-    >([]);
+    >(
+      []
+    );
 
   const rootItems =
     useMemo(
@@ -799,110 +1070,169 @@ function MobileNavigation({
         sortNavigationItems(
           menu.items
         ).filter(
-          (item) =>
+          (
+            item
+          ) =>
             item.mobileVisible !==
             false
         ),
-      [menu.items]
+      [
+        menu.items,
+      ]
     );
 
   const currentLevel =
-    levels.length > 0
-      ? levels[levels.length - 1]
+    levels.length >
+    0
+      ? levels[
+          levels.length -
+            1
+        ]
       : {
-          title: "Shop categories",
-          items: rootItems,
+          title:
+            "Shop categories",
+
+          items:
+            rootItems,
         };
 
-  const closeDrawer = () => {
-    setOpen(false);
-    setLevels([]);
-  };
-
-  const openChildren = (
-    item: StorefrontNavigationItem
-  ) => {
-    const childItems =
-      sortNavigationItems(
-        item.children
-      ).filter(
-        (child) =>
-          child.mobileVisible !==
-          false
+  const closeDrawer =
+    () => {
+      setOpen(
+        false
       );
 
-    if (!childItems.length) {
-      return;
-    }
+      setLevels(
+        []
+      );
+    };
 
-    setLevels((current) => [
-      ...current,
-      {
-        title: item.label,
-        items: childItems,
-      },
-    ]);
-  };
+  const openChildren =
+    (
+      item:
+        StorefrontNavigationItem
+    ) => {
+      const childItems =
+        sortNavigationItems(
+          item.children
+        ).filter(
+          (
+            child
+          ) =>
+            child.mobileVisible !==
+            false
+        );
 
-  const goBack = () => {
-    setLevels((current) =>
-      current.slice(0, -1)
-    );
-  };
+      if (
+        !childItems.length
+      ) {
+        return;
+      }
 
-  useEffect(() => {
-    const handleOpenNavigation =
-      () => {
-        setOpen(true);
-      };
+      setLevels(
+        (
+          current
+        ) => [
+          ...current,
 
-    window.addEventListener(
-      "storefront:open-navigation",
-      handleOpenNavigation
-    );
+          {
+            title:
+              item.label,
 
-    return () => {
-      window.removeEventListener(
+            items:
+              childItems,
+          },
+        ]
+      );
+    };
+
+  const goBack =
+    () => {
+      setLevels(
+        (
+          current
+        ) =>
+          current.slice(
+            0,
+            -1
+          )
+      );
+    };
+
+  useEffect(
+    () => {
+      const handleOpenNavigation =
+        () => {
+          setOpen(
+            true
+          );
+        };
+
+      window.addEventListener(
         "storefront:open-navigation",
         handleOpenNavigation
       );
-    };
-  }, []);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
+      return () => {
+        window.removeEventListener(
+          "storefront:open-navigation",
+          handleOpenNavigation
+        );
+      };
+    },
+    []
+  );
 
-    const originalOverflow =
-      document.body.style.overflow;
-
-    document.body.style.overflow =
-      "hidden";
-
-    const handleEscape = (
-      event: KeyboardEvent
-    ) => {
-      if (event.key === "Escape") {
-        closeDrawer();
+  useEffect(
+    () => {
+      if (!open) {
+        return;
       }
-    };
 
-    window.addEventListener(
-      "keydown",
-      handleEscape
-    );
+      const originalOverflow =
+        document.body
+          .style
+          .overflow;
 
-    return () => {
-      document.body.style.overflow =
-        originalOverflow;
+      document.body
+        .style
+        .overflow =
+        "hidden";
 
-      window.removeEventListener(
+      const handleEscape =
+        (
+          event:
+            KeyboardEvent
+        ) => {
+          if (
+            event.key ===
+            "Escape"
+          ) {
+            closeDrawer();
+          }
+        };
+
+      window.addEventListener(
         "keydown",
         handleEscape
       );
-    };
-  }, [open]);
+
+      return () => {
+        document.body
+          .style
+          .overflow =
+          originalOverflow;
+
+        window.removeEventListener(
+          "keydown",
+          handleEscape
+        );
+      };
+    },
+    [
+      open,
+    ]
+  );
 
   return (
     <>
@@ -918,13 +1248,21 @@ function MobileNavigation({
           <button
             type="button"
             aria-label="Open navigation menu"
-            aria-expanded={open}
+            aria-expanded={
+              open
+            }
             onClick={() =>
-              setOpen(true)
+              setOpen(
+                true
+              )
             }
             className="flex items-center gap-2.5 py-3 text-sm font-bold text-storefront-text transition hover:text-storefront-primary"
           >
-            <Menu size={19} />
+            <Menu
+              size={
+                19
+              }
+            />
 
             <span>
               Shop categories
@@ -934,24 +1272,34 @@ function MobileNavigation({
       </div>
 
       <div
-        aria-hidden={!open}
+        aria-hidden={
+          !open
+        }
         className={[
           "fixed inset-0 z-[100] lg:hidden",
+
           open
             ? "pointer-events-auto"
             : "pointer-events-none",
-        ].join(" ")}
+        ].join(
+          " "
+        )}
       >
         <button
           type="button"
           aria-label="Close navigation menu"
-          onClick={closeDrawer}
+          onClick={
+            closeDrawer
+          }
           className={[
             "absolute inset-0 bg-black/55 backdrop-blur-[2px] transition-opacity duration-300",
+
             open
               ? "opacity-100"
               : "opacity-0",
-          ].join(" ")}
+          ].join(
+            " "
+          )}
         />
 
         <aside
@@ -960,10 +1308,13 @@ function MobileNavigation({
           aria-label="Mobile navigation"
           className={[
             "absolute inset-y-0 left-0 flex w-[min(92vw,390px)] flex-col bg-white shadow-[20px_0_60px_rgba(0,0,0,0.18)] transition-transform duration-300 ease-out",
+
             open
               ? "translate-x-0"
               : "-translate-x-full",
-          ].join(" ")}
+          ].join(
+            " "
+          )}
         >
           <div className="flex min-h-[72px] items-center justify-between border-b border-black/[0.07] px-4">
             <div className="flex min-w-0 items-center gap-3">
@@ -971,16 +1322,24 @@ function MobileNavigation({
                 <button
                   type="button"
                   aria-label="Go back"
-                  onClick={goBack}
+                  onClick={
+                    goBack
+                  }
                   className="flex size-10 shrink-0 items-center justify-center rounded-full transition hover:bg-storefront-secondary"
                 >
                   <ArrowLeft
-                    size={20}
+                    size={
+                      20
+                    }
                   />
                 </button>
               ) : (
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-storefront-primary text-white">
-                  <Menu size={20} />
+                  <Menu
+                    size={
+                      20
+                    }
+                  />
                 </div>
               )}
 
@@ -991,7 +1350,8 @@ function MobileNavigation({
 
                 <h2 className="truncate text-base font-black text-storefront-text">
                   {
-                    currentLevel.title
+                    currentLevel
+                      .title
                   }
                 </h2>
               </div>
@@ -1000,33 +1360,47 @@ function MobileNavigation({
             <button
               type="button"
               aria-label="Close menu"
-              onClick={closeDrawer}
+              onClick={
+                closeDrawer
+              }
               className="flex size-10 shrink-0 items-center justify-center rounded-full transition hover:bg-storefront-secondary"
             >
-              <X size={21} />
+              <X
+                size={
+                  21
+                }
+              />
             </button>
           </div>
 
           <div className="border-b border-black/[0.06] bg-[#f8fafc] px-4 py-3">
             <div className="rounded-xl border border-black/[0.07] bg-white px-4 py-3 text-xs leading-relaxed text-storefront-muted">
-              Browse mobiles, laptops,
-              accessories and the latest
-              MyShops offers.
+              Browse mobiles,
+              laptops, accessories
+              and the latest MyShops
+              offers.
             </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <div
               key={
-                currentLevel.title
+                currentLevel
+                  .title
               }
               className="storefront-mobile-menu-level"
             >
               {currentLevel.items.map(
-                (item) => (
+                (
+                  item
+                ) => (
                   <MobileDrawerItem
-                    key={item.id}
-                    item={item}
+                    key={
+                      item.id
+                    }
+                    item={
+                      item
+                    }
                     onNavigate={
                       closeDrawer
                     }
@@ -1043,7 +1417,9 @@ function MobileNavigation({
             <div className="grid grid-cols-2 gap-2">
               <Link
                 href="/account"
-                onClick={closeDrawer}
+                onClick={
+                  closeDrawer
+                }
                 className="rounded-xl border border-black/[0.07] bg-white px-3 py-3 text-center text-xs font-bold text-storefront-text"
               >
                 My account
@@ -1051,7 +1427,9 @@ function MobileNavigation({
 
               <Link
                 href="/contact"
-                onClick={closeDrawer}
+                onClick={
+                  closeDrawer
+                }
                 className="rounded-xl bg-storefront-primary px-3 py-3 text-center text-xs font-bold text-white"
               >
                 Get support
@@ -1064,7 +1442,11 @@ function MobileNavigation({
   );
 }
 
-
+/*
+|--------------------------------------------------------------------------
+| Main Navigation
+|--------------------------------------------------------------------------
+*/
 
 export default function MainNavigation({
   section,
@@ -1082,22 +1464,31 @@ export default function MainNavigation({
     content.menuResolved;
 
   const hasItems =
-    Boolean(menu?.items?.length);
+    Boolean(
+      menu?.items
+        ?.length
+    );
 
   const sortedMenu =
-    useMemo(() => {
-      if (!menu) {
-        return null;
-      }
+    useMemo(
+      () => {
+        if (!menu) {
+          return null;
+        }
 
-      return {
-        ...menu,
-        items:
-          sortNavigationItems(
-            menu.items
-          ),
-      };
-    }, [menu]);
+        return {
+          ...menu,
+
+          items:
+            sortNavigationItems(
+              menu.items
+            ),
+        };
+      },
+      [
+        menu,
+      ]
+    );
 
   if (
     !section ||
@@ -1116,14 +1507,24 @@ export default function MainNavigation({
       }
     >
       <DesktopNavigation
-        menu={sortedMenu}
-        settings={settings}
-        theme={theme}
+        menu={
+          sortedMenu
+        }
+        settings={
+          settings
+        }
+        theme={
+          theme
+        }
       />
 
       <MobileNavigation
-        menu={sortedMenu}
-        theme={theme}
+        menu={
+          sortedMenu
+        }
+        theme={
+          theme
+        }
       />
     </div>
   );

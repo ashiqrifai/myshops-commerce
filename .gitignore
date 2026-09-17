@@ -44,3 +44,49 @@ backend/uploads/
 # Temporary files
 *.tmp
 *.temp
+
+# Backup / patch / archive files
+**/*.bak
+**/*.bak-*
+**/*.zip
+
+# Database backups
+**/*.dump
+**/*.sql
+
+# Backend temporary runtime files
+backend/tmp/
+
+# Accidental shell/output files
+--no-owner
+--no-privileges
+-F
+-b
+-d
+-f
+
+backend/--exclude-dir=.git
+backend/--exclude-dir=node_modules
+backend/-X
+backend/0
+backend/FROM
+backend/ORDER
+backend/WHERE
+backend/delivery_zone_cities,
+backend/delivery_zone_locations
+backend/delivery_zones,
+
+storefront/--exclude-dir=.next
+storefront/--exclude-dir=node_modules
+
+# Backup directories
+**/*.backup-*/
+**/*.backup-*
+
+# Microsoft Office temporary files
+**/~$*
+
+# Accidental development files
+storefront/export interface StorefrontProduct
+storefront/interface StorefrontProduct
+backend/deliveryAmount.*

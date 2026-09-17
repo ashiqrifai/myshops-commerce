@@ -22,6 +22,105 @@ export interface ProductExportParams {
   productIds?: string[];
 }
 
+
+/*
+|--------------------------------------------------------------------------
+| Existing Product -> Variable Product Merge
+|--------------------------------------------------------------------------
+*/
+
+export interface ProductMergeAttributeMapping {
+  attributeId: string;
+  optionId: string;
+  sortOrder?: number;
+}
+
+export interface ProductMergeVariantMapping {
+  productId: string;
+  variantId: string;
+  attributes: ProductMergeAttributeMapping[];
+}
+
+export interface ProductMergeRequest {
+  sourceProductIds: string[];
+  parentProductId: string;
+  defaultVariantId?: string | null;
+
+  parent: {
+    name: string;
+    slug: string;
+    parentSku: string;
+  };
+
+  variantMappings: ProductMergeVariantMapping[];
+}
+
+export interface ProductMergePreviewVariant {
+  productId: string;
+  variantId: string;
+  sku: string;
+  barcode?: string | null;
+  zohoItemId?: string | null;
+  zohoItemCode?: string | null;
+
+  attributes: Array<{
+    attributeId: string;
+    attributeCode?: string | null;
+    attributeName?: string | null;
+    optionId: string;
+    optionLabel?: string | null;
+    optionValue?: string | null;
+  }>;
+}
+
+export interface ProductMergePreviewResponse {
+  success: boolean;
+  canExecute: boolean;
+  errors: string[];
+  warnings: string[];
+
+  data: {
+    parentProduct: {
+      id: string;
+      name: string;
+      slug: string;
+      parentSku: string;
+    };
+
+    summary: {
+      sourceProducts: number;
+      variants: number;
+      redundantProducts: number;
+      historicalOrderItems: number;
+    };
+
+    blockingDependencies: {
+      protectionAssignments: number;
+      attachmentRules: number;
+      attachmentRuleItems: number;
+      giftVoucherPromotionItems: number;
+    };
+
+    variants: ProductMergePreviewVariant[];
+  } | null;
+}
+
+export interface ProductMergeExecuteResponse {
+  success: boolean;
+  message: string;
+
+  data: {
+    parentProductId: string;
+    parentName: string;
+    parentSlug: string;
+    parentSku: string;
+    defaultVariantId: string;
+    movedVariantIds: string[];
+    archivedProductIds: string[];
+    warnings: string[];
+  };
+}
+
 const clean = (
   value?: string | null
 ) => value?.trim() || null;
@@ -262,6 +361,44 @@ const buildPayload = (
 
     isSearchable:
       values.isSearchable,
+    
+    alwaysAvailableForSale:
+      values.alwaysAvailableForSale ===
+      true,
+
+    /*
+     * Direct delivery / supplier fulfillment.
+     *
+     * When direct delivery is disabled, supplier-specific
+     * fields are explicitly cleared so an old configuration
+     * cannot remain attached to the product.
+     */
+    isDirectDelivery:
+      values.isDirectDelivery === true,
+
+    directDeliverySupplierId:
+      values.isDirectDelivery
+        ? values.directDeliverySupplierId ||
+          null
+        : null,
+
+    directDeliveryLeadTimeDays:
+      values.isDirectDelivery &&
+      values.directDeliveryLeadTimeDays !==
+        null &&
+      values.directDeliveryLeadTimeDays !==
+        undefined
+        ? Number(
+            values.directDeliveryLeadTimeDays
+          )
+        : null,
+
+    directDeliveryNote:
+      values.isDirectDelivery
+        ? clean(
+            values.directDeliveryNote
+          )
+        : null,
 
     metaTitle:
       clean(values.metaTitle),
@@ -693,7 +830,49 @@ export const productApi =
           ],
         }),
 
-        exportProducts:
+        previewProductMerge:
+        builder.mutation<
+          ProductMergePreviewResponse,
+          ProductMergeRequest
+        >({
+          query: (body) => ({
+            url:
+              "/products/merge/preview",
+
+            method:
+              "POST",
+
+            body,
+          }),
+        }),
+
+      executeProductMerge:
+        builder.mutation<
+          ProductMergeExecuteResponse,
+          ProductMergeRequest
+        >({
+          query: (body) => ({
+            url:
+              "/products/merge/execute",
+
+            method:
+              "POST",
+
+            body,
+          }),
+
+          invalidatesTags: [
+            {
+              type:
+                "Products",
+
+              id:
+                "LIST",
+            },
+          ],
+        }),
+
+      exportProducts:
         builder.mutation<
           string,
           ProductExportParams | void
@@ -837,6 +1016,8 @@ export const {
   useUpdateProductMutation,
   useChangeProductStatusMutation,
   useGenerateProductVariantsMutation,
+  usePreviewProductMergeMutation,
+  useExecuteProductMergeMutation,
   useExportProductsMutation,
   useDeleteProductMutation,
 } = productApi;

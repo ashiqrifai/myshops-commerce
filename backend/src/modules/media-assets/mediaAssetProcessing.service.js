@@ -1,7 +1,18 @@
-const { Op } = require("sequelize");
-const db = require("../../models");
+const {
+  Op,
+} = require(
+  "sequelize"
+);
 
-const AppError = require("../../utils/AppError");
+const db =
+  require(
+    "../../models"
+  );
+
+const AppError =
+  require(
+    "../../utils/AppError"
+  );
 
 const {
   resolveAbsoluteStoragePath,
@@ -16,200 +27,418 @@ const {
   "../../services/media/mediaImageProcessor.service"
 );
 
-const reprocessMediaAsset = async ({
-  companyId,
-  assetId,
-  userId,
-}) => {
-  const transaction =
-    await db.sequelize.transaction();
+/*
+|--------------------------------------------------------------------------
+| Reprocess Media Asset
+|--------------------------------------------------------------------------
+*/
 
-  try {
-    const asset =
-      await db.MediaAsset.findOne({
-        where: {
-          id: assetId,
-          companyId,
-          isActive: true,
-        },
-        transaction,
-      });
+const reprocessMediaAsset =
+  async ({
+    companyId,
+    assetId,
+    userId,
+  }) => {
+    const transaction =
+      await db.sequelize.transaction();
 
-    if (!asset) {
-      throw new AppError(
-        "Media asset not found.",
-        404,
-        "MEDIA_ASSET_NOT_FOUND"
-      );
-    }
+    try {
+      /*
+      |--------------------------------------------------------------------------
+      | Asset
+      |--------------------------------------------------------------------------
+      */
 
-    if (
-      asset.assetType !== "IMAGE"
-    ) {
-      throw new AppError(
-        "Only image assets can currently be reprocessed.",
-        400,
-        "MEDIA_REPROCESS_UNSUPPORTED"
-      );
-    }
+      const asset =
+        await db.MediaAsset.findOne({
+          where: {
+            id:
+              assetId,
 
-    await asset.update(
-      {
-        status: "PROCESSING",
-        updatedBy: userId,
-      },
-      {
-        transaction,
+            companyId,
+
+            isActive:
+              true,
+          },
+
+          transaction,
+        });
+
+      if (!asset) {
+        throw new AppError(
+          "Media asset not found.",
+          404,
+          "MEDIA_ASSET_NOT_FOUND"
+        );
       }
-    );
 
-    const generatedVariantTypes = [
-        "THUMBNAIL",
-        "SMALL",
-        "MEDIUM",
-        "LARGE",
-        "DESKTOP",
-        "TABLET",
-        "MOBILE",
-        "KIOSK",
-        "PREVIEW",
-      ];
-      
+      /*
+      |--------------------------------------------------------------------------
+      | Only Images
+      |--------------------------------------------------------------------------
+      */
+
+      if (
+        asset.assetType !==
+        "IMAGE"
+      ) {
+        throw new AppError(
+          "Only image assets can currently be reprocessed.",
+          400,
+          "MEDIA_REPROCESS_UNSUPPORTED"
+        );
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | Processing Status
+      |--------------------------------------------------------------------------
+      */
+
+      await asset.update(
+        {
+          status:
+            "PROCESSING",
+
+          updatedBy:
+            userId,
+        },
+        {
+          transaction,
+        }
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Generated Variant Types
+      |--------------------------------------------------------------------------
+      |
+      | ORIGINAL is deliberately NOT included.
+      |
+      | Therefore the original uploaded file remains untouched.
+      |
+      |--------------------------------------------------------------------------
+      */
+
+      const generatedVariantTypes =
+        [
+          "THUMBNAIL",
+          "SMALL",
+          "MEDIUM",
+          "LARGE",
+          "DESKTOP",
+          "TABLET",
+          "MOBILE",
+          "KIOSK",
+          "PREVIEW",
+        ];
+
+      /*
+      |--------------------------------------------------------------------------
+      | Delete Existing Generated Variant Records
+      |--------------------------------------------------------------------------
+      */
+
       await db.MediaAssetVariant.destroy({
         where: {
           companyId,
-          mediaAssetId: asset.id,
-      
-          variantType: {
-            [Op.in]: generatedVariantTypes,
-          },
-        },
-      
-        transaction,
-      });
 
-    const sourcePath =
-      resolveAbsoluteStoragePath(
-        asset.storagePath
-      );
-
-    const generatedVariants =
-      await generateImageVariants({
-        companyId,
-        assetId: asset.id,
-        sourcePath,
-        isPublic:
-          asset.isPublic,
-      });
-
-    await db.MediaAssetVariant.bulkCreate(
-      generatedVariants.map(
-        (variant) => ({
-          companyId,
           mediaAssetId:
             asset.id,
 
-          ...variant,
-
-          createdBy: userId,
-          updatedBy: userId,
-        })
-      ),
-      {
-        transaction,
-      }
-    );
-
-    const dominantColor =
-      await extractDominantColor(
-        sourcePath
-      );
-
-    const thumbnailVariant =
-      generatedVariants.find(
-        (variant) =>
-          variant.variantType ===
-            "THUMBNAIL" &&
-          variant.format ===
-            "webp"
-      );
-
-    const previewVariant =
-      generatedVariants.find(
-        (variant) =>
-          variant.variantType ===
-            "PREVIEW" &&
-          variant.format ===
-            "webp"
-      );
-
-    await asset.update(
-      {
-        dominantColor,
-
-        thumbnailPath:
-          thumbnailVariant
-            ?.storagePath || null,
-
-        previewPath:
-          previewVariant
-            ?.storagePath || null,
-
-        isOptimized: true,
-        status: "READY",
-        updatedBy: userId,
-      },
-      {
-        transaction,
-      }
-    );
-
-    await transaction.commit();
-
-    return db.MediaAsset.findOne({
-      where: {
-        id: asset.id,
-        companyId,
-      },
-
-      include: [
-        {
-          model:
-            db.MediaAssetVariant,
-          as: "variants",
-          where: {
-            isActive: true,
+          variantType: {
+            [Op.in]:
+              generatedVariantTypes,
           },
-          required: false,
-          separate: true,
-          order: [
-            ["variantType", "ASC"],
-            ["format", "ASC"],
-          ],
         },
-      ],
-    });
-  } catch (error) {
-    if (!transaction.finished) {
-      await transaction.rollback();
-    }
 
-    await db.MediaAsset.update(
-      {
-        status: "FAILED",
-        updatedBy: userId,
-      },
-      {
+        transaction,
+      });
+
+      /*
+      |--------------------------------------------------------------------------
+      | Original Source Path
+      |--------------------------------------------------------------------------
+      */
+
+      const sourcePath =
+        resolveAbsoluteStoragePath(
+          asset.storagePath
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Decide Whether to Normalise
+      |--------------------------------------------------------------------------
+      |
+      | Only PRODUCT assets are normalised.
+      |
+      | CATEGORY / CMS / BRAND / MARKETING / PROMOTION etc.
+      | regenerate using their existing normal behaviour.
+      |
+      |--------------------------------------------------------------------------
+      */
+
+      const normalizeProductImage =
+        String(
+          asset.classification ||
+            ""
+        )
+          .trim()
+          .toUpperCase() ===
+        "PRODUCT";
+
+      /*
+      |--------------------------------------------------------------------------
+      | Generate New Variants
+      |--------------------------------------------------------------------------
+      */
+
+      const generatedVariants =
+        await generateImageVariants({
+          companyId,
+
+          assetId:
+            asset.id,
+
+          sourcePath,
+
+          isPublic:
+            asset.isPublic,
+
+          normalizeProductImage,
+        });
+
+      /*
+      |--------------------------------------------------------------------------
+      | Save New Variant Records
+      |--------------------------------------------------------------------------
+      */
+
+      await db.MediaAssetVariant.bulkCreate(
+        generatedVariants.map(
+          (
+            variant
+          ) => ({
+            companyId,
+
+            mediaAssetId:
+              asset.id,
+
+            ...variant,
+
+            createdBy:
+              userId,
+
+            updatedBy:
+              userId,
+          })
+        ),
+        {
+          transaction,
+        }
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Dominant Colour
+      |--------------------------------------------------------------------------
+      |
+      | Still taken from ORIGINAL.
+      |
+      |--------------------------------------------------------------------------
+      */
+
+      const dominantColor =
+        await extractDominantColor(
+          sourcePath
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Thumbnail
+      |--------------------------------------------------------------------------
+      */
+
+      const thumbnailVariant =
+        generatedVariants.find(
+          (
+            variant
+          ) =>
+            variant.variantType ===
+              "THUMBNAIL" &&
+            variant.format ===
+              "webp"
+        ) ||
+        generatedVariants.find(
+          (
+            variant
+          ) =>
+            variant.variantType ===
+            "THUMBNAIL"
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Preview
+      |--------------------------------------------------------------------------
+      */
+
+      const previewVariant =
+        generatedVariants.find(
+          (
+            variant
+          ) =>
+            variant.variantType ===
+              "PREVIEW" &&
+            variant.format ===
+              "webp"
+        ) ||
+        generatedVariants.find(
+          (
+            variant
+          ) =>
+            variant.variantType ===
+            "PREVIEW"
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Update Asset
+      |--------------------------------------------------------------------------
+      */
+
+      await asset.update(
+        {
+          dominantColor,
+
+          thumbnailPath:
+            thumbnailVariant
+              ?.storagePath ||
+            null,
+
+          previewPath:
+            previewVariant
+              ?.storagePath ||
+            null,
+
+          isOptimized:
+            true,
+
+          status:
+            "READY",
+
+          updatedBy:
+            userId,
+        },
+        {
+          transaction,
+        }
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Commit
+      |--------------------------------------------------------------------------
+      */
+
+      await transaction.commit();
+
+      /*
+      |--------------------------------------------------------------------------
+      | Return Updated Asset
+      |--------------------------------------------------------------------------
+      */
+
+      return db.MediaAsset.findOne({
         where: {
-          id: assetId,
+          id:
+            asset.id,
+
           companyId,
         },
-      }
-    );
 
-    throw error;
-  }
-};
+        include: [
+          {
+            model:
+              db.MediaAssetVariant,
+
+            as:
+              "variants",
+
+            where: {
+              isActive:
+                true,
+            },
+
+            required:
+              false,
+
+            separate:
+              true,
+
+            order: [
+              [
+                "variantType",
+                "ASC",
+              ],
+
+              [
+                "format",
+                "ASC",
+              ],
+            ],
+          },
+        ],
+      });
+    } catch (
+      error
+    ) {
+      /*
+      |--------------------------------------------------------------------------
+      | Rollback
+      |--------------------------------------------------------------------------
+      */
+
+      if (
+        !transaction.finished
+      ) {
+        await transaction.rollback();
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | Failed Status
+      |--------------------------------------------------------------------------
+      */
+
+      await db.MediaAsset.update(
+        {
+          status:
+            "FAILED",
+
+          updatedBy:
+            userId,
+        },
+        {
+          where: {
+            id:
+              assetId,
+
+            companyId,
+          },
+        }
+      );
+
+      throw error;
+    }
+  };
+
+/*
+|--------------------------------------------------------------------------
+| Exports
+|--------------------------------------------------------------------------
+*/
 
 module.exports = {
   reprocessMediaAsset,

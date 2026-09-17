@@ -8,6 +8,19 @@ const {
     require(
       "../../models"
     );
+
+const publicAvailabilityService =
+  require(
+    "./publicAvailability.service"
+  );
+
+
+  const giftVoucherPromotionService =
+  require(
+    "../gift-voucher-promotions/giftVoucherPromotion.service"
+  );
+
+
   
   const AppError =
     require(
@@ -540,7 +553,79 @@ const {
             },
           ],
         },
-      ],
+      
+      {
+        model:
+          db.ProductVariantAttributeValue,
+
+        as:
+          "attributeValues",
+
+        required:
+          false,
+
+        attributes: [
+          "id",
+          "productVariantId",
+          "attributeId",
+          "optionId",
+          "displayValue",
+          "sortOrder",
+        ],
+
+        include: [
+          {
+            model:
+              db.Attribute,
+
+            as:
+              "attribute",
+
+            required:
+              false,
+
+            where: {
+              companyId,
+              isActive:
+                true,
+            },
+
+            attributes: [
+              "id",
+              "code",
+              "name",
+              "isVariantDefining",
+              "displayOrder",
+            ],
+          },
+
+          {
+            model:
+              db.AttributeOption,
+
+            as:
+              "option",
+
+            required:
+              false,
+
+            where: {
+              companyId,
+              isActive:
+                true,
+            },
+
+            attributes: [
+              "id",
+              "label",
+              "value",
+              "swatchValue",
+              "displayOrder",
+            ],
+          },
+        ],
+      },
+    ],
     },
   ];
   
@@ -766,10 +851,438 @@ const {
         ),
     };
   };
+
+  /*
+|--------------------------------------------------------------------------
+| Apply Gift Voucher Discount To Public Price
+|--------------------------------------------------------------------------
+*/
+
+const applyGiftVoucherToPrice =
+(
+  price,
+  giftVoucher
+) => {
+  if (
+    !price
+  ) {
+    return null;
+  }
+
+  const regularPrice =
+    Number(
+      price.regularPrice ||
+      0
+    );
+
+  const baseSellingPrice =
+    Number(
+      price.sellingPrice ||
+      0
+    );
+
+  const priceDiscountAmount =
+    Math.max(
+      0,
+      regularPrice -
+        baseSellingPrice
+    );
+
+  const giftVoucherDiscountAmount =
+    giftVoucher
+      ? Number(
+          giftVoucher.unitDiscount ||
+          0
+        )
+      : 0;
+
+  const sellingPrice =
+    Math.max(
+      0,
+      baseSellingPrice -
+        giftVoucherDiscountAmount
+    );
+
+  const totalDiscountAmount =
+    Math.max(
+      0,
+      regularPrice -
+        sellingPrice
+    );
+
+  const totalDiscountPercent =
+    regularPrice >
+    0
+      ? (
+          totalDiscountAmount /
+          regularPrice
+        ) *
+        100
+      : 0;
+
+  return {
+    ...price,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Regular Pricing
+    |--------------------------------------------------------------------------
+    */
+
+    regularPrice:
+      Number(
+        regularPrice.toFixed(
+          4
+        )
+      ),
+
+    baseSellingPrice:
+      Number(
+        baseSellingPrice.toFixed(
+          4
+        )
+      ),
+
+    priceDiscountAmount:
+      Number(
+        priceDiscountAmount.toFixed(
+          4
+        )
+      ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gift Voucher
+    |--------------------------------------------------------------------------
+    */
+
+    giftVoucherDiscountAmount:
+      Number(
+        giftVoucherDiscountAmount.toFixed(
+          4
+        )
+      ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Final Customer Price
+    |--------------------------------------------------------------------------
+    */
+
+    sellingPrice:
+      Number(
+        sellingPrice.toFixed(
+          4
+        )
+      ),
+
+    totalDiscountAmount:
+      Number(
+        totalDiscountAmount.toFixed(
+          4
+        )
+      ),
+
+    totalDiscountPercent:
+      Number(
+        totalDiscountPercent.toFixed(
+          4
+        )
+      ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Public GV Information
+    |--------------------------------------------------------------------------
+    */
+
+    giftVoucher:
+      giftVoucher
+        ? {
+            promotionId:
+              giftVoucher.id,
+
+            code:
+              giftVoucher.code,
+
+            name:
+              giftVoucher.name,
+
+            discountType:
+              giftVoucher.discountType,
+
+            discountValue:
+              giftVoucher.discountValue,
+
+            discountAmount:
+              Number(
+                giftVoucherDiscountAmount.toFixed(
+                  4
+                )
+              ),
+
+            validFrom:
+              giftVoucher.validFrom,
+
+            validUntil:
+              giftVoucher.validUntil,
+          }
+        : null,
+  };
+};
   
-  const publicProduct = (
+  const buildVariantSummary = (
+  product
+) => {
+  const variants =
+    Array.isArray(
+      product?.variants
+    )
+      ? product.variants
+      : [];
+
+  if (
+    !variants.length
+  ) {
+    return {
+      hasVariants:
+        false,
+
+      variantCount:
+        0,
+
+      selectorCount:
+        0,
+
+      selectors:
+        [],
+    };
+  }
+
+  const selectorMap =
+    new Map();
+
+  for (
+    const variant of
+    variants
+  ) {
+    const attributeValues =
+      Array.isArray(
+        variant.attributeValues
+      )
+        ? variant.attributeValues
+        : [];
+
+    for (
+      const value of
+      attributeValues
+    ) {
+      const attribute =
+        value.attribute;
+
+      if (
+        !attribute ||
+        attribute.isVariantDefining !==
+          true
+      ) {
+        continue;
+      }
+
+      const attributeId =
+        attribute.id ||
+        value.attributeId;
+
+      if (
+        !attributeId
+      ) {
+        continue;
+      }
+
+      if (
+        !selectorMap.has(
+          attributeId
+        )
+      ) {
+        selectorMap.set(
+          attributeId,
+          {
+            id:
+              attributeId,
+
+            code:
+              String(
+                attribute.code ||
+                  ""
+              )
+                .trim()
+                .toUpperCase(),
+
+            name:
+              attribute.name ||
+              "Option",
+
+            displayOrder:
+              Number(
+                attribute.displayOrder ||
+                  0
+              ),
+
+            optionsMap:
+              new Map(),
+          }
+        );
+      }
+
+      const selector =
+        selectorMap.get(
+          attributeId
+        );
+
+      const option =
+        value.option;
+
+      const optionId =
+        option?.id ||
+        value.optionId ||
+        value.displayValue ||
+        null;
+
+      if (
+        !optionId ||
+        selector.optionsMap.has(
+          optionId
+        )
+      ) {
+        continue;
+      }
+
+      selector.optionsMap.set(
+        optionId,
+        {
+          id:
+            optionId,
+
+          label:
+            option?.label ||
+            value.displayValue ||
+            option?.value ||
+            "Option",
+
+          swatchValue:
+            option?.swatchValue ||
+            null,
+
+          displayOrder:
+            Number(
+              option?.displayOrder ||
+                value.sortOrder ||
+                0
+            ),
+        }
+      );
+    }
+  }
+
+  const selectors =
+    Array.from(
+      selectorMap.values()
+    )
+      .sort(
+        (
+          first,
+          second
+        ) =>
+          first.displayOrder -
+          second.displayOrder
+      )
+      .map(
+        (
+          selector
+        ) => {
+          const options =
+            Array.from(
+              selector.optionsMap
+                .values()
+            ).sort(
+              (
+                first,
+                second
+              ) =>
+                first.displayOrder -
+                second.displayOrder
+            );
+
+          const normalizedName =
+            String(
+              selector.name ||
+                ""
+            )
+              .trim()
+              .toLowerCase();
+
+          const isColor =
+            selector.code ===
+              "COLOR" ||
+            normalizedName ===
+              "color" ||
+            normalizedName ===
+              "colour";
+
+          return {
+            id:
+              selector.id,
+
+            code:
+              selector.code,
+
+            name:
+              selector.name,
+
+            optionCount:
+              options.length,
+
+            options:
+              isColor
+                ? options.map(
+                    (
+                      option
+                    ) => ({
+                      id:
+                        option.id,
+
+                      label:
+                        option.label,
+
+                      swatchValue:
+                        option.swatchValue,
+                    })
+                  )
+                : [],
+          };
+        }
+      );
+
+  return {
+    hasVariants:
+      variants.length >
+        1 &&
+      selectors.length >
+        0,
+
+    variantCount:
+      variants.length,
+
+    selectorCount:
+      selectors.length,
+
+    selectors,
+  };
+};
+
+const publicProduct = (
     productModel,
-    apiBaseUrl
+    apiBaseUrl,
+    availabilityByVariant
   ) => {
     const product =
       toPlain(
@@ -817,6 +1330,52 @@ const {
         product.isFeatured ===
         true,
   
+
+
+    delivery: {
+      expressDeliveryEnabled:
+        product.expressDeliveryEnabled ===
+        true,
+
+      expressDeliveryHours:
+        product.expressDeliveryHours !==
+          null &&
+        product.expressDeliveryHours !==
+          undefined
+          ? Number(
+              product.expressDeliveryHours
+            )
+          : null,
+
+      deliveryMinDays:
+        product.deliveryMinDays !==
+          null &&
+        product.deliveryMinDays !==
+          undefined
+          ? Number(
+              product.deliveryMinDays
+            )
+          : null,
+
+      deliveryMaxDays:
+        product.deliveryMaxDays !==
+          null &&
+        product.deliveryMaxDays !==
+          undefined
+          ? Number(
+              product.deliveryMaxDays
+            )
+          : null,
+
+      deliveryNote:
+        product.deliveryNote ||
+        null,
+    },
+
+    isDirectDelivery:
+      product.isDirectDelivery ===
+      true,
+
       taxPercent:
         Number(
           product.taxPercent ||
@@ -883,11 +1442,25 @@ const {
             }
           : null,
   
+      variantSummary:
+        buildVariantSummary(
+          product
+        ),
+
       price:
         variantPrice(
           variant
         ),
   
+
+      availability:
+        publicAvailabilityService
+          .getAvailabilityForProduct({
+            product,
+      
+            availabilityByVariant,
+          }),
+
       productUrl:
         `/products/${product.slug}`,
     };
@@ -1205,6 +1778,119 @@ const {
     ];
   };
   
+  const getPublicBrands =
+  async ({
+    companyCode,
+    channel =
+      "WEBSITE",
+    apiBaseUrl,
+  }) => {
+    const normalizedChannel =
+      String(
+        channel ||
+          "WEBSITE"
+      )
+        .trim()
+        .toUpperCase();
+
+    if (
+      ![
+        "WEBSITE",
+        "KIOSK",
+      ].includes(
+        normalizedChannel
+      )
+    ) {
+      throw new AppError(
+        "Channel must be WEBSITE or KIOSK.",
+        400,
+        "INVALID_STOREFRONT_CHANNEL"
+      );
+    }
+
+    const company =
+      await getCompany(
+        companyCode
+      );
+
+    const brandModels =
+      await db.Brand.findAll({
+        where: {
+          companyId:
+            company.id,
+
+          isActive:
+            true,
+        },
+
+        include: [
+          mediaInclude(
+            company.id,
+            "logoAsset"
+          ),
+
+          mediaInclude(
+            company.id,
+            "bannerAsset"
+          ),
+        ],
+
+        order: [
+          [
+            "isFeatured",
+            "DESC",
+          ],
+
+          [
+            "name",
+            "ASC",
+          ],
+        ],
+      });
+
+    const brands =
+      brandModels.map(
+        (
+          brand
+        ) =>
+          publicBrand(
+            brand,
+            apiBaseUrl
+          )
+      );
+
+    return {
+      company: {
+        id:
+          company.id,
+
+        name:
+          company.name,
+
+        code:
+          company.code,
+
+        currency:
+          company.currency,
+      },
+
+      brands,
+
+      meta: {
+        channel:
+          normalizedChannel,
+
+        total:
+          brands.length,
+
+        generatedAt:
+          new Date()
+            .toISOString(),
+      },
+    };
+  };
+
+
   const getPublicBrand =
     async ({
       companyCode,
@@ -1428,17 +2114,100 @@ const {
             true,
         });
   
-      let products =
-        productModels.map(
-          (
-            model
-          ) =>
-            publicProduct(
-              model,
-              apiBaseUrl
-            )
-        );
+      const availabilityByVariant =
+        await publicAvailabilityService
+          .getVariantAvailabilityMap({
+            companyId:
+              company.id,
+
+            products:
+              productModels,
+          });
+
+          let products =
+          publicAvailabilityService
+            .filterAvailablePublicProducts(
+              productModels.map(
+                (
+                  model
+                ) =>
+                  publicProduct(
+                    model,
+                    apiBaseUrl,
+                    availabilityByVariant
+                  )
+              )
+            );
   
+      /*
+      |--------------------------------------------------------------------------
+      | Gift Voucher Pricing
+      |--------------------------------------------------------------------------
+      |
+      | Resolve applicable Gift Voucher promotions before filters, price
+      | filtering, sorting and pagination.
+      |--------------------------------------------------------------------------
+      */
+
+      const giftVoucherItems =
+        products
+          .filter(
+            (product) =>
+              product.defaultVariant?.id &&
+              product.price?.sellingPrice !== null &&
+              product.price?.sellingPrice !== undefined
+          )
+          .map(
+            (product) => ({
+              productId: product.id,
+              productVariantId: product.defaultVariant.id,
+              sellingPrice: product.price.sellingPrice,
+              quantity: 1,
+            })
+          );
+
+      const giftVoucherMap =
+        await giftVoucherPromotionService
+          .resolveApplicablePromotionsBatch({
+            companyId: company.id,
+            items: giftVoucherItems,
+            channelCode: normalizedChannel,
+            effectiveDate: now,
+          });
+
+      products =
+        products.map(
+          (product) => {
+            if (
+              !product.defaultVariant?.id ||
+              !product.price
+            ) {
+              return product;
+            }
+
+            const key =
+              `${product.id}:${product.defaultVariant.id}`;
+
+            const giftVoucher =
+              giftVoucherMap.get(key) || null;
+
+            return {
+              ...product,
+              price:
+                applyGiftVoucherToPrice(
+                  product.price,
+                  giftVoucher
+                ),
+            };
+          }
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Filters
+      |--------------------------------------------------------------------------
+      */
+
       const filters =
         buildFilters(
           products
@@ -1710,6 +2479,7 @@ const {
       };
     };
   
-  module.exports = {
-    getPublicBrand,
-  };
+    module.exports = {
+      getPublicBrands,
+      getPublicBrand,
+    };

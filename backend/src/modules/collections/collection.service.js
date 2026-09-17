@@ -23,6 +23,442 @@ const {
     "SMART",
   ];
   
+  const SMART_RULE_FIELDS =
+    new Set([
+      "EXPRESS_DELIVERY_ENABLED",
+      "STATUS",
+      "IS_FEATURED",
+      "IS_SEARCHABLE",
+      "PRODUCT_TYPE",
+      "BRAND_ID",
+      "CATEGORY_ID",
+    ]);
+
+  const SMART_RULE_OPERATORS =
+    new Set([
+      "IS",
+      "IS_NOT",
+    ]);
+
+  const normalizeSmartRules = (
+    value,
+    collectionType
+  ) => {
+    if (
+      String(
+        collectionType ||
+        ""
+      )
+        .trim()
+        .toUpperCase() !==
+      "SMART"
+    ) {
+      return null;
+    }
+
+    const source =
+      value &&
+      typeof value ===
+        "object" &&
+      !Array.isArray(
+        value
+      )
+        ? value
+        : {
+            match:
+              "ALL",
+            rules: [],
+          };
+
+    const match =
+      String(
+        source.match ||
+        "ALL"
+      )
+        .trim()
+        .toUpperCase();
+
+    if (
+      ![
+        "ALL",
+        "ANY",
+      ].includes(
+        match
+      )
+    ) {
+      throw new AppError(
+        "Smart collection match mode must be ALL or ANY.",
+        400,
+        "SMART_COLLECTION_MATCH_INVALID"
+      );
+    }
+
+    const sourceRules =
+      Array.isArray(
+        source.rules
+      )
+        ? source.rules
+        : [];
+
+    if (
+      sourceRules.length ===
+      0
+    ) {
+      throw new AppError(
+        "A smart collection must contain at least one rule.",
+        400,
+        "SMART_COLLECTION_RULE_REQUIRED"
+      );
+    }
+
+    const rules =
+      sourceRules.map(
+        (
+          rule,
+          index
+        ) => {
+          const field =
+            String(
+              rule?.field ||
+              ""
+            )
+              .trim()
+              .toUpperCase();
+
+          const operator =
+            String(
+              rule?.operator ||
+              "IS"
+            )
+              .trim()
+              .toUpperCase();
+
+          if (
+            !SMART_RULE_FIELDS.has(
+              field
+            )
+          ) {
+            throw new AppError(
+              `Unsupported smart collection field at rule ${index + 1}: ${field || "(blank)"}.`,
+              400,
+              "SMART_COLLECTION_FIELD_INVALID"
+            );
+          }
+
+          if (
+            !SMART_RULE_OPERATORS.has(
+              operator
+            )
+          ) {
+            throw new AppError(
+              `Unsupported smart collection operator at rule ${index + 1}: ${operator}.`,
+              400,
+              "SMART_COLLECTION_OPERATOR_INVALID"
+            );
+          }
+
+          let normalizedValue =
+            rule?.value;
+
+          if (
+            [
+              "EXPRESS_DELIVERY_ENABLED",
+              "IS_FEATURED",
+              "IS_SEARCHABLE",
+            ].includes(
+              field
+            )
+          ) {
+            const bool =
+              normalizeBoolean(
+                normalizedValue
+              );
+
+            if (
+              bool ===
+              undefined
+            ) {
+              throw new AppError(
+                `${field} requires a true or false value.`,
+                400,
+                "SMART_COLLECTION_BOOLEAN_INVALID"
+              );
+            }
+
+            normalizedValue =
+              bool;
+          } else if (
+            [
+              "STATUS",
+              "PRODUCT_TYPE",
+            ].includes(
+              field
+            )
+          ) {
+            normalizedValue =
+              String(
+                normalizedValue ||
+                ""
+              )
+                .trim()
+                .toUpperCase();
+          } else {
+            normalizedValue =
+              String(
+                normalizedValue ||
+                ""
+              ).trim();
+          }
+
+          if (
+            normalizedValue ===
+              "" ||
+            normalizedValue ===
+              null ||
+            normalizedValue ===
+              undefined
+          ) {
+            throw new AppError(
+              `${field} requires a value.`,
+              400,
+              "SMART_COLLECTION_VALUE_REQUIRED"
+            );
+          }
+
+          return {
+            field,
+            operator,
+            value:
+              normalizedValue,
+          };
+        }
+      );
+
+    return {
+      match,
+      rules,
+    };
+  };
+
+  const buildSmartRuleCondition = (
+    rule
+  ) => {
+    const operator =
+      rule.operator ===
+      "IS_NOT"
+        ? Op.ne
+        : Op.eq;
+
+    switch (
+      rule.field
+    ) {
+      case "EXPRESS_DELIVERY_ENABLED":
+        return {
+          expressDeliveryEnabled: {
+            [operator]:
+              rule.value ===
+              true,
+          },
+        };
+
+      case "STATUS":
+        return {
+          status: {
+            [operator]:
+              String(
+                rule.value
+              ).toUpperCase(),
+          },
+        };
+
+      case "IS_FEATURED":
+        return {
+          isFeatured: {
+            [operator]:
+              rule.value ===
+              true,
+          },
+        };
+
+      case "IS_SEARCHABLE":
+        return {
+          isSearchable: {
+            [operator]:
+              rule.value ===
+              true,
+          },
+        };
+
+      case "PRODUCT_TYPE":
+        return {
+          productType: {
+            [operator]:
+              String(
+                rule.value
+              ).toUpperCase(),
+          },
+        };
+
+      case "BRAND_ID":
+        return {
+          brandId: {
+            [operator]:
+              rule.value,
+          },
+        };
+
+      case "CATEGORY_ID":
+        return {
+          primaryCategoryId: {
+            [operator]:
+              rule.value,
+          },
+        };
+
+      default:
+        throw new AppError(
+          `Unsupported smart collection field: ${rule.field}.`,
+          400,
+          "SMART_COLLECTION_FIELD_INVALID"
+        );
+    }
+  };
+
+  const buildSmartProductWhere = ({
+    companyId,
+    smartRules,
+  }) => {
+    const normalized =
+      normalizeSmartRules(
+        smartRules,
+        "SMART"
+      );
+
+    const conditions =
+      normalized.rules.map(
+        buildSmartRuleCondition
+      );
+
+    return {
+      companyId,
+
+      [
+        normalized.match ===
+        "ANY"
+          ? Op.or
+          : Op.and
+      ]:
+        conditions,
+    };
+  };
+
+  const syncSmartCollectionProducts =
+    async ({
+      companyId,
+      collection,
+      userId,
+      transaction,
+    }) => {
+      if (
+        !collection ||
+        collection.collectionType !==
+          "SMART"
+      ) {
+        return {
+          assignedCount:
+            0,
+          productIds: [],
+        };
+      }
+
+      const where =
+        buildSmartProductWhere({
+          companyId,
+          smartRules:
+            collection.smartRules,
+        });
+
+      const products =
+        await db.Product.findAll({
+          where,
+
+          attributes: [
+            "id",
+          ],
+
+          order: [
+            [
+              "sortOrder",
+              "ASC",
+            ],
+            [
+              "createdAt",
+              "DESC",
+            ],
+          ],
+
+          transaction,
+        });
+
+      const productIds =
+        products.map(
+          (
+            product
+          ) =>
+            product.id
+        );
+
+      await db.ProductCollection
+        .destroy({
+          where: {
+            companyId,
+            collectionId:
+              collection.id,
+          },
+
+          transaction,
+        });
+
+      if (
+        productIds.length >
+        0
+      ) {
+        await db.ProductCollection
+          .bulkCreate(
+            productIds.map(
+              (
+                productId,
+                index
+              ) => ({
+                companyId,
+                collectionId:
+                  collection.id,
+                productId,
+                sortOrder:
+                  index,
+                createdBy:
+                  userId ||
+                  collection.updatedBy ||
+                  collection.createdBy,
+                updatedBy:
+                  userId ||
+                  collection.updatedBy ||
+                  collection.createdBy,
+              })
+            ),
+            {
+              transaction,
+            }
+          );
+      }
+
+      return {
+        assignedCount:
+          productIds.length,
+        productIds,
+      };
+    };
+
   const ALLOWED_SORT_FIELDS =
     new Set([
       "name",
@@ -1228,7 +1664,13 @@ const {
           collectionType
         );
   
-        const sortOrder =
+        
+        const smartRules =
+          normalizeSmartRules(
+            payload.smartRules,
+            collectionType
+          );
+const sortOrder =
           normalizeNonNegativeInteger(
             payload.sortOrder,
             0
@@ -1291,6 +1733,8 @@ const {
                   ),
   
                 collectionType,
+
+                smartRules,
                 sortOrder,
   
                 thumbnailAssetId:
@@ -1379,7 +1823,19 @@ const {
               }
             );
   
-        await transaction
+                if (
+          collectionType ===
+          "SMART"
+        ) {
+          await syncSmartCollectionProducts({
+            companyId,
+            collection,
+            userId,
+            transaction,
+          });
+        }
+
+await transaction
           .commit();
   
         return getCollectionById({
@@ -1442,6 +1898,24 @@ const {
             "COLLECTION_NOT_FOUND"
           );
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Preserve Original Collection Type
+        |--------------------------------------------------------------------------
+        |
+        | Capture the type before collection.update() so MANUAL -> MANUAL
+        | does not accidentally delete manually assigned products.
+        |--------------------------------------------------------------------------
+        */
+
+        const originalCollectionType =
+          String(
+            collection.collectionType ||
+              "MANUAL"
+          )
+            .trim()
+            .toUpperCase();
   
         const name =
           hasOwn(
@@ -1495,7 +1969,21 @@ const {
           collectionType
         );
   
-        const sortOrder =
+        
+        const smartRules =
+          collectionType ===
+          "SMART"
+            ? normalizeSmartRules(
+                hasOwn(
+                  payload,
+                  "smartRules"
+                )
+                  ? payload.smartRules
+                  : collection.smartRules,
+                collectionType
+              )
+            : null;
+const sortOrder =
           hasOwn(
             payload,
             "sortOrder"
@@ -1565,6 +2053,8 @@ const {
           name,
           slug,
           collectionType,
+
+          smartRules,
           sortOrder,
           publishedFrom,
           publishedUntil,
@@ -1651,6 +2141,62 @@ const {
             transaction,
           }
         );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Maintain Collection Product Assignments
+        |--------------------------------------------------------------------------
+        |
+        | MANUAL -> MANUAL
+        |   Preserve manually assigned ProductCollection rows.
+        |
+        | SMART -> SMART
+        |   Refresh assignments from smart rules.
+        |
+        | MANUAL -> SMART
+        |   syncSmartCollectionProducts() replaces the previous assignments
+        |   with products resolved from the smart rules.
+        |
+        | SMART -> MANUAL
+        |   Remove automatically generated smart assignments. Products can
+        |   then be assigned manually through the Products tab.
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+          collection.collectionType ===
+          "SMART"
+        ) {
+          await syncSmartCollectionProducts({
+            companyId,
+            collection,
+            userId,
+            transaction,
+          });
+        } else if (
+          originalCollectionType ===
+            "SMART" &&
+          collection.collectionType ===
+            "MANUAL"
+        ) {
+          await db.ProductCollection
+            .destroy({
+              where: {
+                companyId,
+
+                collectionId:
+                  collection.id,
+              },
+
+              transaction,
+            });
+        }
+
+        /*
+         * MANUAL -> MANUAL intentionally does nothing here.
+         * Existing manual ProductCollection assignments are preserved.
+         */
+
   
         await transaction
           .commit();
@@ -1765,7 +2311,10 @@ const {
               "name",
               "slug",
               "collectionType",
+              "smartRules",
               "isActive",
+              "createdBy",
+              "updatedBy",
             ],
           });
   
@@ -1777,7 +2326,20 @@ const {
         );
       }
   
-      const normalizedPage =
+            if (
+        collection.collectionType ===
+        "SMART"
+      ) {
+        await syncSmartCollectionProducts({
+          companyId,
+          collection,
+          userId:
+            collection.updatedBy ||
+            collection.createdBy,
+        });
+      }
+
+const normalizedPage =
         normalizePageNumber(
           page,
           1
@@ -2319,7 +2881,92 @@ const {
       }
     };
   
-  /*
+    const refreshSmartCollection =
+    async ({
+      companyId,
+      collectionId,
+      userId,
+    }) => {
+      const transaction =
+        await db.sequelize
+          .transaction();
+
+      try {
+        const collection =
+          await db.Collection
+            .findOne({
+              where: {
+                id:
+                  collectionId,
+                companyId,
+              },
+              transaction,
+              lock:
+                transaction.LOCK
+                  .UPDATE,
+            });
+
+        if (!collection) {
+          throw new AppError(
+            "Collection not found.",
+            404,
+            "COLLECTION_NOT_FOUND"
+          );
+        }
+
+        if (
+          collection.collectionType !==
+          "SMART"
+        ) {
+          throw new AppError(
+            "Only SMART collections can be refreshed.",
+            409,
+            "COLLECTION_NOT_SMART"
+          );
+        }
+
+        const result =
+          await syncSmartCollectionProducts({
+            companyId,
+            collection,
+            userId,
+            transaction,
+          });
+
+        await collection.update(
+          {
+            updatedBy:
+              userId,
+          },
+          {
+            transaction,
+          }
+        );
+
+        await transaction
+          .commit();
+
+        return {
+          collection:
+            await getCollectionById({
+              companyId,
+              collectionId,
+            }),
+          ...result,
+        };
+      } catch (error) {
+        if (
+          !transaction.finished
+        ) {
+          await transaction
+            .rollback();
+        }
+
+        throw error;
+      }
+    };
+
+/*
   |--------------------------------------------------------------------------
   | Delete Collection
   |--------------------------------------------------------------------------
@@ -2419,6 +3066,8 @@ const {
     deleteCollection,
     getCollectionProducts,
     replaceCollectionProducts,
+    refreshSmartCollection,
+    syncSmartCollectionProducts,
     validateCollectionAssets,
     ensureUniqueCollection,
   };

@@ -10,6 +10,43 @@ export type CollectionType =
   | "MANUAL"
   | "SMART";
 
+export type SmartCollectionMatch =
+  | "ALL"
+  | "ANY";
+
+export type SmartCollectionRuleField =
+  | "EXPRESS_DELIVERY_ENABLED"
+  | "STATUS"
+  | "IS_FEATURED"
+  | "IS_SEARCHABLE"
+  | "PRODUCT_TYPE"
+  | "BRAND_ID"
+  | "CATEGORY_ID";
+
+export type SmartCollectionRuleOperator =
+  | "IS"
+  | "IS_NOT";
+
+export interface SmartCollectionRule {
+  field:
+    SmartCollectionRuleField;
+
+  operator:
+    SmartCollectionRuleOperator;
+
+  value:
+    boolean |
+    string;
+}
+
+export interface SmartCollectionRules {
+  match:
+    SmartCollectionMatch;
+
+  rules:
+    SmartCollectionRule[];
+}
+
 export interface CollectionMediaVariant {
   id:
     string;
@@ -105,6 +142,10 @@ export interface Collection {
 
   collectionType:
     CollectionType;
+
+  smartRules:
+    SmartCollectionRules |
+    null;
 
   sortOrder:
     number;
@@ -222,6 +263,10 @@ export interface CollectionFormValues {
 
   collectionType?:
     CollectionType;
+
+  smartRules?:
+    SmartCollectionRules |
+    null;
 
   sortOrder?:
     number;

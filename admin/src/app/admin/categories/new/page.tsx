@@ -1,6 +1,10 @@
 "use client";
 
 import {
+  Suspense,
+} from "react";
+
+import {
   useRouter,
   useSearchParams,
 } from "next/navigation";
@@ -20,6 +24,22 @@ import type {
 } from "@/types/category";
 
 export default function CreateCategoryPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[320px] items-center justify-center">
+          <p className="text-sm text-[#6d7175]">
+            Loading category form...
+          </p>
+        </div>
+      }
+    >
+      <CreateCategoryPageContent />
+    </Suspense>
+  );
+}
+
+function CreateCategoryPageContent() {
   const router =
     useRouter();
 
@@ -47,23 +67,25 @@ export default function CreateCategoryPage() {
       try {
         await createCategory({
           ...values,
-        
+
           parentCategoryId:
             values.parentCategoryId ||
             parentCategoryId ||
             null,
         }).unwrap();
-        
+
         toast.success(
           "Category created successfully."
         );
-        
+
         router.replace(
           "/admin/categories"
         );
-        
+
         router.refresh();
-      } catch (error) {
+      } catch (
+        error
+      ) {
         toast.error(
           getApiErrorMessage(
             error,
@@ -74,22 +96,20 @@ export default function CreateCategoryPage() {
     };
 
   return (
-    <main className="min-h-screen bg-[#f6f6f7]">
-      <CategoryForm
-        initialValues={{
-          parentCategoryId:
-            parentCategoryId ||
-            null,
-        }}
-        isSaving={
-          isLoading
-        }
-        submitLabel="Create category"
-        onSubmit={
-          handleSubmit
-        }
-      />
-    </main>
+    <CategoryForm
+      initialValues={{
+        parentCategoryId:
+          parentCategoryId ||
+          null,
+      }}
+      isSaving={
+        isLoading
+      }
+      submitLabel="Create category"
+      onSubmit={
+        handleSubmit
+      }
+    />
   );
 }
 
@@ -102,7 +122,8 @@ function getApiErrorMessage(
   if (
     typeof error !==
       "object" ||
-    error === null
+    error ===
+      null
   ) {
     return fallback;
   }
@@ -121,7 +142,8 @@ function getApiErrorMessage(
     };
 
   return (
-    apiError.data?.error
+    apiError.data
+      ?.error
       ?.message ||
     apiError.data
       ?.message ||

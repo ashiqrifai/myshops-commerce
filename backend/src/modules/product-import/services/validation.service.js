@@ -69,6 +69,25 @@ const {
     "sortOrder",
     "isFeatured",
     "isSearchable",
+    "erpId",
+    "isDirectDelivery",
+    "expressDeliveryEnabled",
+    "variantOverrideDeliverySettings",
+    "variantExpressDeliveryEnabled",
+    "directDeliverySupplierCode",
+    "directDeliveryLeadTimeDays",
+    "expressDeliveryHours",
+    "deliveryMinDays",
+    "deliveryMaxDays",
+    "variantExpressDeliveryHours",
+    "variantDeliveryMinDays",
+    "variantDeliveryMaxDays",
+    "directDeliveryNote",
+    "expressDeliveryEnabled",
+    "expressDeliveryHours",
+    "deliveryMinDays",
+    "deliveryMaxDays",
+    "deliveryNote",
     "websiteVisible",
     "websitePublishStatus",
     "kioskVisible",
@@ -88,6 +107,7 @@ const {
     "isDefault",
     "isFeatured",
     "isSearchable",
+    "isDirectDelivery",
     "websiteVisible",
     "kioskVisible",
   ];
@@ -95,6 +115,7 @@ const {
   const NUMERIC_FIELDS = [
     "taxPercent",
     "sortOrder",
+    "directDeliveryLeadTimeDays",
     "weight",
     "length",
     "width",
@@ -867,6 +888,125 @@ const {
   
     return result;
   };
+  /*
+  |--------------------------------------------------------------------------
+  | ERP / Direct Delivery Validation
+  |--------------------------------------------------------------------------
+  */
+
+  const validateDirectDelivery = ({
+    firstRow,
+    lookups,
+  }) => {
+    const result =
+      createResult();
+
+    const isDirectDelivery =
+      hasValue(
+        firstRow.isDirectDelivery
+      )
+        ? normalizeBoolean(
+            firstRow.isDirectDelivery
+          )
+        : false;
+
+    const supplierCode =
+      cleanUpper(
+        firstRow.directDeliverySupplierCode
+      );
+
+    const leadTime =
+      hasValue(
+        firstRow.directDeliveryLeadTimeDays
+      )
+        ? normalizeNumber(
+            firstRow.directDeliveryLeadTimeDays
+          )
+        : null;
+
+    if (
+      isDirectDelivery ===
+      true
+    ) {
+      if (!supplierCode) {
+        result.errors.push(
+          "Direct-delivery products require directDeliverySupplierCode."
+        );
+      } else {
+        const supplier =
+          lookups?.maps
+            ?.supplierByCode
+            ?.get(
+              supplierCode
+            );
+
+        if (!supplier) {
+          result.errors.push(
+            `Direct-delivery supplier "${supplierCode}" was not found.`
+          );
+        } else if (
+          supplier.isActive ===
+          false
+        ) {
+          result.errors.push(
+            `Direct-delivery supplier "${supplierCode}" is inactive.`
+          );
+        }
+      }
+
+      if (
+        leadTime !== null &&
+        (
+          !Number.isInteger(
+            leadTime
+          ) ||
+          leadTime < 0
+        )
+      ) {
+        result.errors.push(
+          "directDeliveryLeadTimeDays must be a non-negative whole number."
+        );
+      }
+    } else if (
+      supplierCode ||
+      hasValue(
+        firstRow.directDeliveryLeadTimeDays
+      ) ||
+      hasValue(
+        firstRow.directDeliveryNote
+      )
+    ) {
+      result.warnings.push(
+        "Direct-delivery supplier, lead time and note will be ignored because isDirectDelivery is FALSE."
+      );
+    }
+
+    if (
+      clean(
+        firstRow.erpId
+      ).length >
+      180
+    ) {
+      result.errors.push(
+        "erpId cannot exceed 180 characters."
+      );
+    }
+
+    if (
+      clean(
+        firstRow.directDeliveryNote
+      ).length >
+      500
+    ) {
+      result.errors.push(
+        "directDeliveryNote cannot exceed 500 characters."
+      );
+    }
+
+    return result;
+  };
+
+
 
 
   const validateMediaFields = ({
@@ -941,13 +1081,15 @@ const {
             index
           );
   
-        mergeResult(
-          result,
-          validateRequiredRowFields({
-            row,
-            rowNumber,
-          })
-        );
+        if (
+          !hasValue(
+            row.parentSku
+          )
+        ) {
+          result.errors.push(
+            `Row ${rowNumber}: parentSku is required.`
+          );
+        }
   
         mergeResult(
           result,
@@ -2736,11 +2878,12 @@ const validateMediaReferences = ({
         firstRow.parentSku
       );
   
-    const productType =
+      const productType =
       cleanUpper(
-        firstRow.productType
+        firstRow.productType ||
+        "SIMPLE"
       );
-  
+      
     const existingProduct =
       parentSku
         ? lookups.maps
@@ -2751,6 +2894,29 @@ const validateMediaReferences = ({
           null
         : null;
   
+    if (
+      !existingProduct
+    ) {
+      productRows.forEach(
+        (
+          row,
+          index
+        ) => {
+          mergeResult(
+            result,
+            validateRequiredRowFields({
+              row,
+              rowNumber:
+                getRowNumber(
+                  row,
+                  index
+                ),
+            })
+          );
+        }
+      );
+    }
+
     mergeResult(
       result,
       validateGroupConsistency(
@@ -2781,6 +2947,14 @@ const validateMediaReferences = ({
           lookups,
         })
       );
+      mergeResult(
+        result,
+        validateDirectDelivery({
+          firstRow,
+          lookups,
+        })
+      );
+
       
       mergeResult(
         result,
@@ -2811,6 +2985,71 @@ const validateMediaReferences = ({
       })
     );
   
+    const deliveryMinDays =
+      hasValue(
+        firstRow.deliveryMinDays
+      )
+        ? normalizeNumber(
+            firstRow.deliveryMinDays
+          )
+        : null;
+
+    const deliveryMaxDays =
+      hasValue(
+        firstRow.deliveryMaxDays
+      )
+        ? normalizeNumber(
+            firstRow.deliveryMaxDays
+          )
+        : null;
+
+    if (
+      deliveryMinDays !== null &&
+      deliveryMaxDays !== null &&
+      deliveryMaxDays <
+        deliveryMinDays
+    ) {
+      result.errors.push(
+        "deliveryMaxDays cannot be less than deliveryMinDays."
+      );
+    }
+
+    productRows.forEach(
+      (
+        row,
+        index
+      ) => {
+        const variantMin =
+          hasValue(
+            row.variantDeliveryMinDays
+          )
+            ? normalizeNumber(
+                row.variantDeliveryMinDays
+              )
+            : null;
+
+        const variantMax =
+          hasValue(
+            row.variantDeliveryMaxDays
+          )
+            ? normalizeNumber(
+                row.variantDeliveryMaxDays
+              )
+            : null;
+
+        if (
+          variantMin !== null &&
+          variantMax !== null &&
+          variantMax <
+            variantMin
+        ) {
+          result.errors.push(
+            `Row ${getRowNumber(row, index)}: variantDeliveryMaxDays cannot be less than variantDeliveryMinDays.`
+          );
+        }
+      }
+    );
+
     mergeResult(
       result,
       validateModeForProduct({
@@ -3059,6 +3298,7 @@ const validateMediaReferences = ({
     validateSpecifications,
     validatePrices,
     validateImportMode,
+    validateDirectDelivery,
 
 
     validateMediaFields,

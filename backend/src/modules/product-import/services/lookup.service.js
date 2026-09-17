@@ -92,6 +92,26 @@ const {
         )
         .filter(Boolean)
     );
+  /*
+  |--------------------------------------------------------------------------
+  | Collect Supplier Codes
+  |--------------------------------------------------------------------------
+  */
+
+  const collectSupplierCodes = (
+    rows
+  ) =>
+    uniqueValues(
+      rows
+        .map((row) =>
+          cleanUpper(
+            row.directDeliverySupplierCode
+          )
+        )
+        .filter(Boolean)
+    );
+
+
   
   /*
   |--------------------------------------------------------------------------
@@ -502,6 +522,43 @@ const {
       transaction,
     });
   };
+  /*
+  |--------------------------------------------------------------------------
+  | Load Suppliers
+  |--------------------------------------------------------------------------
+  */
+
+  const loadSuppliers = async ({
+    companyId,
+    supplierCodes,
+    transaction,
+  }) => {
+    if (!supplierCodes.length) {
+      return [];
+    }
+
+    return db.Supplier.findAll({
+      where: {
+        companyId,
+
+        code: {
+          [Op.in]:
+            supplierCodes,
+        },
+      },
+
+      attributes: [
+        "id",
+        "code",
+        "name",
+        "isActive",
+      ],
+
+      transaction,
+    });
+  };
+
+
   
   /*
   |--------------------------------------------------------------------------
@@ -1063,6 +1120,11 @@ const {
         collectBrandCodes(
           rows
         );
+      const supplierCodes =
+        collectSupplierCodes(
+          rows
+        );
+
   
       const categorySlugs =
         collectCategorySlugs(
@@ -1106,6 +1168,7 @@ const {
   
       const [
         brands,
+        suppliers,
         categories,
         collections,
         attributes,
@@ -1117,6 +1180,12 @@ const {
         loadBrands({
           companyId,
           brandCodes,
+          transaction,
+        }),
+
+        loadSuppliers({
+          companyId,
+          supplierCodes,
           transaction,
         }),
   
@@ -1207,6 +1276,7 @@ const {
       return {
         requested: {
           brandCodes,
+          supplierCodes,
           categorySlugs,
           collectionSlugs,
           attributeCodes,
@@ -1225,6 +1295,7 @@ const {
   
         rows: {
           brands,
+          suppliers,
           categories,
           collections,
           attributes,
@@ -1243,6 +1314,15 @@ const {
                   brand.code
                 )
             ),
+          supplierByCode:
+            buildMap(
+              suppliers,
+              (supplier) =>
+                cleanUpper(
+                  supplier.code
+                )
+            ),
+
   
           categoryBySlug:
             buildMap(
@@ -1342,6 +1422,7 @@ const {
     resolveAttributeOption,
   
     collectBrandCodes,
+    collectSupplierCodes,
     collectCategorySlugs,
     collectCollectionSlugs,
     collectAttributeCodes,

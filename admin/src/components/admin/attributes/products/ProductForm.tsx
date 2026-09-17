@@ -58,6 +58,12 @@ const defaults: ProductFormValues = {
   sortOrder: 0,
   isFeatured: false,
   isSearchable: true,
+  alwaysAvailableForSale: false,
+  isDirectDelivery: false,
+  directDeliverySupplierId: null,
+  directDeliveryLeadTimeDays: null,
+  directDeliveryNote: null,
+
   metaTitle: null,
   metaDescription: null,
   metaKeywords: null,
@@ -475,6 +481,24 @@ function mapProduct(product: Product): ProductFormValues {
     sortOrder: product.sortOrder || 0,
     isFeatured: product.isFeatured,
     isSearchable: product.isSearchable,
+    alwaysAvailableForSale:
+  product.alwaysAvailableForSale === true,
+
+    isDirectDelivery:
+      product.isDirectDelivery === true,
+
+    directDeliverySupplierId:
+      product.directDeliverySupplierId ||
+      null,
+
+    directDeliveryLeadTimeDays:
+      product.directDeliveryLeadTimeDays ??
+      null,
+
+    directDeliveryNote:
+      product.directDeliveryNote ||
+      null,
+
     metaTitle: product.metaTitle || null,
     metaDescription: product.metaDescription || null,
     metaKeywords: product.metaKeywords || null,

@@ -21,6 +21,27 @@ interface ProductCarouselContent {
   brandId?:
     | string
     | null;
+
+  /*
+  |--------------------------------------------------------------------------
+  | View All
+  |--------------------------------------------------------------------------
+  |
+  | Optional storefront destination for the carousel's View All action.
+  |
+  | Examples:
+  |
+  | /products/new-arrivals
+  | /products/bestsellers
+  | /collections/hot-deals
+  |
+  | When blank, the storefront keeps its existing /products fallback.
+  |--------------------------------------------------------------------------
+  */
+
+  viewAllUrl?:
+    | string
+    | null;
 }
 
 interface ProductCarouselSettings {
@@ -29,29 +50,57 @@ interface ProductCarouselSettings {
 }
 
 interface ProductCarouselEditorProps {
-  value: Record<string, unknown>;
-  settings: Record<string, unknown>;
+  value:
+    Record<
+      string,
+      unknown
+    >;
+
+  settings:
+    Record<
+      string,
+      unknown
+    >;
 
   onChange: (
-    value: Record<string, unknown>
+    value:
+      Record<
+        string,
+        unknown
+      >
   ) => void;
 }
 
-const SOURCE_LABELS: Record<
-  string,
-  string
-> = {
-  MANUAL: "Manual selection",
-  FEATURED: "Featured products",
-  CATEGORY: "Category",
-  BRAND: "Brand",
-  BEST_SELLERS: "Best sellers",
-  NEW_ARRIVALS: "New arrivals",
-  FLASH_SALE: "Flash sale",
-};
+const SOURCE_LABELS:
+  Record<
+    string,
+    string
+  > = {
+    MANUAL:
+      "Manual selection",
+
+    FEATURED:
+      "Featured products",
+
+    CATEGORY:
+      "Category",
+
+    BRAND:
+      "Brand",
+
+    BEST_SELLERS:
+      "Best sellers",
+
+    NEW_ARRIVALS:
+      "New arrivals",
+
+    FLASH_SALE:
+      "Flash sale",
+  };
 
 function normalizeSourceType(
-  settings: ProductCarouselSettings
+  settings:
+    ProductCarouselSettings
 ) {
   return String(
     settings.sourceType ||
@@ -66,9 +115,14 @@ function SourceNotice({
   title,
   description,
 }: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
+  icon:
+    React.ReactNode;
+
+  title:
+    string;
+
+  description:
+    string;
 }) {
   return (
     <div className="rounded-xl border border-[#e1e3e5] bg-white p-5">
@@ -114,9 +168,17 @@ export default function ProductCarouselEditor({
           ): id is string =>
             typeof id ===
               "string" &&
-            Boolean(id.trim())
+            Boolean(
+              id.trim()
+            )
         )
       : [];
+
+  /*
+  |--------------------------------------------------------------------------
+  | Update Content
+  |--------------------------------------------------------------------------
+  */
 
   const updateContent = (
     changes:
@@ -130,6 +192,12 @@ export default function ProductCarouselEditor({
 
   return (
     <section className="admin-card overflow-hidden">
+      {/*
+      |--------------------------------------------------------------------------
+      | Header
+      |--------------------------------------------------------------------------
+      */}
+
       <div className="border-b border-[#e1e3e5] px-6 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -138,8 +206,9 @@ export default function ProductCarouselEditor({
             </h2>
 
             <p className="mt-1 text-sm text-[#6d7175]">
-              Configure the heading and
-              products displayed in this
+              Configure the heading,
+              products and View All
+              destination for this
               carousel.
             </p>
           </div>
@@ -153,6 +222,12 @@ export default function ProductCarouselEditor({
       </div>
 
       <div className="space-y-6 p-6">
+        {/*
+        |--------------------------------------------------------------------------
+        | Title + Subtitle
+        |--------------------------------------------------------------------------
+        */}
+
         <div className="grid gap-5 md:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-[#202223]">
@@ -162,12 +237,16 @@ export default function ProductCarouselEditor({
             <input
               type="text"
               value={
-                content.title || ""
+                content.title ||
+                ""
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 updateContent({
                   title:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
@@ -184,12 +263,16 @@ export default function ProductCarouselEditor({
             <input
               type="text"
               value={
-                content.subtitle || ""
+                content.subtitle ||
+                ""
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 updateContent({
                   subtitle:
-                    event.target
+                    event
+                      .target
                       .value,
                 })
               }
@@ -199,20 +282,88 @@ export default function ProductCarouselEditor({
           </div>
         </div>
 
+        {/*
+        |--------------------------------------------------------------------------
+        | View All URL
+        |--------------------------------------------------------------------------
+        |
+        | Existing storefront behavior:
+        |
+        | 1. viewAllResolvedUrl
+        | 2. viewAllUrl
+        | 3. /products
+        |
+        | Therefore leaving this field blank preserves the existing fallback.
+        |--------------------------------------------------------------------------
+        */}
+
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-[#202223]">
+            View All URL
+          </label>
+
+          <input
+            type="text"
+            value={
+              content.viewAllUrl ||
+              ""
+            }
+            onChange={(
+              event
+            ) =>
+              updateContent({
+                viewAllUrl:
+                  event
+                    .target
+                    .value,
+              })
+            }
+            className="admin-input"
+            placeholder="/products or /collections/hot-deals"
+          />
+
+          <p className="mt-1.5 text-xs leading-5 text-[#6d7175]">
+            Optional. Enter the
+            storefront destination for
+            the View All button. Leave
+            blank to use /products.
+          </p>
+        </div>
+
+        {/*
+        |--------------------------------------------------------------------------
+        | Manual Product Selection
+        |--------------------------------------------------------------------------
+        */}
+
         {sourceType ===
         "MANUAL" ? (
           <ProductPicker
-            selectedIds={productIds}
-            onChange={(nextIds) =>
+            selectedIds={
+              productIds
+            }
+            onChange={(
+              nextIds
+            ) =>
               updateContent({
                 productIds:
                   nextIds,
-                categoryId: null,
-                brandId: null,
+
+                categoryId:
+                  null,
+
+                brandId:
+                  null,
               })
             }
           />
         ) : null}
+
+        {/*
+        |--------------------------------------------------------------------------
+        | Category Source
+        |--------------------------------------------------------------------------
+        */}
 
         {sourceType ===
         "CATEGORY" ? (
@@ -226,14 +377,24 @@ export default function ProductCarouselEditor({
             ) =>
               updateContent({
                 categoryId,
-                brandId: null,
-                productIds: [],
+
+                brandId:
+                  null,
+
+                productIds:
+                  [],
               })
             }
             title="Select product category"
             description="Choose the category whose products should populate this carousel."
           />
         ) : null}
+
+        {/*
+        |--------------------------------------------------------------------------
+        | Brand Source
+        |--------------------------------------------------------------------------
+        */}
 
         {sourceType ===
         "BRAND" ? (
@@ -247,14 +408,24 @@ export default function ProductCarouselEditor({
             ) =>
               updateContent({
                 brandId,
-                categoryId: null,
-                productIds: [],
+
+                categoryId:
+                  null,
+
+                productIds:
+                  [],
               })
             }
             title="Select product brand"
             description="Choose the brand whose products should populate this carousel."
           />
         ) : null}
+
+        {/*
+        |--------------------------------------------------------------------------
+        | Featured Products
+        |--------------------------------------------------------------------------
+        */}
 
         {sourceType ===
         "FEATURED" ? (
@@ -269,6 +440,12 @@ export default function ProductCarouselEditor({
           />
         ) : null}
 
+        {/*
+        |--------------------------------------------------------------------------
+        | Best Sellers
+        |--------------------------------------------------------------------------
+        */}
+
         {sourceType ===
         "BEST_SELLERS" ? (
           <SourceNotice
@@ -282,6 +459,12 @@ export default function ProductCarouselEditor({
           />
         ) : null}
 
+        {/*
+        |--------------------------------------------------------------------------
+        | New Arrivals
+        |--------------------------------------------------------------------------
+        */}
+
         {sourceType ===
         "NEW_ARRIVALS" ? (
           <SourceNotice
@@ -294,6 +477,12 @@ export default function ProductCarouselEditor({
             description="The storefront will automatically load recently created active products."
           />
         ) : null}
+
+        {/*
+        |--------------------------------------------------------------------------
+        | Flash Sale
+        |--------------------------------------------------------------------------
+        */}
 
         {sourceType ===
         "FLASH_SALE" ? (

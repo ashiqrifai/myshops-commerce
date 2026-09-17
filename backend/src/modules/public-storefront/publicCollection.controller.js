@@ -3,6 +3,11 @@ const publicCollectionService =
     "./publicCollection.service"
   );
 
+  const getPublicApiBaseUrl =
+  require(
+    "../../utils/getPublicApiBaseUrl"
+  );
+
 const getPublicCollection =
   async (
     req,
@@ -16,10 +21,10 @@ const getPublicCollection =
         ] ||
         req.query.companyCode;
 
-      const apiBaseUrl =
-        `${req.protocol}://${req.get(
-          "host"
-        )}`;
+        const apiBaseUrl =
+        getPublicApiBaseUrl(
+          req
+        );
 
       const result =
         await publicCollectionService

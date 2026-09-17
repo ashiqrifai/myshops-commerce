@@ -261,6 +261,17 @@ const {
     "sortOrder",
     "isFeatured",
     "isSearchable",
+    "erpId",
+    "isDirectDelivery",
+    "directDeliverySupplierCode",
+    "directDeliveryLeadTimeDays",
+    "directDeliveryNote",
+
+    "expressDeliveryEnabled",
+    "expressDeliveryHours",
+    "deliveryMinDays",
+    "deliveryMaxDays",
+    "deliveryNote",
   
     "websiteVisible",
     "websitePublishStatus",
@@ -291,6 +302,13 @@ const {
     "width",
     "height",
     "dimensionUnit",
+
+    "variantOverrideDeliverySettings",
+    "variantExpressDeliveryEnabled",
+    "variantExpressDeliveryHours",
+    "variantDeliveryMinDays",
+    "variantDeliveryMaxDays",
+    "variantDeliveryNote",
   ];
   
   const KNOWN_HEADER_MAP =

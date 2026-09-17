@@ -105,6 +105,17 @@ const express = require(
     collectionController.changeCollectionStatus
   );
   
+  router.post(
+    "/:id/refresh-smart",
+    authorize(
+      "collections.update"
+    ),
+    collectionIdValidation,
+    validateRequest,
+    collectionController
+      .refreshSmartCollection
+  );
+
   /*
   |--------------------------------------------------------------------------
   | Collection Detail, Update and Delete

@@ -186,10 +186,6 @@ const {
   
   const REQUIRED_COLUMNS = [
     "parentSku",
-    "name",
-    "productType",
-    "status",
-    "variantSku",
   ];
   
   const validateHeaders = (

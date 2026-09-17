@@ -2,92 +2,127 @@
 
 import {
   CheckCircle2,
+  Loader2,
   TicketPercent,
   XCircle,
 } from "lucide-react";
 
 import {
+  useEffect,
   useState,
 } from "react";
 
-export type AppliedCoupon =
-  | {
-      code: "MYSHOPS10";
-      type: "PERCENTAGE";
-      value: 10;
-      label: "10% off";
-    }
-  | {
-      code: "WELCOME50";
-      type: "FIXED";
-      value: 50;
-      label: "AED 50 off";
-    }
-  | {
-      code: "FREESHIP";
-      type: "FREE_SHIPPING";
-      value: 0;
-      label: "Free delivery";
-    };
+import {
+  useAppDispatch,
+  useAppSelector,
+} from "@/store/hooks";
 
-interface CouponSectionProps {
-  appliedCoupon:
-    | AppliedCoupon
-    | null;
+import {
+  clearAppliedCoupon,
+  selectAppliedCoupon,
+  setAppliedCoupon,
+} from "@/store/slices/cartSlice";
 
-  onApply: (
-    coupon:
-      | AppliedCoupon
-      | null
-  ) => void;
+import {
+  selectCustomer,
+  selectCustomerAccessToken,
+} from "@/store/slices/customerAuthSlice";
+
+const API_URL =
+  process.env
+    .NEXT_PUBLIC_API_URL ||
+  "http://localhost:5080/api/v1";
+
+const COMPANY_CODE =
+  process.env
+    .NEXT_PUBLIC_COMPANY_CODE ||
+  "MYSHOPS";
+
+export interface ValidatedCoupon {
+  code: string;
+
+  name: string;
+
+  discountType:
+    | "PERCENTAGE"
+    | "FIXED"
+    | "FREE_SHIPPING";
+
+  discountValue: number;
+
+  merchandiseDiscount: number;
+
+  deliveryDiscount: number;
+
+  discountAmount: number;
+
+  finalDeliveryAmount: number;
 }
 
-const coupons:
-  Record<
-    string,
-    AppliedCoupon
-  > = {
-    MYSHOPS10: {
-      code:
-        "MYSHOPS10",
-      type:
-        "PERCENTAGE",
-      value: 10,
-      label:
-        "10% off",
-    },
+interface CouponValidateEnvelope {
+  success: boolean;
 
-    WELCOME50: {
-      code:
-        "WELCOME50",
-      type:
-        "FIXED",
-      value: 50,
-      label:
-        "AED 50 off",
-    },
-
-    FREESHIP: {
-      code:
-        "FREESHIP",
-      type:
-        "FREE_SHIPPING",
-      value: 0,
-      label:
-        "Free delivery",
-    },
+  data?: {
+    coupon:
+      ValidatedCoupon;
   };
 
+  error?: {
+    code?:
+      string;
+
+    message?:
+      string;
+
+    details?:
+      unknown[];
+  };
+
+  message?:
+    string;
+}
+
+interface CouponSectionProps {
+  merchandiseTotal:
+    number;
+
+  deliveryAmount:
+    number;
+
+  currencyCode:
+    string;
+}
+
 export default function CouponSection({
-  appliedCoupon,
-  onApply,
+  merchandiseTotal,
+  deliveryAmount,
+  currencyCode,
 }: CouponSectionProps) {
+  const dispatch =
+    useAppDispatch();
+
+  const appliedCoupon =
+    useAppSelector(
+      selectAppliedCoupon
+    );
+
+  const customer =
+    useAppSelector(
+      selectCustomer
+    );
+
+  const accessToken =
+    useAppSelector(
+      selectCustomerAccessToken
+    );
+
   const [
     code,
     setCode,
   ] =
     useState(
-      appliedCoupon?.code ||
+      appliedCoupon
+        ?.code ||
         ""
     );
 
@@ -95,7 +130,9 @@ export default function CouponSection({
     message,
     setMessage,
   ] =
-    useState<string | null>(
+    useState<
+      string | null
+    >(
       null
     );
 
@@ -103,61 +140,241 @@ export default function CouponSection({
     isError,
     setIsError,
   ] =
-    useState(false);
+    useState(
+      false
+    );
 
-  const applyCoupon = () => {
-    const normalized =
-      code
-        .trim()
-        .toUpperCase();
+  const [
+    isLoading,
+    setIsLoading,
+  ] =
+    useState(
+      false
+    );
 
-    const coupon =
-      coupons[
-        normalized
-      ];
-
-    if (!coupon) {
-      setIsError(true);
-
-      setMessage(
-        "This coupon code is not valid."
+  useEffect(
+    () => {
+      setCode(
+        appliedCoupon
+          ?.code ||
+          ""
       );
+    },
+    [
+      appliedCoupon,
+    ]
+  );
 
-      return;
-    }
+  const applyCoupon =
+    async () => {
+      const normalized =
+        code
+          .trim()
+          .toUpperCase();
 
-    onApply(coupon);
+      if (
+        !normalized
+      ) {
+        setIsError(
+          true
+        );
 
-    setCode(
-      coupon.code
-    );
+        setMessage(
+          "Enter a coupon code."
+        );
 
-    setIsError(false);
+        return;
+      }
 
-    setMessage(
-      `${coupon.code} applied successfully.`
-    );
-  };
+      try {
+        setIsLoading(
+          true
+        );
+
+        setIsError(
+          false
+        );
+
+        setMessage(
+          null
+        );
+
+        const headers:
+          Record<
+            string,
+            string
+          > = {
+          Accept:
+            "application/json",
+
+          "Content-Type":
+            "application/json",
+
+          "x-company-code":
+            COMPANY_CODE,
+        };
+
+        if (
+          accessToken
+        ) {
+          headers.Authorization =
+            `Bearer ${accessToken}`;
+        }
+
+        const response =
+          await fetch(
+            `${API_URL}/public/coupons/validate`,
+            {
+              method:
+                "POST",
+
+              headers,
+
+              credentials:
+                "include",
+
+              body:
+                JSON.stringify({
+                  companyCode:
+                    COMPANY_CODE,
+
+                  code:
+                    normalized,
+
+                  currencyCode:
+                    currencyCode ||
+                    "AED",
+
+                  merchandiseTotal,
+
+                  deliveryAmount,
+
+                  customerEmail:
+                    customer
+                      ?.email ||
+                    null,
+                }),
+            }
+          );
+
+        let payload:
+          CouponValidateEnvelope
+          | undefined;
+
+        try {
+          payload =
+            await response.json();
+        } catch {
+          payload =
+            undefined;
+        }
+
+        if (
+          !response.ok
+        ) {
+          throw new Error(
+            payload
+              ?.error
+              ?.message ||
+              payload
+                ?.message ||
+              `Coupon validation failed. HTTP ${response.status}`
+          );
+        }
+
+        if (
+          !payload
+            ?.success ||
+          !payload
+            .data
+            ?.coupon
+        ) {
+          throw new Error(
+            "The coupon API returned an invalid response."
+          );
+        }
+
+        const coupon =
+          payload
+            .data
+            .coupon;
+
+        dispatch(
+          setAppliedCoupon(
+            coupon
+          )
+        );
+
+        setCode(
+          coupon.code
+        );
+
+        setIsError(
+          false
+        );
+
+        setMessage(
+          `${coupon.code} applied successfully.`
+        );
+      } catch (
+        error
+      ) {
+        dispatch(
+          clearAppliedCoupon()
+        );
+
+        setIsError(
+          true
+        );
+
+        setMessage(
+          error instanceof
+            Error
+            ? error.message
+            : "Unable to apply coupon."
+        );
+      } finally {
+        setIsLoading(
+          false
+        );
+      }
+    };
 
   const removeCoupon =
     () => {
-      onApply(null);
+      dispatch(
+        clearAppliedCoupon()
+      );
 
-      setCode("");
+      setCode(
+        ""
+      );
 
       setMessage(
         "Coupon removed."
       );
 
-      setIsError(false);
+      setIsError(
+        false
+      );
     };
 
+  const label =
+    appliedCoupon
+      ? getCouponLabel(
+          appliedCoupon,
+          currencyCode
+        )
+      : "";
+
   return (
-    <section className="rounded-2xl border border-storefront bg-storefront-secondary/40 p-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-storefront-primary">
+    <section>
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-storefront-secondary text-storefront-primary">
           <TicketPercent
-            size={18}
+            size={
+              17
+            }
           />
         </div>
 
@@ -176,7 +393,9 @@ export default function CouponSection({
         <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
           <div className="flex min-w-0 items-center gap-2">
             <CheckCircle2
-              size={17}
+              size={
+                17
+              }
               className="shrink-0 text-emerald-700"
             />
 
@@ -189,7 +408,7 @@ export default function CouponSection({
 
               <p className="text-[11px] text-emerald-700">
                 {
-                  appliedCoupon.label
+                  label
                 }
               </p>
             </div>
@@ -208,16 +427,24 @@ export default function CouponSection({
       ) : (
         <div className="mt-4 flex gap-2">
           <input
-            value={code}
+            value={
+              code
+            }
             onChange={(
               event
             ) => {
               setCode(
-                event.target.value
+                event
+                  .target
+                  .value
               );
 
               setMessage(
                 null
+              );
+
+              setIsError(
+                false
               );
             }}
             onKeyDown={(
@@ -229,21 +456,40 @@ export default function CouponSection({
               ) {
                 event.preventDefault();
 
-                applyCoupon();
+                void applyCoupon();
               }
             }}
+            disabled={
+              isLoading
+            }
             placeholder="Enter coupon code"
-            className="h-11 min-w-0 flex-1 rounded-xl border border-storefront bg-white px-3 text-sm font-bold uppercase tracking-wide text-storefront-text outline-none focus:border-storefront-primary"
+            className="h-11 min-w-0 flex-1 rounded-xl border border-storefront bg-white px-3 text-sm font-bold uppercase tracking-wide text-storefront-text outline-none focus:border-storefront-primary disabled:cursor-wait disabled:opacity-60"
           />
 
           <button
             type="button"
-            onClick={
-              applyCoupon
+            disabled={
+              isLoading
             }
-            className="h-11 rounded-xl bg-storefront-primary px-4 text-xs font-black text-white"
+            onClick={() =>
+              void applyCoupon()
+            }
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-storefront-primary px-4 text-xs font-black text-white disabled:cursor-wait disabled:opacity-60"
           >
-            Apply
+            {isLoading ? (
+              <>
+                <Loader2
+                  size={
+                    14
+                  }
+                  className="animate-spin"
+                />
+
+                Checking
+              </>
+            ) : (
+              "Apply"
+            )}
           </button>
         </div>
       )}
@@ -252,30 +498,87 @@ export default function CouponSection({
         <div
           className={[
             "mt-3 flex items-center gap-2 text-xs font-semibold",
+
             isError
               ? "text-red-600"
               : "text-emerald-700",
-          ].join(" ")}
+          ].join(
+            " "
+          )}
         >
           {isError ? (
             <XCircle
-              size={14}
+              size={
+                14
+              }
             />
           ) : (
             <CheckCircle2
-              size={14}
+              size={
+                14
+              }
             />
           )}
 
-          {message}
+          {
+            message
+          }
         </div>
       ) : null}
-
-      {!appliedCoupon ? (
-        <p className="mt-3 text-[10px] leading-4 text-storefront-muted">
-          Demo codes: MYSHOPS10, WELCOME50, FREESHIP
-        </p>
-      ) : null}
     </section>
+  );
+}
+
+function getCouponLabel(
+  coupon:
+    ValidatedCoupon,
+  currencyCode:
+    string
+) {
+  switch (
+    coupon.discountType
+  ) {
+    case "PERCENTAGE":
+      return `${coupon.discountValue}% off`;
+
+    case "FIXED":
+      return `${formatMoney(
+        coupon.discountValue,
+        currencyCode
+      )} off`;
+
+    case "FREE_SHIPPING":
+      return "Free delivery";
+
+    default:
+      return coupon.name ||
+        coupon.code;
+  }
+}
+
+function formatMoney(
+  value:
+    number,
+  currencyCode:
+    string
+) {
+  return new Intl.NumberFormat(
+    "en-AE",
+    {
+      style:
+        "currency",
+
+      currency:
+        currencyCode ||
+        "AED",
+
+      minimumFractionDigits:
+        2,
+
+      maximumFractionDigits:
+        2,
+    }
+  ).format(
+    value
   );
 }

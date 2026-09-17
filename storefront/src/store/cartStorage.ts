@@ -21,12 +21,16 @@ export function loadCartState():
         STORAGE_KEY
       );
 
-    if (!raw) {
+    if (
+      !raw
+    ) {
       return undefined;
     }
 
     const parsed =
-      JSON.parse(raw) as
+      JSON.parse(
+        raw
+      ) as
         | Partial<CartState>
         | null;
 
@@ -42,6 +46,11 @@ export function loadCartState():
     return {
       items:
         parsed.items,
+
+      appliedCoupon:
+        parsed.appliedCoupon ||
+        null,
+
       hydrated:
         true,
     };
@@ -51,7 +60,8 @@ export function loadCartState():
 }
 
 export function saveCartState(
-  state: CartState
+  state:
+    CartState
 ): void {
   if (
     typeof window ===
@@ -63,9 +73,13 @@ export function saveCartState(
   try {
     window.localStorage.setItem(
       STORAGE_KEY,
+
       JSON.stringify({
         items:
           state.items,
+
+        appliedCoupon:
+          state.appliedCoupon,
       })
     );
   } catch {
@@ -73,7 +87,8 @@ export function saveCartState(
   }
 }
 
-export function clearCartStorage(): void {
+export function clearCartStorage():
+  void {
   if (
     typeof window ===
     "undefined"

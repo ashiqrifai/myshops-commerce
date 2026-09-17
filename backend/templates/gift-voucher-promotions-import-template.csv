@@ -1,0 +1,4 @@
+promotionCode,promotionName,description,discountType,discountValue,fundingType,fundingSource,currencyCode,channelCode,validFrom,validUntil,priority,isActive,variantSku
+APPLE_GV_300,Apple MacBook Gift Voucher AED 300,Apple funded MacBook promotion,FIXED_AMOUNT,300,EXTERNAL,Apple,AED,WEBSITE,2026-09-01T00:00:00+04:00,2026-09-30T23:59:59+04:00,100,true,195949131455
+APPLE_GV_300,Apple MacBook Gift Voucher AED 300,Apple funded MacBook promotion,FIXED_AMOUNT,300,EXTERNAL,Apple,AED,WEBSITE,2026-09-01T00:00:00+04:00,2026-09-30T23:59:59+04:00,100,true,195950853438
+SAMSUNG_GV_200,Samsung Gift Voucher AED 200,Samsung funded promotion,FIXED_AMOUNT,200,EXTERNAL,Samsung,AED,WEBSITE,2026-09-05T00:00:00+04:00,2026-10-05T23:59:59+04:00,100,true,8806099999999

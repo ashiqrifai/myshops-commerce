@@ -216,7 +216,7 @@ export default function CategoryFilters({
                 filter.id ||
                 filter.code
               }
-              className="border-t border-storefront pt-5"
+              className="border-t border-storefront-border-light pt-5"
             >
               <h3 className="mb-3 text-sm font-black text-storefront-text">
                 {filter.label}
@@ -250,7 +250,7 @@ export default function CategoryFilters({
 
                         {option.swatchValue ? (
                           <span
-                            className="h-4 w-4 shrink-0 rounded-full border border-black/10"
+                            className="h-4 w-4 shrink-0 rounded-full border border-storefront-border-light"
                             style={{
                               backgroundColor:
                                 option.swatchValue,
@@ -359,7 +359,7 @@ function PriceFilter({
               ""
             }
             placeholder="Min"
-            className="h-10 rounded-lg border border-storefront bg-white px-3 text-sm outline-none focus:border-storefront-primary"
+            className="h-10 rounded-lg border border-storefront-border-light bg-white px-3 text-sm outline-none transition focus:border-storefront-primary"
           />
 
           <input

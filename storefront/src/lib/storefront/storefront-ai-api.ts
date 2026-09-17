@@ -154,15 +154,35 @@ export async function askStorefrontAi(
   if (
     !response.ok ||
     !result.success ||
-    !("data" in result)
+    !(
+      "data" in result
+    )
   ) {
-    throw new Error(
+    let errorMessage =
+      "The AI assistant is temporarily unavailable.";
+  
+    if (
+      "error" in result &&
       result.error
-        ?.message ||
-        result.message ||
-        "The AI assistant is temporarily unavailable."
+        ?.message
+    ) {
+      errorMessage =
+        result.error
+          .message;
+    } else if (
+      "message" in result &&
+      typeof result.message ===
+        "string" &&
+      result.message.trim()
+    ) {
+      errorMessage =
+        result.message;
+    }
+  
+    throw new Error(
+      errorMessage
     );
   }
-
+  
   return result.data;
 }

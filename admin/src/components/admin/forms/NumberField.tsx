@@ -244,14 +244,18 @@ const NumberField = forwardRef<
           1
         );
 
+        const stepValue =
+        numericStep ??
+        1;
+      
       const nextValue =
         direction ===
         "increment"
           ? currentValue +
-            numericStep
+            stepValue
           : currentValue -
-            numericStep;
-
+            stepValue;
+            
       const normalizedValue =
         normalizeNumber(
           nextValue,

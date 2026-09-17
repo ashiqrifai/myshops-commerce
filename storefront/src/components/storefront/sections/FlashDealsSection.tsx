@@ -17,7 +17,8 @@ import type {
 } from "@/types/storefront";
 
 interface FlashDealsSectionProps {
-  section: StorefrontSection;
+  section:
+    StorefrontSection;
 }
 
 export default function FlashDealsSection({
@@ -75,19 +76,48 @@ export default function FlashDealsSection({
       data-section-type={
         section.type.code
       }
-      className="w-full py-8 sm:py-10 lg:py-12"
+      className="
+        w-full
+        pt-4
+        pb-6
+        sm:pt-5
+        sm:pb-7
+        lg:pt-6
+        lg:pb-8
+      "
     >
-      <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8">
+      <div
+        className="
+          mx-auto
+          w-full
+          max-w-[1440px]
+          px-4
+          sm:px-6
+          lg:px-8
+        "
+      >
         {expired &&
         !hideWhenExpired ? (
-          <div className="rounded-2xl border border-storefront bg-storefront-surface p-8 text-center">
-            <p className="text-lg font-black text-storefront-text">
+          /*
+          |--------------------------------------------------------------------------
+          | Expired
+          |--------------------------------------------------------------------------
+          */
+
+          <div className="rounded-2xl border border-storefront-border-light bg-storefront-surface p-8 text-center">
+            <p className="text-lg font-bold text-storefront-text">
               This offer has ended
             </p>
           </div>
         ) : layout ===
           "SIDE_BANNER" ? (
-          <div className="grid gap-6 lg:grid-cols-[minmax(280px,0.34fr)_minmax(0,0.66fr)]">
+          /*
+          |--------------------------------------------------------------------------
+          | Side Banner
+          |--------------------------------------------------------------------------
+          */
+
+          <div className="grid gap-5 lg:grid-cols-[minmax(280px,0.34fr)_minmax(0,0.66fr)]">
             <FlashDealBanner
               content={
                 content
@@ -101,7 +131,7 @@ export default function FlashDealsSection({
               }
             />
 
-            <div className="min-w-0 rounded-2xl border border-storefront bg-storefront-surface p-4 sm:p-6">
+            <div className="min-w-0 rounded-2xl border border-storefront-border-light bg-storefront-surface p-4 sm:p-6">
               <FlashDealCarousel
                 content={
                   content
@@ -114,21 +144,86 @@ export default function FlashDealsSection({
           </div>
         ) : layout ===
           "BACKGROUND_BANNER" ? (
-          <div className="overflow-hidden rounded-2xl">
-            <FlashDealBanner
-              content={
-                content
-              }
-              settings={
-                settings
-              }
-              onExpired={
-                onExpired
-              }
-            />
+          /*
+          |--------------------------------------------------------------------------
+          | Compact Background Banner
+          |--------------------------------------------------------------------------
+          |
+          | Target appearance:
+          |
+          | Desktop  : ~215px
+          | Tablet   : ~205px
+          | Mobile   : ~190px
+          |
+          | We also pass `compact` to FlashDealBanner so the
+          | title, CTA and timer use the compact internal layout.
+          |
+          | No blur is applied to the image.
+          |--------------------------------------------------------------------------
+          */
+
+          <div className="overflow-visible rounded-2xl">
+            <div
+              className="
+                h-[190px]
+                overflow-hidden
+                rounded-2xl
+
+                sm:h-[195px]
+                md:h-[205px]
+                lg:h-[215px]
+
+                [&>*]:h-full
+                [&>*]:min-h-0
+              "
+            >
+              <FlashDealBanner
+                content={
+                  content
+                }
+                settings={
+                  settings
+                }
+                compact
+                onExpired={
+                  onExpired
+                }
+              />
+            </div>
+
+            {/*
+            |--------------------------------------------------------------------------
+            | Product Panel
+            |--------------------------------------------------------------------------
+            |
+            | Slight overlap with banner, like the reference image.
+            |--------------------------------------------------------------------------
+            */}
 
             <div
-              className="-mt-10 relative z-20 mx-3 rounded-2xl border border-storefront bg-storefront-surface p-4 shadow-xl sm:mx-6 sm:p-6 lg:mx-10"
+              className="
+                relative
+                z-20
+
+                mx-3
+                -mt-4
+
+                rounded-2xl
+                border
+                border-storefront-border-light
+
+                bg-storefront-surface
+
+                p-4
+                shadow-lg
+
+                sm:mx-6
+                sm:-mt-5
+                sm:p-6
+
+                lg:mx-10
+                lg:-mt-6
+              "
             >
               <FlashDealCarousel
                 content={
@@ -141,7 +236,13 @@ export default function FlashDealsSection({
             </div>
           </div>
         ) : (
-          <div className="space-y-6">
+          /*
+          |--------------------------------------------------------------------------
+          | Standard Banner Top
+          |--------------------------------------------------------------------------
+          */
+
+          <div className="space-y-4">
             <FlashDealBanner
               content={
                 content
@@ -154,7 +255,7 @@ export default function FlashDealsSection({
               }
             />
 
-            <div className="rounded-2xl border border-storefront bg-storefront-surface p-4 sm:p-6">
+            <div className="rounded-2xl border border-storefront-border-light bg-storefront-surface p-4 sm:p-6">
               <FlashDealCarousel
                 content={
                   content

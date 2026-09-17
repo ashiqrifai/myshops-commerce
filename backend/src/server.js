@@ -2,80 +2,242 @@ const app = require("./app");
 const env = require("./config/env");
 const db = require("./models");
 
-let server;
+let server = null;
+let isShuttingDown = false;
 
 const startServer = async () => {
   try {
     await db.sequelize.authenticate();
 
-    console.log("PostgreSQL database connection established successfully.");
+    console.log(
+      "PostgreSQL database connection established successfully."
+    );
 
     /*
-     * During early development, we will allow Sequelize to create tables.
-     * Do not use force: true because it deletes existing tables.
+     * During early development, allow Sequelize
+     * to create missing tables without altering
+     * or deleting existing schema.
      */
     await db.sequelize.sync({
       alter: false,
     });
 
-    server = app.listen(env.port, () => {
-      console.log(
-        `MyShops Commerce API is running on http://localhost:${env.port}`
-      );
+    server = app.listen(
+      env.port,
+      () => {
+        console.log(
+          `MyShops Commerce API is running on http://localhost:${env.port}`
+        );
 
-      console.log(`Environment: ${env.nodeEnv}`);
-    });
+        console.log(
+          `Environment: ${env.nodeEnv}`
+        );
+      }
+    );
+
+    server.on(
+      "error",
+      (error) => {
+        console.error(
+          "HTTP server error:"
+        );
+
+        console.error(
+          error
+        );
+      }
+    );
+
+    server.on(
+      "close",
+      () => {
+        console.log(
+          "HTTP server close event fired."
+        );
+      }
+    );
   } catch (error) {
-    console.error("Unable to start MyShops Commerce API:");
-    console.error(error);
+    console.error(
+      "Unable to start MyShops Commerce API:"
+    );
 
-    process.exit(1);
+    console.error(
+      error
+    );
+
+    process.exitCode = 1;
   }
 };
 
-const shutdown = async (signal) => {
-  console.log(`${signal} received. Shutting down gracefully.`);
+const shutdown = async (
+  signal
+) => {
+  if (
+    isShuttingDown
+  ) {
+    console.log(
+      `Shutdown already in progress. Ignoring ${signal}.`
+    );
+
+    return;
+  }
+
+  isShuttingDown = true;
+
+  console.log(
+    `${signal} received. Shutting down gracefully.`
+  );
 
   try {
-    if (server) {
-      await new Promise((resolve, reject) => {
-        server.close((error) => {
-          if (error) {
-            reject(error);
-            return;
-          }
+    if (
+      server &&
+      server.listening
+    ) {
+      await new Promise(
+        (
+          resolve,
+          reject
+        ) => {
+          server.close(
+            (
+              error
+            ) => {
+              if (
+                error
+              ) {
+                reject(
+                  error
+                );
 
-          resolve();
-        });
-      });
+                return;
+              }
+
+              resolve();
+            }
+          );
+        }
+      );
+    } else {
+      console.log(
+        "HTTP server was already stopped."
+      );
     }
 
-    await db.sequelize.close();
+    try {
+      await db.sequelize.close();
 
-    console.log("HTTP server and database connection closed.");
+      console.log(
+        "Database connection closed."
+      );
+    } catch (
+      databaseError
+    ) {
+      console.error(
+        "Error while closing database connection:"
+      );
 
-    process.exit(0);
+      console.error(
+        databaseError
+      );
+    }
+
+    console.log(
+      "Graceful shutdown completed."
+    );
+
+    process.exitCode = 0;
   } catch (error) {
-    console.error("Error during graceful shutdown:");
-    console.error(error);
+    console.error(
+      "Error during graceful shutdown:"
+    );
 
-    process.exit(1);
+    console.error(
+      error
+    );
+
+    process.exitCode = 1;
   }
 };
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+process.on(
+  "SIGTERM",
+  () => {
+    console.log(
+      "DEBUG: SIGTERM event received by Node."
+    );
 
-process.on("unhandledRejection", (error) => {
-  console.error("Unhandled promise rejection:");
-  console.error(error);
-});
+    shutdown(
+      "SIGTERM"
+    );
+  }
+);
 
-process.on("uncaughtException", (error) => {
-  console.error("Uncaught exception:");
-  console.error(error);
+process.on(
+  "SIGINT",
+  () => {
+    console.log(
+      "DEBUG: SIGINT event received by Node."
+    );
 
-  process.exit(1);
-});
+    shutdown(
+      "SIGINT"
+    );
+  }
+);
+
+process.on(
+  "beforeExit",
+  (
+    code
+  ) => {
+    console.log(
+      `DEBUG: beforeExit fired with code ${code}`
+    );
+  }
+);
+
+process.on(
+  "exit",
+  (
+    code
+  ) => {
+    console.log(
+      `DEBUG: process exit fired with code ${code}`
+    );
+  }
+);
+
+process.on(
+  "unhandledRejection",
+  (
+    reason
+  ) => {
+    console.error(
+      "Unhandled promise rejection:"
+    );
+
+    console.error(
+      reason
+    );
+  }
+);
+
+process.on(
+  "uncaughtException",
+  (
+    error
+  ) => {
+    console.error(
+      "Uncaught exception:"
+    );
+
+    console.error(
+      error
+    );
+
+    process.exitCode =
+      1;
+  }
+);
 
 startServer();

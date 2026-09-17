@@ -10,9 +10,15 @@ const publicCategoryController =
     "./publicCategory.controller"
   );
 
-const validateRequest = require(
-  "../../middleware/validateRequest"
-);
+const publicExpressDeliveryController =
+  require(
+    "./publicExpressDelivery.controller"
+  );
+
+const validateRequest =
+  require(
+    "../../middleware/validateRequest"
+  );
 
 const {
   getPublicStorefrontPageValidation,
@@ -81,7 +87,21 @@ const {
   "./publicSearch.validation"
 );
 
-const router = express.Router();
+const router =
+  express.Router();
+
+/*
+|--------------------------------------------------------------------------
+| Category
+|--------------------------------------------------------------------------
+*/
+
+
+router.get(
+  "/categories",
+  publicCategoryController
+    .getPublicCategories
+);
 
 router.get(
   "/categories/:slug",
@@ -91,6 +111,38 @@ router.get(
     .getPublicCategory
 );
 
+/*
+|--------------------------------------------------------------------------
+| Express Delivery
+|--------------------------------------------------------------------------
+*/
+
+router.get(
+  "/express-delivery/products",
+  publicExpressDeliveryController
+    .getExpressDeliveryProducts
+);
+
+/*
+|--------------------------------------------------------------------------
+| Public Search
+|--------------------------------------------------------------------------
+*/
+
+router.get(
+  "/search",
+  getPublicSearchValidation,
+  validateRequest,
+  publicSearchController
+    .searchProducts
+);
+
+/*
+|--------------------------------------------------------------------------
+| Storefront Page
+|--------------------------------------------------------------------------
+*/
+
 router.get(
   "/page",
   getPublicStorefrontPageValidation,
@@ -98,6 +150,24 @@ router.get(
   publicStorefrontController
     .getPublicStorefrontPage
 );
+
+/*
+|--------------------------------------------------------------------------
+| Pickup Locations
+|--------------------------------------------------------------------------
+*/
+
+router.get(
+  "/pickup-locations",
+  publicStorefrontController
+    .getPickupLocations
+);
+
+/*
+|--------------------------------------------------------------------------
+| Product
+|--------------------------------------------------------------------------
+*/
 
 router.get(
   "/products/:slug",
@@ -107,6 +177,11 @@ router.get(
     .getPublicProduct
 );
 
+/*
+|--------------------------------------------------------------------------
+| Storefront AI
+|--------------------------------------------------------------------------
+*/
 
 router.post(
   "/ai/chat",
@@ -116,12 +191,30 @@ router.post(
     .chat
 );
 
+/*
+|--------------------------------------------------------------------------
+| Collection
+|--------------------------------------------------------------------------
+*/
+
 router.get(
   "/collections/:slug",
   getPublicCollectionValidation,
   validateRequest,
   publicCollectionController
     .getPublicCollection
+);
+
+/*
+|--------------------------------------------------------------------------
+| Brand
+|--------------------------------------------------------------------------
+*/
+
+router.get(
+  "/brands",
+  publicBrandController
+    .getPublicBrands
 );
 
 router.get(
@@ -132,13 +225,5 @@ router.get(
     .getPublicBrand
 );
 
-router.get(
-  "/search",
-  getPublicSearchValidation,
-  validateRequest,
-  publicSearchController
-    .searchProducts
-);
-
-module.exports = router;
-
+module.exports =
+  router;

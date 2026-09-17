@@ -16,7 +16,7 @@ const MAXIMUM_UPLOAD_BYTES =
   50 * 1024 * 1024;
 
 const MAXIMUM_FILES =
-  20;
+  200;
 
 const storage =
   multer.diskStorage({

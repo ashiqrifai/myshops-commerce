@@ -51,55 +51,71 @@ export interface PreBookingProduct {
   } | null;
 
   preBooking?: {
+    campaignId?:
+      | string
+      | null;
+  
+    campaignCode?:
+      | string
+      | null;
+  
+    campaignName?:
+      | string
+      | null;
+  
+    campaignSlug?:
+      | string
+      | null;
+  
     bookingType?:
       | "FULL_PAYMENT"
       | "DEPOSIT"
       | "REGISTER_INTEREST";
-
+  
     depositAmount?:
       | number
       | string
       | null;
-
+  
     fullBookingPrice?:
       | number
       | string
       | null;
-
+  
     bookingStartAt?:
       | string
       | null;
-
+  
     bookingEndAt?:
       | string
       | null;
-
+  
     expectedLaunchAt?:
       | string
       | null;
-
+  
     expectedDeliveryFrom?:
       | string
       | null;
-
+  
     expectedDeliveryUntil?:
       | string
       | null;
-
+  
     maximumBookings?:
       | number
       | null;
-
+  
     bookedQuantity?:
       | number
       | null;
-
+  
     allowWaitlist?: boolean;
-
+  
     termsAndConditions?:
       | string
       | null;
-
+  
     status?: string;
   } | null;
 }
@@ -158,7 +174,8 @@ export interface PreBookingContent {
   bookingStatus?:
     | "ACTIVE"
     | "UPCOMING"
-    | "CLOSED";
+    | "CLOSED"
+    | "UNAVAILABLE";
 
   productIdsResolved?:
     PreBookingProduct[];

@@ -1,6 +1,18 @@
 const { Op } = require("sequelize");
 
 const db = require("../../models");
+
+const publicAvailabilityService =
+  require(
+    "./publicAvailability.service"
+  );
+
+const giftVoucherPromotionService =
+  require(
+    "../gift-voucher-promotions/giftVoucherPromotion.service"
+  );
+
+
 const AppError = require("../../utils/AppError");
 
 const navigationService = require(
@@ -10,7 +22,7 @@ const navigationService = require(
 /*
  * Normalize CMS page slugs so public requests match
  * the format used by the CMS page service.
- */
+ */ 
 const normalizeSlug = (value) => {
   const trimmed = String(value || "/").trim();
 
@@ -641,17 +653,7 @@ const findReferencedMediaAssets =
   }) => {
     const resolvedSections = [];
   
-    console.log(
-      "[Storefront] Starting navigation section resolution",
-      {
-        companyId,
-        channel,
-        sectionCount:
-          Array.isArray(sections)
-            ? sections.length
-            : 0,
-      }
-    );
+  
   
     for (const section of sections || []) {
       const sectionTypeCode = String(
@@ -945,8 +947,12 @@ const collectCategoryGridIds = (
         .toUpperCase();
 
     if (
-      sectionTypeCode !==
-      "CATEGORY_GRID"
+      ![
+        "CATEGORY_GRID",
+        "CATEGORY_CAROUSEL",
+      ].includes(
+        sectionTypeCode
+      )
     ) {
       continue;
     }
@@ -987,12 +993,44 @@ const collectCategoryGridIds = (
 /*
  * Fetch categories referenced by CATEGORY_GRID sections.
  */
+/*
+|--------------------------------------------------------------------------
+| Fetch Referenced Categories
+|--------------------------------------------------------------------------
+|
+| IMPORTANT PERFORMANCE NOTE
+|
+| Category cards may reference:
+|
+| - thumbnailAsset
+| - imageAsset
+| - bannerAsset
+|
+| Each MediaAsset can itself have several MediaAssetVariant rows.
+|
+| Joining all three MediaAssetVariant collections into one SQL query creates
+| a multiplicative result set:
+|
+| thumbnail variants
+|   × image variants
+|   × banner variants
+|
+| This previously caused the CATEGORY_GRID resolver to allocate hundreds of
+| MB of temporary heap for a relatively small homepage payload.
+|
+| Use separate:true for the hasMany MediaAssetVariant associations so
+| Sequelize fetches variants separately instead of multiplying SQL rows.
+|--------------------------------------------------------------------------
+*/
+
 const findReferencedCategories =
   async ({
     companyId,
     categoryIds,
   }) => {
-    if (!categoryIds.size) {
+    if (
+      !categoryIds.size
+    ) {
       return [];
     }
 
@@ -1006,10 +1044,47 @@ const findReferencedCategories =
         },
 
         companyId,
-        isActive: true,
+
+        isActive:
+          true,
       },
 
+      /*
+      |--------------------------------------------------------------------------
+      | Category Fields
+      |--------------------------------------------------------------------------
+      |
+      | Keep the fields required by buildPublicCategory().
+      |--------------------------------------------------------------------------
+      */
+
+      attributes: [
+        "id",
+        "name",
+        "slug",
+        "description",
+        "shortDescription",
+        "categoryPath",
+        "categoryPathIds",
+        "level",
+        "sortOrder",
+        "parentCategoryId",
+        "thumbnailAssetId",
+        "imageAssetId",
+        "bannerAssetId",
+        "iconName",
+        "iconUrl",
+        "isFeatured",
+        "showOnHome",
+      ],
+
       include: [
+        /*
+        |--------------------------------------------------------------------------
+        | Thumbnail Asset
+        |--------------------------------------------------------------------------
+        */
+
         {
           model:
             db.MediaAsset,
@@ -1017,13 +1092,20 @@ const findReferencedCategories =
           as:
             "thumbnailAsset",
 
-          required: false,
+          required:
+            false,
 
           where: {
             companyId,
-            status: "READY",
-            isPublic: true,
-            isActive: true,
+
+            status:
+              "READY",
+
+            isPublic:
+              true,
+
+            isActive:
+              true,
           },
 
           include: [
@@ -1034,15 +1116,58 @@ const findReferencedCategories =
               as:
                 "variants",
 
-              required: false,
+              required:
+                false,
+
+              /*
+               * CRITICAL:
+               *
+               * Prevent this hasMany relationship from participating in
+               * the main Category SQL join.
+               */
+              separate:
+                true,
 
               where: {
                 companyId,
-                isActive: true,
+
+                isActive:
+                  true,
+
+                  variantType: {
+                    [Op.in]: [
+                      "THUMBNAIL",
+                      "SMALL",
+                    ],
+                  },
+                  
+                  format: {
+                    [Op.in]: [
+                      "avif",
+                    ],
+                  },
               },
+
+              order: [
+                [
+                  "variantType",
+                  "ASC",
+                ],
+
+                [
+                  "createdAt",
+                  "ASC",
+                ],
+              ],
             },
           ],
         },
+
+        /*
+        |--------------------------------------------------------------------------
+        | Main Image Asset
+        |--------------------------------------------------------------------------
+        */
 
         {
           model:
@@ -1051,13 +1176,20 @@ const findReferencedCategories =
           as:
             "imageAsset",
 
-          required: false,
+          required:
+            false,
 
           where: {
             companyId,
-            status: "READY",
-            isPublic: true,
-            isActive: true,
+
+            status:
+              "READY",
+
+            isPublic:
+              true,
+
+            isActive:
+              true,
           },
 
           include: [
@@ -1068,15 +1200,51 @@ const findReferencedCategories =
               as:
                 "variants",
 
-              required: false,
+              required:
+                false,
+
+              /*
+               * Prevent Cartesian multiplication.
+               */
+              separate:
+                true,
 
               where: {
                 companyId,
-                isActive: true,
+
+                isActive:
+                  true,
+
+                variantType: {
+                  [Op.in]: [
+                    "THUMBNAIL",
+                    "SMALL",
+                    "PREVIEW",
+                    "MEDIUM",
+                  ],
+                },
               },
+
+              order: [
+                [
+                  "variantType",
+                  "ASC",
+                ],
+
+                [
+                  "createdAt",
+                  "ASC",
+                ],
+              ],
             },
           ],
         },
+
+        /*
+        |--------------------------------------------------------------------------
+        | Banner Asset
+        |--------------------------------------------------------------------------
+        */
 
         {
           model:
@@ -1085,13 +1253,20 @@ const findReferencedCategories =
           as:
             "bannerAsset",
 
-          required: false,
+          required:
+            false,
 
           where: {
             companyId,
-            status: "READY",
-            isPublic: true,
-            isActive: true,
+
+            status:
+              "READY",
+
+            isPublic:
+              true,
+
+            isActive:
+              true,
           },
 
           include: [
@@ -1102,18 +1277,299 @@ const findReferencedCategories =
               as:
                 "variants",
 
-              required: false,
+              required:
+                false,
+
+              /*
+               * Prevent Cartesian multiplication.
+               */
+              separate:
+                true,
 
               where: {
                 companyId,
-                isActive: true,
+
+                isActive:
+                  true,
+
+                variantType: {
+                  [Op.in]: [
+                    "THUMBNAIL",
+                    "SMALL",
+                    "PREVIEW",
+                    "MEDIUM",
+                  ],
+                },
               },
+
+              order: [
+                [
+                  "variantType",
+                  "ASC",
+                ],
+
+                [
+                  "createdAt",
+                  "ASC",
+                ],
+              ],
             },
           ],
         },
       ],
+
+      order: [
+        [
+          "sortOrder",
+          "ASC",
+        ],
+
+        [
+          "name",
+          "ASC",
+        ],
+      ],
     });
   };
+
+/*
+|--------------------------------------------------------------------------
+| Compact Homepage Category Media
+|--------------------------------------------------------------------------
+|
+| CATEGORY_CAROUSEL and CATEGORY_GRID do not need the complete DAM payload
+| returned by buildPublicCategory().
+|
+| Keep only the media information required to render category cards.
+|--------------------------------------------------------------------------
+*/
+
+const buildCompactCategoryMedia = (
+  mediaAsset,
+  apiBaseUrl
+) => {
+  if (!mediaAsset) {
+    return null;
+  }
+
+  const asset =
+    toPlainObject(
+      mediaAsset
+    );
+
+  /*
+   * Homepage category cards only need small image variants.
+   *
+   * Prefer AVIF when available. Keep one variant for each useful size
+   * instead of returning WebP + AVIF + PREVIEW + MEDIUM metadata.
+   */
+  const variants =
+    Array.isArray(
+      asset.variants
+    )
+      ? asset.variants
+          .filter(
+            (variant) =>
+              variant &&
+              variant.isActive ===
+                true &&
+              [
+                "THUMBNAIL",
+                "SMALL",
+              ].includes(
+                String(
+                  variant.variantType ||
+                    ""
+                ).toUpperCase()
+              ) &&
+              String(
+                variant.format ||
+                  ""
+              ).toLowerCase() ===
+                "avif"
+          )
+          .map(
+            (variant) => ({
+              id:
+                variant.id,
+
+              variantType:
+                variant.variantType,
+
+              format:
+                variant.format,
+
+              width:
+                variant.width ??
+                null,
+
+              height:
+                variant.height ??
+                null,
+
+              publicUrl:
+                buildAbsoluteUrl(
+                  variant.publicUrl ||
+                    variant.storagePath ||
+                    null,
+                  apiBaseUrl
+                ),
+
+              isPrimary:
+                variant.isPrimary ===
+                true,
+            })
+          )
+          .filter(
+            (variant) =>
+              Boolean(
+                variant.publicUrl
+              )
+          )
+      : [];
+
+  const thumbnailVariant =
+    variants.find(
+      (variant) =>
+        variant.variantType ===
+        "THUMBNAIL"
+    );
+
+  const smallVariant =
+    variants.find(
+      (variant) =>
+        variant.variantType ===
+        "SMALL"
+    );
+
+  return {
+    id:
+      asset.id,
+
+    title:
+      asset.title ||
+      null,
+
+    altText:
+      asset.altText ||
+      null,
+
+    /*
+     * Preserve these fields because the existing storefront components
+     * already know how to consume them.
+     */
+    publicUrl:
+      buildAbsoluteUrl(
+        asset.publicUrl ||
+          asset.storagePath ||
+          null,
+        apiBaseUrl
+      ),
+
+    thumbnailUrl:
+      thumbnailVariant
+        ?.publicUrl ||
+      buildAbsoluteUrl(
+        asset.thumbnailUrl,
+        apiBaseUrl
+      ) ||
+      null,
+
+    previewUrl:
+      smallVariant
+        ?.publicUrl ||
+      buildAbsoluteUrl(
+        asset.previewUrl,
+        apiBaseUrl
+      ) ||
+      null,
+
+    variants,
+  };
+};
+
+/*
+|--------------------------------------------------------------------------
+| Compact Homepage Category
+|--------------------------------------------------------------------------
+*/
+
+const buildCompactHomepageCategory = (
+  category,
+  apiBaseUrl
+) => {
+  if (!category) {
+    return null;
+  }
+
+  const row =
+    toPlainObject(
+      category
+    );
+
+  /*
+   * Prefer thumbnailAsset.
+   *
+   * Keep imageAsset/bannerAsset only as fallbacks when a category has no
+   * thumbnail. Do not serialize all three full MediaAsset objects.
+   */
+  const sourceAsset =
+    row.thumbnailAsset ||
+    row.imageAsset ||
+    row.bannerAsset ||
+    null;
+
+  const image =
+    buildCompactCategoryMedia(
+      sourceAsset,
+      apiBaseUrl
+    );
+
+  return {
+    id:
+      row.id,
+
+    name:
+      row.name,
+
+    slug:
+      row.slug,
+
+    shortDescription:
+      row.shortDescription ||
+      null,
+
+    categoryPath:
+      row.categoryPath ||
+      null,
+
+    iconName:
+      row.iconName ||
+      null,
+
+    iconUrl:
+      buildAbsoluteUrl(
+        row.iconUrl,
+        apiBaseUrl
+      ),
+
+    /*
+     * Maintain compatibility with both existing category components.
+     *
+     * We intentionally reference the same compact object instead of
+     * constructing several complete media representations.
+     */
+    thumbnailAsset:
+      image,
+
+    image:
+      image,
+
+    productCount:
+      row.productCount ??
+      null,
+  };
+};
 
 /*
  * Resolve selected category IDs while preserving CMS order.
@@ -1140,7 +1596,7 @@ const resolveCategoryGridSections =
         categoryModels.map(
           (categoryModel) => {
             const category =
-              buildPublicCategory(
+              buildCompactHomepageCategory(
                 categoryModel,
                 apiBaseUrl
               );
@@ -1164,8 +1620,12 @@ const resolveCategoryGridSections =
             .toUpperCase();
 
         if (
-          sectionTypeCode !==
-          "CATEGORY_GRID"
+          ![
+            "CATEGORY_GRID",
+            "CATEGORY_CAROUSEL",
+          ].includes(
+            sectionTypeCode
+          )
         ) {
           return section;
         }
@@ -2020,21 +2480,23 @@ const findReferencedBrands =
             isActive: true,
           },
 
-          include: [
-            {
-              model:
-                db.MediaAssetVariant,
-
-              as: "variants",
-
-              required: false,
-
-              where: {
-                companyId,
-                isActive: true,
-              },
-            },
-          ],
+          /*
+          |--------------------------------------------------------------------------
+          | IMPORTANT
+          |--------------------------------------------------------------------------
+          |
+          | Do NOT load MediaAssetVariant here.
+          |
+          | BrandCarouselSection only uses:
+          |
+          | - publicUrl
+          | - previewUrl
+          | - thumbnailUrl
+          |
+          | Loading all variants massively increases the homepage payload.
+          |
+          |--------------------------------------------------------------------------
+          */
         },
 
         {
@@ -2052,25 +2514,142 @@ const findReferencedBrands =
             isActive: true,
           },
 
-          include: [
-            {
-              model:
-                db.MediaAssetVariant,
-
-              as: "variants",
-
-              required: false,
-
-              where: {
-                companyId,
-                isActive: true,
-              },
-            },
-          ],
+          /*
+          |--------------------------------------------------------------------------
+          | IMPORTANT
+          |--------------------------------------------------------------------------
+          |
+          | Same rule for the optional banner asset:
+          | no MediaAssetVariant hydration is required by Brand Carousel.
+          |
+          |--------------------------------------------------------------------------
+          */
         },
       ],
     });
   };
+
+/*
+|--------------------------------------------------------------------------
+| Compact Homepage Brand Media
+|--------------------------------------------------------------------------
+|
+| BRAND_CAROUSEL does not need the complete public MediaAsset structure.
+| MediaAssetVariant rows are already intentionally excluded by
+| findReferencedBrands().
+|
+| Keep only the fields required by BrandCarouselSection.
+|--------------------------------------------------------------------------
+*/
+
+const buildCompactHomepageBrandMedia = (
+  mediaAsset,
+  apiBaseUrl
+) => {
+  if (!mediaAsset) {
+    return null;
+  }
+
+  const asset =
+    toPlainObject(
+      mediaAsset
+    );
+
+  return {
+    id:
+      asset.id,
+
+    title:
+      asset.title ||
+      null,
+
+    altText:
+      asset.altText ||
+      null,
+
+    publicUrl:
+      buildAbsoluteUrl(
+        asset.publicUrl ||
+          asset.storagePath ||
+          null,
+        apiBaseUrl
+      ),
+
+    thumbnailUrl:
+      buildAbsoluteUrl(
+        asset.thumbnailUrl,
+        apiBaseUrl
+      ),
+
+    previewUrl:
+      buildAbsoluteUrl(
+        asset.previewUrl,
+        apiBaseUrl
+      ),
+  };
+};
+
+/*
+|--------------------------------------------------------------------------
+| Compact Homepage Brand
+|--------------------------------------------------------------------------
+|
+| Used only by BRAND_CAROUSEL.
+|--------------------------------------------------------------------------
+*/
+
+const buildCompactHomepageBrand = (
+  brand,
+  apiBaseUrl
+) => {
+  if (!brand) {
+    return null;
+  }
+
+  const row =
+    toPlainObject(
+      brand
+    );
+
+  const sourceAsset =
+    row.logoAsset ||
+    row.bannerAsset ||
+    null;
+
+  const logoAsset =
+    buildCompactHomepageBrandMedia(
+      sourceAsset,
+      apiBaseUrl
+    );
+
+  return {
+    id:
+      row.id,
+
+    name:
+      row.name,
+
+    code:
+      row.code,
+
+    slug:
+      row.slug,
+
+    brandUrl:
+      `/brands/${row.slug}`,
+
+    /*
+     * Keep both properties for compatibility with the existing
+     * BrandCarouselSection fallback logic.
+     *
+     * Both references point to the same compact object.
+     */
+    logoAsset,
+
+    image:
+      logoAsset,
+  };
+};
 
 /*
  * Resolve brand IDs while preserving the CMS order.
@@ -2097,10 +2676,10 @@ const resolveBrandCarouselSections =
         brandModels.map(
           (brandModel) => {
             const brand =
-              buildPublicBrand(
-                brandModel,
-                apiBaseUrl
-              );
+            buildCompactHomepageBrand(
+              brandModel,
+              apiBaseUrl
+            );
 
             return [
               brand.id,
@@ -2332,9 +2911,119 @@ const findStorefrontPriceList =
   };
 
 /*
+|--------------------------------------------------------------------------
+| Lightweight Variant Attribute Include
+|--------------------------------------------------------------------------
+|
+| Used by storefront product-card queries so cards can expose a small
+| variantSummary without loading full product-detail payloads.
+|
+| This remains part of the same Sequelize product query. It does not
+| execute a separate query per product.
+|--------------------------------------------------------------------------
+*/
+
+const getVariantAttributeSummaryInclude = ({
+  companyId,
+}) => ({
+  model:
+    db.ProductVariantAttributeValue,
+
+  as:
+    "attributeValues",
+
+  required:
+    false,
+
+  separate:
+    true,
+
+  order: [
+    ["sortOrder", "ASC"],
+    ["createdAt", "ASC"],
+  ],
+
+  attributes: [
+    "id",
+    "productVariantId",
+    "attributeId",
+    "optionId",
+    "displayValue",
+    "sortOrder",
+  ],
+
+  include: [
+    {
+      model:
+        db.Attribute,
+
+      as:
+        "attribute",
+
+      required:
+        false,
+
+      where: {
+        companyId,
+        isActive:
+          true,
+      },
+
+      attributes: [
+        "id",
+        "code",
+        "name",
+        "isVariantDefining",
+        "displayOrder",
+      ],
+    },
+
+    {
+      model:
+        db.AttributeOption,
+
+      as:
+        "option",
+
+      required:
+        false,
+
+      where: {
+        companyId,
+        isActive:
+          true,
+      },
+
+      attributes: [
+        "id",
+        "label",
+        "value",
+        "swatchValue",
+        "displayOrder",
+      ],
+    },
+  ],
+});
+
+/*
  * Fetch all products referenced by
  * FEATURED_PRODUCT_GRID sections.
  */
+/*
+|--------------------------------------------------------------------------
+| Storefront Card Query Performance
+|--------------------------------------------------------------------------
+|
+| Product-card hasMany relations use `separate: true`.
+|
+| This prevents Sequelize from creating a huge joined row-set across:
+| images x media variants x product variants x prices x attributes.
+|
+| Sequelize performs a small number of bulk follow-up queries instead,
+| then attaches the child rows back to their parent models.
+|--------------------------------------------------------------------------
+*/
+
 const findReferencedProducts =
   async ({
     companyId,
@@ -2354,6 +3043,14 @@ const findReferencedProducts =
         as: "prices",
 
         required: false,
+
+        separate:
+          true,
+
+        order: [
+          ["priority", "ASC"],
+          ["createdAt", "ASC"],
+        ],
 
         where: {
           companyId,
@@ -2390,6 +3087,10 @@ const findReferencedProducts =
           },
         ],
       },
+
+      getVariantAttributeSummaryInclude({
+        companyId,
+      }),
     ];
 
     return db.Product.findAll({
@@ -2439,7 +3140,15 @@ const findReferencedProducts =
 
           required: false,
 
-          where: {
+          separate:
+      true,
+
+    order: [
+      ["displayOrder", "ASC"],
+      ["createdAt", "ASC"],
+    ],
+
+    where: {
             companyId,
             isActive: true,
           },
@@ -2469,6 +3178,14 @@ const findReferencedProducts =
 
                   required: false,
 
+                  separate:
+                    true,
+
+                  order: [
+                    ["variantType", "ASC"],
+                    ["createdAt", "ASC"],
+                  ],
+
                   where: {
                     companyId,
                     isActive: true,
@@ -2487,6 +3204,14 @@ const findReferencedProducts =
 
           required: false,
 
+          separate:
+            true,
+
+          order: [
+            ["sortOrder", "ASC"],
+            ["createdAt", "ASC"],
+          ],
+
           where: {
             companyId,
             status: "ACTIVE",
@@ -2497,27 +3222,6 @@ const findReferencedProducts =
         },
       ],
 
-      order: [
-        [
-          {
-            model:
-              db.ProductImage,
-            as: "images",
-          },
-          "displayOrder",
-          "ASC",
-        ],
-
-        [
-          {
-            model:
-              db.ProductVariant,
-            as: "variants",
-          },
-          "sortOrder",
-          "ASC",
-        ],
-      ],
     });
   };
 
@@ -2750,13 +3454,526 @@ const getPublicVariantPrice = (
   };
 };
 
+
+/*
+|--------------------------------------------------------------------------
+| Gift Voucher Pricing
+|--------------------------------------------------------------------------
+*/
+
+const applyGiftVoucherToPrice = (
+  price,
+  giftVoucher
+) => {
+  if (!price) {
+    return null;
+  }
+
+  const regularPrice =
+    Number(
+      price.regularPrice ||
+      0
+    );
+
+  const baseSellingPrice =
+    Number(
+      price.sellingPrice ||
+      0
+    );
+
+  const priceDiscountAmount =
+    Math.max(
+      0,
+      regularPrice -
+        baseSellingPrice
+    );
+
+  const giftVoucherDiscountAmount =
+    giftVoucher
+      ? Number(
+          giftVoucher.unitDiscount ||
+          0
+        )
+      : 0;
+
+  const sellingPrice =
+    Math.max(
+      0,
+      baseSellingPrice -
+        giftVoucherDiscountAmount
+    );
+
+  const totalDiscountAmount =
+    Math.max(
+      0,
+      regularPrice -
+        sellingPrice
+    );
+
+  const totalDiscountPercent =
+    regularPrice > 0
+      ? (
+          totalDiscountAmount /
+          regularPrice
+        ) *
+        100
+      : 0;
+
+  return {
+    ...price,
+
+    regularPrice:
+      Number(
+        regularPrice.toFixed(
+          4
+        )
+      ),
+
+    baseSellingPrice:
+      Number(
+        baseSellingPrice.toFixed(
+          4
+        )
+      ),
+
+    priceDiscountAmount:
+      Number(
+        priceDiscountAmount.toFixed(
+          4
+        )
+      ),
+
+    giftVoucherDiscountAmount:
+      Number(
+        giftVoucherDiscountAmount.toFixed(
+          4
+        )
+      ),
+
+    sellingPrice:
+      Number(
+        sellingPrice.toFixed(
+          4
+        )
+      ),
+
+    totalDiscountAmount:
+      Number(
+        totalDiscountAmount.toFixed(
+          4
+        )
+      ),
+
+    totalDiscountPercent:
+      Number(
+        totalDiscountPercent.toFixed(
+          4
+        )
+      ),
+
+    giftVoucher:
+      giftVoucher
+        ? {
+            promotionId:
+              giftVoucher.id,
+
+            code:
+              giftVoucher.code,
+
+            name:
+              giftVoucher.name,
+
+            discountType:
+              giftVoucher.discountType,
+
+            discountValue:
+              giftVoucher.discountValue,
+
+            discountAmount:
+              Number(
+                giftVoucherDiscountAmount.toFixed(
+                  4
+                )
+              ),
+
+            validFrom:
+              giftVoucher.validFrom,
+
+            validUntil:
+              giftVoucher.validUntil,
+          }
+        : null,
+  };
+};
+
+const applyGiftVoucherPricingToProducts =
+  async ({
+    companyId,
+    channelCode,
+    effectiveDate,
+    products,
+  }) => {
+    if (
+      !Array.isArray(products) ||
+      !products.length
+    ) {
+      return products || [];
+    }
+
+    const items =
+      products
+        .filter(
+          (product) =>
+            product.defaultVariant?.id &&
+            product.price?.sellingPrice !== null &&
+            product.price?.sellingPrice !== undefined
+        )
+        .map(
+          (product) => ({
+            productId:
+              product.id,
+
+            productVariantId:
+              product.defaultVariant.id,
+
+            sellingPrice:
+              product.price.sellingPrice,
+
+            quantity:
+              1,
+          })
+        );
+
+    if (!items.length) {
+      return products;
+    }
+
+    const promotionMap =
+      await giftVoucherPromotionService
+        .resolveApplicablePromotionsBatch({
+          companyId,
+          items,
+          channelCode,
+          effectiveDate,
+        });
+
+    return products.map(
+      (product) => {
+        if (
+          !product.defaultVariant?.id ||
+          !product.price
+        ) {
+          return product;
+        }
+
+        const key =
+          `${product.id}:${product.defaultVariant.id}`;
+
+        return {
+          ...product,
+
+          price:
+            applyGiftVoucherToPrice(
+              product.price,
+              promotionMap.get(key) ||
+                null
+            ),
+        };
+      }
+    );
+  };
+
+/*
+|--------------------------------------------------------------------------
+| Build Lightweight Variant Summary
+|--------------------------------------------------------------------------
+|
+| This is intentionally much smaller than the product-detail variant
+| payload. Product cards only receive enough information to communicate
+| that options exist and to render color swatches.
+|
+| Full variant selection, images, pricing, availability and combination
+| validation remain inside the product-detail / Quick Add endpoint.
+|--------------------------------------------------------------------------
+*/
+
+const buildVariantSummary = (
+  product
+) => {
+  const variants =
+    Array.isArray(
+      product?.variants
+    )
+      ? product.variants
+      : [];
+
+  if (
+    !variants.length
+  ) {
+    return {
+      hasVariants:
+        false,
+
+      variantCount:
+        0,
+
+      selectorCount:
+        0,
+
+      selectors:
+        [],
+    };
+  }
+
+  const selectorMap =
+    new Map();
+
+  for (
+    const variant of
+    variants
+  ) {
+    const attributeValues =
+      Array.isArray(
+        variant.attributeValues
+      )
+        ? variant.attributeValues
+        : [];
+
+    for (
+      const value of
+      attributeValues
+    ) {
+      const attribute =
+        value.attribute;
+
+      /*
+       * Only variant-defining attributes should be exposed
+       * on the compact product-card summary.
+       */
+      if (
+        !attribute ||
+        attribute.isVariantDefining !==
+          true
+      ) {
+        continue;
+      }
+
+      const attributeId =
+        attribute.id ||
+        value.attributeId;
+
+      if (
+        !attributeId
+      ) {
+        continue;
+      }
+
+      if (
+        !selectorMap.has(
+          attributeId
+        )
+      ) {
+        selectorMap.set(
+          attributeId,
+          {
+            id:
+              attributeId,
+
+            code:
+              String(
+                attribute.code ||
+                  ""
+              )
+                .trim()
+                .toUpperCase(),
+
+            name:
+              attribute.name ||
+              "Option",
+
+            displayOrder:
+              Number(
+                attribute.displayOrder ||
+                  0
+              ),
+
+            optionsMap:
+              new Map(),
+          }
+        );
+      }
+
+      const selector =
+        selectorMap.get(
+          attributeId
+        );
+
+      const option =
+        value.option;
+
+      const optionId =
+        option?.id ||
+        value.optionId ||
+        value.displayValue ||
+        null;
+
+      if (
+        !optionId ||
+        selector.optionsMap.has(
+          optionId
+        )
+      ) {
+        continue;
+      }
+
+      selector.optionsMap.set(
+        optionId,
+        {
+          id:
+            optionId,
+
+          label:
+            option?.label ||
+            value.displayValue ||
+            option?.value ||
+            "Option",
+
+          value:
+            option?.value ||
+            value.displayValue ||
+            null,
+
+          swatchValue:
+            option?.swatchValue ||
+            null,
+
+          displayOrder:
+            Number(
+              option?.displayOrder ||
+                value.sortOrder ||
+                0
+            ),
+        }
+      );
+    }
+  }
+
+  const selectors =
+    Array.from(
+      selectorMap.values()
+    )
+      .sort(
+        (
+          first,
+          second
+        ) =>
+          first.displayOrder -
+          second.displayOrder
+      )
+      .map(
+        (
+          selector
+        ) => {
+          const options =
+            Array.from(
+              selector.optionsMap
+                .values()
+            ).sort(
+              (
+                first,
+                second
+              ) =>
+                first.displayOrder -
+                second.displayOrder
+            );
+
+          const normalizedName =
+            String(
+              selector.name ||
+                ""
+            )
+              .trim()
+              .toLowerCase();
+
+          const isColor =
+            selector.code ===
+              "COLOR" ||
+            normalizedName ===
+              "color" ||
+            normalizedName ===
+              "colour";
+
+          return {
+            id:
+              selector.id,
+
+            code:
+              selector.code,
+
+            name:
+              selector.name,
+
+            optionCount:
+              options.length,
+
+            /*
+             * Color receives option-level data because the
+             * storefront card renders visual swatches.
+             *
+             * Storage, RAM, Size, etc. return only counts.
+             */
+            options:
+              isColor
+                ? options.map(
+                    (
+                      option
+                    ) => ({
+                      id:
+                        option.id,
+
+                      label:
+                        option.label,
+
+                      swatchValue:
+                        option.swatchValue,
+                    })
+                  )
+                : [],
+          };
+        }
+      );
+
+  /*
+   * Multiple technical variants without a variant-defining selector
+   * should still behave like a simple product on the card.
+   */
+  const hasVariants =
+    variants.length >
+      1 &&
+    selectors.length >
+      0;
+
+  return {
+    hasVariants,
+
+    variantCount:
+      variants.length,
+
+    selectorCount:
+      selectors.length,
+
+    selectors,
+  };
+};
+
 /*
  * Convert a Product model into a storefront-safe
  * product-card response.
  */
 const buildPublicProduct = (
   productModel,
-  apiBaseUrl
+  apiBaseUrl,
+  availabilityByVariant
 ) => {
   const product =
     toPlainObject(
@@ -2791,6 +4008,52 @@ const buildPublicProduct = (
 
     isFeatured:
       product.isFeatured ===
+      true,
+
+
+
+    delivery: {
+      expressDeliveryEnabled:
+        product.expressDeliveryEnabled ===
+        true,
+
+      expressDeliveryHours:
+        product.expressDeliveryHours !==
+          null &&
+        product.expressDeliveryHours !==
+          undefined
+          ? Number(
+              product.expressDeliveryHours
+            )
+          : null,
+
+      deliveryMinDays:
+        product.deliveryMinDays !==
+          null &&
+        product.deliveryMinDays !==
+          undefined
+          ? Number(
+              product.deliveryMinDays
+            )
+          : null,
+
+      deliveryMaxDays:
+        product.deliveryMaxDays !==
+          null &&
+        product.deliveryMaxDays !==
+          undefined
+          ? Number(
+              product.deliveryMaxDays
+            )
+          : null,
+
+      deliveryNote:
+        product.deliveryNote ||
+        null,
+    },
+
+    isDirectDelivery:
+      product.isDirectDelivery ===
       true,
 
     taxPercent:
@@ -2861,7 +4124,21 @@ const buildPublicProduct = (
           }
         : null,
 
+    variantSummary:
+      buildVariantSummary(
+        product
+      ),
+
     price: selectedPrice,
+
+
+    availability:
+  publicAvailabilityService
+    .getAvailabilityForProduct({
+      product,
+
+      availabilityByVariant,
+    }),
 
     productUrl:
       `/products/${product.slug}`,
@@ -2915,21 +4192,41 @@ const resolveFeaturedProductGridSections =
         now,
       });
 
-    const productMap =
-      new Map(
-        productModels.map(
-          (productModel) => {
-            const product =
+    const availabilityByVariant =
+      await publicAvailabilityService
+        .getVariantAvailabilityMap({
+          companyId,
+
+          products:
+            productModels,
+        });
+
+    const featuredProducts =
+      await applyGiftVoucherPricingToProducts({
+        companyId,
+        channelCode:
+          channel,
+        effectiveDate:
+          now,
+
+        products:
+          productModels.map(
+            (productModel) =>
               buildPublicProduct(
                 productModel,
-                apiBaseUrl
-              );
+                apiBaseUrl,
+                availabilityByVariant
+              )
+          ),
+      });
 
-            return [
-              product.id,
-              product,
-            ];
-          }
+    const productMap =
+      new Map(
+        featuredProducts.map(
+          (product) => [
+            product.id,
+            product,
+          ]
         )
       );
 
@@ -2972,15 +4269,23 @@ const resolveFeaturedProductGridSections =
               )
             : [];
 
-        const products =
-          selectedProductIds
-            .map(
-              (productId) =>
-                productMap.get(
-                  productId
-                ) || null
-            )
-            .filter(Boolean);
+            const products =
+            publicAvailabilityService
+              .filterAvailablePublicProducts(
+                selectedProductIds
+                  .map(
+                    (
+                      productId
+                    ) =>
+                      productMap.get(
+                        productId
+                      ) ||
+                      null
+                  )
+                  .filter(
+                    Boolean
+                  )
+              );
 
         return {
           ...section,
@@ -3024,6 +4329,7 @@ const resolveFeaturedProductGridSections =
  * - MANUAL
  * - CATEGORY
  * - BRAND
+ * - COLLECTION
  * - FEATURED
  * - NEW_ARRIVALS
  *
@@ -3104,6 +4410,14 @@ const getProductStorefrontIncludes = ({
     as: "images",
     required: false,
 
+    separate:
+      true,
+
+    order: [
+      ["displayOrder", "ASC"],
+      ["createdAt", "ASC"],
+    ],
+
     where: {
       companyId,
       isActive: true,
@@ -3132,9 +4446,25 @@ const getProductStorefrontIncludes = ({
             as: "variants",
             required: false,
 
+            separate:
+              true,
+
+            order: [
+              ["variantType", "ASC"],
+              ["createdAt", "ASC"],
+            ],
+
             where: {
               companyId,
               isActive: true,
+
+              variantType: {
+                [Op.in]: [
+                  "MEDIUM",
+                  "SMALL",
+                  "THUMBNAIL",
+                ],
+              },
             },
           },
         ],
@@ -3149,6 +4479,14 @@ const getProductStorefrontIncludes = ({
     as: "variants",
     required: false,
 
+    separate:
+      true,
+
+    order: [
+      ["sortOrder", "ASC"],
+      ["createdAt", "ASC"],
+    ],
+
     where: {
       companyId,
       status: "ACTIVE",
@@ -3161,6 +4499,14 @@ const getProductStorefrontIncludes = ({
 
         as: "prices",
         required: false,
+
+        separate:
+          true,
+
+        order: [
+          ["priority", "ASC"],
+          ["createdAt", "ASC"],
+        ],
 
         where: {
           companyId,
@@ -3196,6 +4542,10 @@ const getProductStorefrontIncludes = ({
           },
         ],
       },
+
+      getVariantAttributeSummaryInclude({
+        companyId,
+      }),
     ],
   },
 ];
@@ -3229,8 +4579,23 @@ const findProductCarouselProducts =
       ["createdAt", "DESC"],
     ];
 
-    if (sourceType === "MANUAL") {
-      const productIds =
+    /*
+    |--------------------------------------------------------------------------
+    | Source-order preservation
+    |--------------------------------------------------------------------------
+    |
+    | MANUAL and COLLECTION sources have an explicit order that must be
+    | restored after Product.findAll(), because an IN (...) condition does
+    | not guarantee the same order as the supplied IDs.
+    |--------------------------------------------------------------------------
+    */
+    let orderedProductIds = [];
+
+    if (
+      sourceType ===
+      "MANUAL"
+    ) {
+      orderedProductIds =
         Array.isArray(
           content.productIds
         )
@@ -3247,15 +4612,19 @@ const findProductCarouselProducts =
               )
           : [];
 
-      if (!productIds.length) {
+      if (
+        !orderedProductIds.length
+      ) {
         return [];
       }
 
       where.id = {
-        [Op.in]: productIds,
+        [Op.in]:
+          orderedProductIds,
       };
     } else if (
-      sourceType === "CATEGORY"
+      sourceType ===
+      "CATEGORY"
     ) {
       const categoryId =
         typeof content.categoryId ===
@@ -3270,7 +4639,8 @@ const findProductCarouselProducts =
       where.primaryCategoryId =
         categoryId;
     } else if (
-      sourceType === "BRAND"
+      sourceType ===
+      "BRAND"
     ) {
       const brandId =
         typeof content.brandId ===
@@ -3282,17 +4652,162 @@ const findProductCarouselProducts =
         return [];
       }
 
-      where.brandId = brandId;
+      where.brandId =
+        brandId;
     } else if (
-      sourceType === "FEATURED"
+      sourceType ===
+      "COLLECTION"
     ) {
-      where.isFeatured = true;
+      const collectionId =
+        typeof content.collectionId ===
+          "string"
+          ? content.collectionId.trim()
+          : "";
+
+      if (!collectionId) {
+        return [];
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | Collection validation
+      |--------------------------------------------------------------------------
+      |
+      | Only use an active collection that is currently inside its publishing
+      | window. This keeps page-builder sections from exposing an unpublished
+      | or expired collection.
+      |--------------------------------------------------------------------------
+      */
+      const collection =
+        await db.Collection.findOne({
+          where: {
+            id:
+              collectionId,
+
+            companyId,
+
+            isActive:
+              true,
+
+            [Op.and]: [
+              {
+                [Op.or]: [
+                  {
+                    publishedFrom:
+                      null,
+                  },
+                  {
+                    publishedFrom: {
+                      [Op.lte]:
+                        now,
+                    },
+                  },
+                ],
+              },
+              {
+                [Op.or]: [
+                  {
+                    publishedUntil:
+                      null,
+                  },
+                  {
+                    publishedUntil: {
+                      [Op.gte]:
+                        now,
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+
+          attributes: [
+            "id",
+            "collectionType",
+          ],
+
+          raw:
+            true,
+        });
+
+      if (!collection) {
+        return [];
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | Collection membership
+      |--------------------------------------------------------------------------
+      |
+      | MANUAL collections use ProductCollection assignments directly.
+      | SMART collections are also expected to have ProductCollection rows
+      | after refreshSmartCollection(), so the storefront uses one consistent
+      | membership source.
+      |--------------------------------------------------------------------------
+      */
+      const assignments =
+        await db.ProductCollection.findAll({
+          where: {
+            companyId,
+
+            collectionId,
+          },
+
+          attributes: [
+            "productId",
+            "sortOrder",
+          ],
+
+          order: [
+            [
+              "sortOrder",
+              "ASC",
+            ],
+            [
+              "createdAt",
+              "ASC",
+            ],
+          ],
+
+          raw:
+            true,
+        });
+
+      orderedProductIds =
+        assignments
+          .map(
+            (assignment) =>
+              assignment.productId
+          )
+          .filter(
+            Boolean
+          );
+
+      if (
+        !orderedProductIds.length
+      ) {
+        return [];
+      }
+
+      where.id = {
+        [Op.in]:
+          orderedProductIds,
+      };
+    } else if (
+      sourceType ===
+      "FEATURED"
+    ) {
+      where.isFeatured =
+        true;
     } else if (
       sourceType ===
       "NEW_ARRIVALS"
     ) {
       order = [
-        ["createdAt", "DESC"],
+        [
+          "createdAt",
+          "DESC",
+        ],
       ];
     } else if (
       sourceType ===
@@ -3302,6 +4817,12 @@ const findProductCarouselProducts =
     } else {
       return [];
     }
+
+    const preserveSourceOrder =
+      sourceType ===
+        "MANUAL" ||
+      sourceType ===
+        "COLLECTION";
 
     const products =
       await db.Product.findAll({
@@ -3314,40 +4835,24 @@ const findProductCarouselProducts =
             now,
           }),
 
-        order: [
-          ...order,
+        order:
+          order,
 
-          [
-            {
-              model:
-                db.ProductImage,
-              as: "images",
-            },
-            "displayOrder",
-            "ASC",
-          ],
-
-          [
-            {
-              model:
-                db.ProductVariant,
-              as: "variants",
-            },
-            "sortOrder",
-            "ASC",
-          ],
-        ],
-
+        /*
+         * For ordered sources, fetch the complete selected set first and
+         * apply the configured maximum only after restoring source order.
+         */
         limit:
-          sourceType === "MANUAL"
+          preserveSourceOrder
             ? undefined
             : limit,
 
-        distinct: true,
+        distinct:
+          true,
       });
 
     if (
-      sourceType !== "MANUAL"
+      !preserveSourceOrder
     ) {
       return products.slice(
         0,
@@ -3372,20 +4877,24 @@ const findProductCarouselProducts =
         )
       );
 
-    return (
-      content.productIds || []
-    )
+    return orderedProductIds
       .map(
         (productId) =>
           productMap.get(
             productId
-          ) || null
+          ) ||
+          null
       )
-      .filter(Boolean)
-      .slice(0, limit);
+      .filter(
+        Boolean
+      )
+      .slice(
+        0,
+        limit
+      );
   };
 
-const resolveProductCarouselSections =
+  const resolveProductCarouselSections =
   async ({
     sections,
     companyId,
@@ -3393,8 +4902,11 @@ const resolveProductCarouselSections =
     apiBaseUrl,
     now,
   }) => {
-    const hasProductCarousel =
-      (sections || []).some(
+    const allSections =
+      sections || [];
+
+    const carouselSections =
+      allSections.filter(
         (section) =>
           String(
             section?.type?.code ||
@@ -3405,9 +4917,17 @@ const resolveProductCarouselSections =
           "PRODUCT_CAROUSEL"
       );
 
-    if (!hasProductCarousel) {
-      return sections || [];
+    if (
+      !carouselSections.length
+    ) {
+      return allSections;
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Storefront Price List
+    |--------------------------------------------------------------------------
+    */
 
     const priceListModel =
       await findStorefrontPriceList({
@@ -3423,106 +4943,560 @@ const resolveProductCarouselSections =
           )
         : null;
 
-    const resolvedSections = [];
+    /*
+    |--------------------------------------------------------------------------
+    | Determine Whether All Homepage Carousels Are Manual
+    |--------------------------------------------------------------------------
+    |
+    | Empty sourceType is treated as MANUAL by getProductCarouselSourceType().
+    |--------------------------------------------------------------------------
+    */
 
-    for (
-      const section of
-      sections || []
+    const allManual =
+      carouselSections.every(
+        (section) => {
+          const settings =
+            section.settings &&
+            typeof section.settings ===
+              "object" &&
+            !Array.isArray(
+              section.settings
+            )
+              ? section.settings
+              : {};
+
+          return (
+            getProductCarouselSourceType(
+              settings
+            ) ===
+            "MANUAL"
+          );
+        }
+      );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Fallback
+    |--------------------------------------------------------------------------
+    |
+    | Keep the existing generic behaviour for CATEGORY / BRAND / COLLECTION /
+    | FEATURED / NEW_ARRIVALS if those source types are used in future.
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      !allManual
     ) {
-      const sectionTypeCode =
-        String(
-          section?.type?.code ||
-            ""
-        )
-          .trim()
-          .toUpperCase();
+      const resolvedSections =
+        [];
 
-      if (
-        sectionTypeCode !==
-        "PRODUCT_CAROUSEL"
+      for (
+        const section of
+        allSections
       ) {
-        resolvedSections.push(
-          section
-        );
+        const sectionTypeCode =
+          String(
+            section?.type?.code ||
+              ""
+          )
+            .trim()
+            .toUpperCase();
 
-        continue;
+        if (
+          sectionTypeCode !==
+          "PRODUCT_CAROUSEL"
+        ) {
+          resolvedSections.push(
+            section
+          );
+
+          continue;
+        }
+
+        const content =
+          section.content &&
+          typeof section.content ===
+            "object" &&
+          !Array.isArray(
+            section.content
+          )
+            ? section.content
+            : {};
+
+        const settings =
+          section.settings &&
+          typeof section.settings ===
+            "object" &&
+          !Array.isArray(
+            section.settings
+          )
+            ? section.settings
+            : {};
+
+        const productModels =
+          await findProductCarouselProducts({
+            companyId,
+            content,
+            settings,
+
+            priceListId:
+              priceList?.id ||
+              null,
+
+            now,
+          });
+
+        const availabilityByVariant =
+          await publicAvailabilityService
+            .getVariantAvailabilityMap({
+              companyId,
+
+              products:
+                productModels,
+            });
+
+        const baseProducts =
+          publicAvailabilityService
+            .filterAvailablePublicProducts(
+              productModels.map(
+                (
+                  productModel
+                ) =>
+                  buildPublicProduct(
+                    productModel,
+                    apiBaseUrl,
+                    availabilityByVariant
+                  )
+              )
+            );
+
+        const products =
+          await applyGiftVoucherPricingToProducts({
+            companyId,
+
+            channelCode:
+              channel,
+
+            effectiveDate:
+              now,
+
+            products:
+              baseProducts,
+          });
+
+        resolvedSections.push({
+          ...section,
+
+          content: {
+            ...content,
+
+            productIdsResolved:
+              products,
+
+            resolvedPriceList:
+              priceList
+                ? {
+                    id:
+                      priceList.id,
+
+                    code:
+                      priceList.code,
+
+                    name:
+                      priceList.name,
+
+                    currencyCode:
+                      priceList.currencyCode,
+
+                    isTaxInclusive:
+                      priceList.isTaxInclusive,
+                  }
+                : null,
+          },
+        });
       }
 
-      const content =
-        section.content &&
-        typeof section.content ===
-          "object" &&
-        !Array.isArray(
-          section.content
-        )
-          ? section.content
-          : {};
-
-      const settings =
-        section.settings &&
-        typeof section.settings ===
-          "object" &&
-        !Array.isArray(
-          section.settings
-        )
-          ? section.settings
-          : {};
-
-      const productModels =
-        await findProductCarouselProducts({
-          companyId,
-          content,
-          settings,
-
-          priceListId:
-            priceList?.id ||
-            null,
-
-          now,
-        });
-
-      const products =
-        productModels.map(
-          (productModel) =>
-            buildPublicProduct(
-              productModel,
-              apiBaseUrl
-            )
-        );
-
-      resolvedSections.push({
-        ...section,
-
-        content: {
-          ...content,
-
-          productIdsResolved:
-            products,
-
-          resolvedPriceList:
-            priceList
-              ? {
-                  id:
-                    priceList.id,
-
-                  code:
-                    priceList.code,
-
-                  name:
-                    priceList.name,
-
-                  currencyCode:
-                    priceList.currencyCode,
-
-                  isTaxInclusive:
-                    priceList.isTaxInclusive,
-                }
-              : null,
-        },
-      });
+      return resolvedSections;
     }
 
-    return resolvedSections;
+    /*
+    |--------------------------------------------------------------------------
+    | Collect Unique Manual Product IDs
+    |--------------------------------------------------------------------------
+    |
+    | The current homepage contains:
+    |
+    | Hot Deals     = 13
+    | New Arrivals  = 6
+    | Bestsellers   = 13
+    |
+    | 32 positions / 30 unique products.
+    |
+    | Load the 30 unique products ONCE rather than executing the complete
+    | storefront product graph independently for every carousel.
+    |--------------------------------------------------------------------------
+    */
+
+    const uniqueProductIds =
+      Array.from(
+        new Set(
+          carouselSections.flatMap(
+            (section) => {
+              const content =
+                section.content &&
+                typeof section.content ===
+                  "object" &&
+                !Array.isArray(
+                  section.content
+                )
+                  ? section.content
+                  : {};
+
+              return Array.isArray(
+                content.productIds
+              )
+                ? content.productIds
+                    .filter(
+                      (
+                        productId
+                      ) =>
+                        typeof productId ===
+                          "string" &&
+                        productId.trim()
+                    )
+                    .map(
+                      (
+                        productId
+                      ) =>
+                        productId.trim()
+                    )
+                : [];
+            }
+          )
+        )
+      );
+
+    /*
+    |--------------------------------------------------------------------------
+    | No Configured Products
+    |--------------------------------------------------------------------------
+    */
+
+    if (
+      !uniqueProductIds.length
+    ) {
+      return allSections.map(
+        (section) => {
+          const sectionTypeCode =
+            String(
+              section?.type?.code ||
+                ""
+            )
+              .trim()
+              .toUpperCase();
+
+          if (
+            sectionTypeCode !==
+            "PRODUCT_CAROUSEL"
+          ) {
+            return section;
+          }
+
+          const content =
+            section.content &&
+            typeof section.content ===
+              "object" &&
+            !Array.isArray(
+              section.content
+            )
+              ? section.content
+              : {};
+
+          return {
+            ...section,
+
+            content: {
+              ...content,
+
+              productIdsResolved:
+                [],
+
+              resolvedPriceList:
+                priceList
+                  ? {
+                      id:
+                        priceList.id,
+
+                      code:
+                        priceList.code,
+
+                      name:
+                        priceList.name,
+
+                      currencyCode:
+                        priceList.currencyCode,
+
+                      isTaxInclusive:
+                        priceList.isTaxInclusive,
+                    }
+                  : null,
+            },
+          };
+        }
+      );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | One Product Graph Query
+    |--------------------------------------------------------------------------
+    */
+
+    const productModels =
+      await db.Product.findAll({
+        where: {
+          id: {
+            [Op.in]:
+              uniqueProductIds,
+          },
+
+          companyId,
+
+          status:
+            "ACTIVE",
+
+          isSearchable:
+            true,
+        },
+
+        include:
+          getProductStorefrontIncludes({
+            companyId,
+
+            priceListId:
+              priceList?.id ||
+              null,
+
+            now,
+          }),
+
+        distinct:
+          true,
+      });
+
+    /*
+    |--------------------------------------------------------------------------
+    | One Availability Resolution
+    |--------------------------------------------------------------------------
+    */
+
+    const availabilityByVariant =
+      await publicAvailabilityService
+        .getVariantAvailabilityMap({
+          companyId,
+
+          products:
+            productModels,
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Build Public Products Once
+    |--------------------------------------------------------------------------
+    */
+
+    const publicProducts =
+      productModels.map(
+        (
+          productModel
+        ) =>
+          buildPublicProduct(
+            productModel,
+            apiBaseUrl,
+            availabilityByVariant
+          )
+      );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Availability Filtering Once
+    |--------------------------------------------------------------------------
+    */
+
+    const availableProducts =
+      publicAvailabilityService
+        .filterAvailablePublicProducts(
+          publicProducts
+        );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gift Voucher Pricing Once
+    |--------------------------------------------------------------------------
+    */
+
+    const pricedProducts =
+      await applyGiftVoucherPricingToProducts({
+        companyId,
+
+        channelCode:
+          channel,
+
+        effectiveDate:
+          now,
+
+        products:
+          availableProducts,
+      });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Product Map
+    |--------------------------------------------------------------------------
+    */
+
+    const productMap =
+      new Map(
+        pricedProducts.map(
+          (
+            product
+          ) => [
+            String(
+              product.id
+            ),
+
+            product,
+          ]
+        )
+      );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rebuild Each Carousel
+    |--------------------------------------------------------------------------
+    |
+    | Preserve:
+    |
+    | - CMS product order
+    | - each carousel's maximumProducts
+    | - existing public product shape
+    |--------------------------------------------------------------------------
+    */
+
+    return allSections.map(
+      (section) => {
+        const sectionTypeCode =
+          String(
+            section?.type?.code ||
+              ""
+          )
+            .trim()
+            .toUpperCase();
+
+        if (
+          sectionTypeCode !==
+          "PRODUCT_CAROUSEL"
+        ) {
+          return section;
+        }
+
+        const content =
+          section.content &&
+          typeof section.content ===
+            "object" &&
+          !Array.isArray(
+            section.content
+          )
+            ? section.content
+            : {};
+
+        const settings =
+          section.settings &&
+          typeof section.settings ===
+            "object" &&
+          !Array.isArray(
+            section.settings
+          )
+            ? section.settings
+            : {};
+
+        const limit =
+          getProductCarouselLimit(
+            settings
+          );
+
+        const configuredIds =
+          Array.isArray(
+            content.productIds
+          )
+            ? content.productIds
+                .filter(
+                  (
+                    productId
+                  ) =>
+                    typeof productId ===
+                      "string" &&
+                    productId.trim()
+                )
+                .map(
+                  (
+                    productId
+                  ) =>
+                    productId.trim()
+                )
+            : [];
+
+        const products =
+          configuredIds
+            .map(
+              (
+                productId
+              ) =>
+                productMap.get(
+                  productId
+                ) ||
+                null
+            )
+            .filter(
+              Boolean
+            )
+            .slice(
+              0,
+              limit
+            );
+
+        return {
+          ...section,
+
+          content: {
+            ...content,
+
+            productIdsResolved:
+              products,
+
+            resolvedPriceList:
+              priceList
+                ? {
+                    id:
+                      priceList.id,
+
+                    code:
+                      priceList.code,
+
+                    name:
+                      priceList.name,
+
+                    currencyCode:
+                      priceList.currencyCode,
+
+                    isTaxInclusive:
+                      priceList.isTaxInclusive,
+                  }
+                : null,
+          },
+        };
+      }
+    );
   };
 
 
@@ -3534,6 +5508,7 @@ const resolveProductCarouselSections =
  * - MANUAL
  * - CATEGORY
  * - BRAND
+ * - COLLECTION
  *
  * PROMOTION remains empty until promotion-product
  * resolution is implemented.
@@ -3690,14 +5665,38 @@ const resolveFlashDealsSections =
           });
       }
 
-      const products =
-        productModels.map(
-          (productModel) =>
-            buildPublicProduct(
-              productModel,
-              apiBaseUrl
+      const availabilityByVariant =
+        await publicAvailabilityService
+          .getVariantAvailabilityMap({
+            companyId,
+
+            products:
+              productModels,
+          });
+
+      const baseProducts =
+        publicAvailabilityService
+          .filterAvailablePublicProducts(
+            productModels.map(
+              (productModel) =>
+                buildPublicProduct(
+                  productModel,
+                  apiBaseUrl,
+                  availabilityByVariant
+                )
             )
-        );
+          );
+
+      const products =
+        await applyGiftVoucherPricingToProducts({
+          companyId,
+          channelCode:
+            channel,
+          effectiveDate:
+            now,
+          products:
+            baseProducts,
+        });
 
       resolvedSections.push({
         ...section,
@@ -3750,110 +5749,2288 @@ const resolveFlashDealsSections =
 /*
  * Pre-Booking
  * -------------------------------------------------------
- * Reuses Product Carousel product and pricing helpers.
+ *
+ * IMPORTANT PERFORMANCE DESIGN
+ *
+ * Do NOT load the complete pre-booking hierarchy using one
+ * Sequelize include tree.
+ *
+ * The previous implementation joined:
+ *
+ * Campaign
+ *   -> CampaignProducts[]
+ *      -> Product
+ *      -> Allocations[]
+ *      -> Bundles[]
+ *         -> ProtectionScheme
+ *         -> Items[]
+ *         -> Allocations[]
+ *
+ * That creates a Cartesian multiplication of hasMany rows.
+ *
+ * This implementation deliberately loads each collection in
+ * small independent queries and combines the result using Maps.
  */
-const resolvePreBookingSections = async ({
-  sections,
-  companyId,
-  channel,
-  apiBaseUrl,
-  now,
-}) => {
-  const hasPreBooking = (sections || []).some(
-    (section) => String(section?.type?.code || "").trim().toUpperCase() === "PRE_BOOKING"
-  );
+const resolvePreBookingSections =
+  async ({
+    sections,
+    companyId,
+    channel,
+    apiBaseUrl,
+    now,
+  }) => {
+    const sourceSections =
+      Array.isArray(
+        sections
+      )
+        ? sections
+        : [];
 
-  if (!hasPreBooking) return sections || [];
+    /*
+    |--------------------------------------------------------------------------
+    | Nothing To Resolve
+    |--------------------------------------------------------------------------
+    */
 
-  const priceListModel = await findStorefrontPriceList({ companyId, channel, now });
-  const priceList = priceListModel ? toPlainObject(priceListModel) : null;
-  const resolvedSections = [];
+    const hasPreBooking =
+      sourceSections.some(
+        (
+          section
+        ) =>
+          String(
+            section?.type
+              ?.code ||
+              ""
+          )
+            .trim()
+            .toUpperCase() ===
+          "PRE_BOOKING"
+      );
 
-  for (const section of sections || []) {
-    const sectionTypeCode = String(section?.type?.code || "").trim().toUpperCase();
-
-    if (sectionTypeCode !== "PRE_BOOKING") {
-      resolvedSections.push(section);
-      continue;
+    if (
+      !hasPreBooking
+    ) {
+      return sourceSections;
     }
 
-    const content = section.content && typeof section.content === "object" && !Array.isArray(section.content)
-      ? section.content
-      : {};
+    /*
+    |--------------------------------------------------------------------------
+    | Storefront Price List
+    |--------------------------------------------------------------------------
+    */
 
-    const settings = section.settings && typeof section.settings === "object" && !Array.isArray(section.settings)
-      ? section.settings
-      : {};
+    const priceListModel =
+      await findStorefrontPriceList({
+        companyId,
+        channel,
+        now,
+      });
 
-    const startAt = content.bookingStartAt ? new Date(content.bookingStartAt) : null;
-    const endAt = content.bookingEndAt ? new Date(content.bookingEndAt) : null;
-    const validStart = startAt && !Number.isNaN(startAt.getTime());
-    const validEnd = endAt && !Number.isNaN(endAt.getTime());
+    const priceList =
+      priceListModel
+        ? toPlainObject(
+            priceListModel
+          )
+        : null;
 
-    const bookingStatus =
-      validEnd && endAt.getTime() <= now.getTime()
-        ? "CLOSED"
-        : validStart && startAt.getTime() > now.getTime()
-          ? "UPCOMING"
-          : "ACTIVE";
+    const resolvedPriceList =
+      priceList
+        ? {
+            id:
+              priceList.id,
 
-    const sourceType = String(settings.sourceType || "MANUAL").trim().toUpperCase();
+            code:
+              priceList.code,
 
-    const productModels = await findProductCarouselProducts({
-      companyId,
-      content,
-      settings: { ...settings, sourceType },
-      priceListId: priceList?.id || null,
-      now,
-    });
+            name:
+              priceList.name,
 
-    const products = productModels.map((productModel) => ({
-      ...buildPublicProduct(productModel, apiBaseUrl),
-      preBooking: {
-        bookingType: "REGISTER_INTEREST",
-        depositAmount: null,
-        fullBookingPrice: null,
-        bookingStartAt: validStart ? startAt.toISOString() : null,
-        bookingEndAt: validEnd ? endAt.toISOString() : null,
-        expectedLaunchAt: null,
-        expectedDeliveryFrom: null,
-        expectedDeliveryUntil: null,
-        maximumBookings: null,
-        bookedQuantity: 0,
-        allowWaitlist: true,
-        status: bookingStatus,
-      },
-    }));
+            currencyCode:
+              priceList.currencyCode,
 
-    resolvedSections.push({
-      ...section,
-      content: {
-        ...content,
-        bookingStatus,
-        bookingStartAt: validStart ? startAt.toISOString() : null,
-        bookingEndAt: validEnd ? endAt.toISOString() : null,
-        productIdsResolved: products,
-        resolvedPriceList: priceList
-          ? {
-              id: priceList.id,
-              code: priceList.code,
-              name: priceList.name,
-              currencyCode: priceList.currencyCode,
-              isTaxInclusive: priceList.isTaxInclusive,
+            isTaxInclusive:
+              priceList.isTaxInclusive,
+          }
+        : null;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Build Unavailable Section
+    |--------------------------------------------------------------------------
+    */
+
+    const buildUnavailableSection =
+      (
+        section,
+        content
+      ) => ({
+        ...section,
+
+        content: {
+          ...content,
+
+          bookingStatus:
+            "UNAVAILABLE",
+
+          bookingStartAt:
+            null,
+
+          bookingEndAt:
+            null,
+
+          campaignResolved:
+            null,
+
+          productIdsResolved:
+            [],
+
+          resolvedPriceList,
+        },
+      });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Group Helper
+    |--------------------------------------------------------------------------
+    */
+
+    const groupRows =
+      (
+        rows,
+        fieldName
+      ) => {
+        const map =
+          new Map();
+
+        for (
+          const row of
+          rows || []
+        ) {
+          const plain =
+            toPlainObject(
+              row
+            );
+
+          const key =
+            plain?.[
+              fieldName
+            ];
+
+          if (!key) {
+            continue;
+          }
+
+          const normalizedKey =
+            String(
+              key
+            );
+
+          if (
+            !map.has(
+              normalizedKey
+            )
+          ) {
+            map.set(
+              normalizedKey,
+              []
+            );
+          }
+
+          map
+            .get(
+              normalizedKey
+            )
+            .push(
+              plain
+            );
+        }
+
+        return map;
+      };
+
+    /*
+    |--------------------------------------------------------------------------
+    | Resolve Sections
+    |--------------------------------------------------------------------------
+    */
+
+    const resolvedSections =
+      [];
+
+    for (
+      const section of
+      sourceSections
+    ) {
+      const sectionTypeCode =
+        String(
+          section?.type
+            ?.code ||
+            ""
+        )
+          .trim()
+          .toUpperCase();
+
+      if (
+        sectionTypeCode !==
+        "PRE_BOOKING"
+      ) {
+        resolvedSections.push(
+          section
+        );
+
+        continue;
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | CMS Content / Settings
+      |--------------------------------------------------------------------------
+      */
+
+      const content =
+        section.content &&
+        typeof section.content ===
+          "object" &&
+        !Array.isArray(
+          section.content
+        )
+          ? section.content
+          : {};
+
+      const settings =
+        section.settings &&
+        typeof section.settings ===
+          "object" &&
+        !Array.isArray(
+          section.settings
+        )
+          ? section.settings
+          : {};
+
+      const campaignId =
+        String(
+          content.campaignId ||
+            ""
+        ).trim();
+
+      if (
+        !campaignId
+      ) {
+        resolvedSections.push(
+          buildUnavailableSection(
+            section,
+            content
+          )
+        );
+
+        continue;
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | 1. Campaign Master Only
+      |--------------------------------------------------------------------------
+      |
+      | No includes here.
+      |--------------------------------------------------------------------------
+      */
+
+      const campaignModel =
+        await db.PreBookingCampaign.findOne(
+          {
+            where: {
+              id:
+                campaignId,
+
+              companyId,
+
+              isActive:
+                true,
+            },
+          }
+        );
+
+      if (
+        !campaignModel
+      ) {
+        resolvedSections.push(
+          buildUnavailableSection(
+            section,
+            content
+          )
+        );
+
+        continue;
+      }
+
+      const campaign =
+        toPlainObject(
+          campaignModel
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Campaign Booking Window
+      |--------------------------------------------------------------------------
+      */
+
+      const startAt =
+        campaign.bookingStartAt
+          ? new Date(
+              campaign.bookingStartAt
+            )
+          : null;
+
+      const endAt =
+        campaign.bookingEndAt
+          ? new Date(
+              campaign.bookingEndAt
+            )
+          : null;
+
+      const validStart =
+        Boolean(
+          startAt
+        ) &&
+        !Number.isNaN(
+          startAt.getTime()
+        );
+
+      const validEnd =
+        Boolean(
+          endAt
+        ) &&
+        !Number.isNaN(
+          endAt.getTime()
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Effective Booking Status
+      |--------------------------------------------------------------------------
+      */
+
+      let bookingStatus =
+        "ACTIVE";
+
+      if (
+        validStart &&
+        startAt.getTime() >
+          now.getTime()
+      ) {
+        bookingStatus =
+          "UPCOMING";
+      }
+
+      if (
+        validEnd &&
+        endAt.getTime() <=
+          now.getTime()
+      ) {
+        bookingStatus =
+          "CLOSED";
+      }
+
+      const campaignStatus =
+        String(
+          campaign.status ||
+            ""
+        )
+          .trim()
+          .toUpperCase();
+
+      if (
+        [
+          "CLOSED",
+          "ARCHIVED",
+          "INACTIVE",
+        ].includes(
+          campaignStatus
+        )
+      ) {
+        bookingStatus =
+          "CLOSED";
+      }
+
+      if (
+        [
+          "DRAFT",
+          "PAUSED",
+        ].includes(
+          campaignStatus
+        )
+      ) {
+        bookingStatus =
+          "UPCOMING";
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | Homepage Product Limit
+      |--------------------------------------------------------------------------
+      */
+
+      const requestedMaximum =
+        Number(
+          settings.maximumProducts ||
+            8
+        );
+
+      const maximumProducts =
+        Math.min(
+          24,
+          Math.max(
+            1,
+            Number.isFinite(
+              requestedMaximum
+            )
+              ? Math.floor(
+                  requestedMaximum
+                )
+              : 8
+          )
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | 2. Lightweight Campaign Product Assignments
+      |--------------------------------------------------------------------------
+      |
+      | Load all active assignments so campaign productCount stays accurate.
+      |
+      | No catalogue Product include.
+      | No bundles.
+      | No allocations.
+      |--------------------------------------------------------------------------
+      */
+
+      const campaignProductModels =
+        await db.PreBookingCampaignProduct.findAll(
+          {
+            where: {
+              companyId,
+
+              campaignId:
+                campaign.id,
+
+              isActive:
+                true,
+            },
+
+            order: [
+              [
+                "sortOrder",
+                "ASC",
+              ],
+              [
+                "createdAt",
+                "ASC",
+              ],
+            ],
+          }
+        );
+
+      const allCampaignProducts =
+        campaignProductModels.map(
+          (
+            campaignProduct
+          ) =>
+            toPlainObject(
+              campaignProduct
+            )
+        );
+
+      /*
+       * Only these assignments need the heavy storefront
+       * product-card information on the homepage.
+       */
+      const selectedCampaignProducts =
+        allCampaignProducts.slice(
+          0,
+          maximumProducts
+        );
+
+      const selectedCampaignProductIds =
+        selectedCampaignProducts
+          .map(
+            (
+              campaignProduct
+            ) =>
+              campaignProduct.id
+          )
+          .filter(
+            Boolean
+          );
+
+      const selectedProductIds =
+        selectedCampaignProducts
+          .map(
+            (
+              campaignProduct
+            ) =>
+              campaignProduct.productId
+          )
+          .filter(
+            Boolean
+          );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Empty Campaign
+      |--------------------------------------------------------------------------
+      */
+
+      if (
+        !selectedProductIds.length
+      ) {
+        const campaignUrl =
+          campaign.slug
+            ? `/pre-booking/${campaign.slug}`
+            : "/pre-booking";
+
+        const configuredButtonUrl =
+          String(
+            content.buttonUrl ||
+              ""
+          ).trim();
+
+        resolvedSections.push({
+          ...section,
+
+          content: {
+            ...content,
+
+            bookingStatus,
+
+            bookingStartAt:
+              validStart
+                ? startAt.toISOString()
+                : null,
+
+            bookingEndAt:
+              validEnd
+                ? endAt.toISOString()
+                : null,
+
+            buttonUrl:
+              configuredButtonUrl ||
+              campaignUrl,
+
+            campaignResolved: {
+              id:
+                campaign.id,
+
+              code:
+                campaign.code,
+
+              name:
+                campaign.name,
+
+              slug:
+                campaign.slug,
+
+              description:
+                campaign.description ||
+                null,
+
+              status:
+                campaign.status,
+
+              bookingStatus,
+
+              bookingStartAt:
+                validStart
+                  ? startAt.toISOString()
+                  : null,
+
+              bookingEndAt:
+                validEnd
+                  ? endAt.toISOString()
+                  : null,
+
+              paymentPolicy:
+                campaign.paymentPolicy ||
+                "FULL_PREPAID",
+
+              allowCard:
+                campaign.allowCard ===
+                true,
+
+              allowTabby:
+                campaign.allowTabby ===
+                true,
+
+              allowTamara:
+                campaign.allowTamara ===
+                true,
+
+              allowCoupons:
+                campaign.allowCoupons ===
+                true,
+
+              allowGiftVouchers:
+                campaign.allowGiftVouchers ===
+                true,
+
+              checkoutSessionMinutes:
+                campaign.checkoutSessionMinutes ??
+                null,
+
+              campaignUrl,
+
+              productCount:
+                allCampaignProducts.length,
+            },
+
+            productIdsResolved:
+              [],
+
+            resolvedPriceList,
+          },
+        });
+
+        continue;
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | 3. Full Storefront Product Cards
+      |--------------------------------------------------------------------------
+      |
+      | IMPORTANT:
+      |
+      | Pass ONLY the homepage-limited product IDs.
+      |
+      | findProductCarouselProducts() is already optimized using
+      | separate:true for hasMany storefront relationships.
+      |--------------------------------------------------------------------------
+      */
+
+      const productModels =
+        await findProductCarouselProducts(
+          {
+            companyId,
+
+            content: {
+              productIds:
+                selectedProductIds,
+            },
+
+            settings: {
+              sourceType:
+                "MANUAL",
+
+              maximumProducts:
+                selectedProductIds.length,
+            },
+
+            priceListId:
+              priceList?.id ||
+              null,
+
+            now,
+          }
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Storefront Inventory Availability
+      |--------------------------------------------------------------------------
+      */
+
+      const availabilityByVariant =
+        await publicAvailabilityService
+          .getVariantAvailabilityMap({
+            companyId,
+
+            products:
+              productModels,
+          });
+
+      /*
+      |--------------------------------------------------------------------------
+      | 4. Direct Allocations
+      |--------------------------------------------------------------------------
+      |
+      | One hasMany table only.
+      | Variant is belongsTo and therefore safe to include.
+      |--------------------------------------------------------------------------
+      */
+
+      const directAllocationModels =
+        selectedCampaignProductIds.length
+          ? await db.PreBookingAllocation.findAll(
+              {
+                where: {
+                  companyId,
+
+                  campaignProductId: {
+                    [Op.in]:
+                      selectedCampaignProductIds,
+                  },
+
+                  bundleId:
+                    null,
+
+                  isActive:
+                    true,
+                },
+
+                include: [
+                  {
+                    model:
+                      db.ProductVariant,
+
+                    as:
+                      "variant",
+
+                    required:
+                      false,
+
+                    attributes: [
+                      "id",
+                      "productId",
+                      "sku",
+                      "name",
+                      "isDefault",
+                      "status",
+                    ],
+                  },
+                ],
+
+                order: [
+                  [
+                    "campaignProductId",
+                    "ASC",
+                  ],
+                  [
+                    "sortOrder",
+                    "ASC",
+                  ],
+                  [
+                    "createdAt",
+                    "ASC",
+                  ],
+                ],
+              }
+            )
+          : [];
+
+      /*
+      |--------------------------------------------------------------------------
+      | 4B. Variant-Specific Images For Pre-Booking Cards
+      |--------------------------------------------------------------------------
+      |
+      | Product carousel queries already load variants, prices and attributes.
+      | For PRE_BOOKING only, load images assigned directly to those variants.
+      |--------------------------------------------------------------------------
+      */
+
+      /*
+      | Homepage: only variants with active direct allocation and stock
+      */
+      const preBookingVariantIds =
+        Array.from(
+          new Set(
+            directAllocationModels
+              .map(row => toPlainObject(row))
+              .filter(allocation => {
+                const availableQuantity =
+                  Math.max(
+                    0,
+                    Number(allocation.allocationQuantity || 0) -
+                    Number(allocation.reservedQuantity || 0) -
+                    Number(allocation.confirmedQuantity || 0)
+                  );
+
+                return Boolean(allocation.productVariantId) &&
+                  availableQuantity > 0;
+              })
+              .map(allocation => String(allocation.productVariantId))
+          )
+        );
+
+      const preBookingVariantImageModels =
+        preBookingVariantIds.length
+          ? await db.ProductImage.findAll({
+              where: {
+                companyId,
+                variantId: {
+                  [Op.in]: preBookingVariantIds,
+                },
+                isActive: true,
+              },
+              include: [
+                {
+                  model:
+                    db.MediaAsset,
+              
+                  as:
+                    "mediaAsset",
+              
+                  required:
+                    true,
+              
+                  where: {
+                    companyId,
+              
+                    status:
+                      "READY",
+              
+                    isPublic:
+                      true,
+              
+                    isActive:
+                      true,
+                  },
+              
+                  attributes: [
+                    "id",
+                    "publicUrl",
+                    "altText",
+                    "title",
+                  ],
+              
+                  include: [
+                    {
+                      model:
+                        db.MediaAssetVariant,
+              
+                      as:
+                        "variants",
+              
+                      required:
+                        false,
+              
+                      separate:
+                        true,
+              
+                      attributes: [
+                        "id",
+                        "variantType",
+                        "format",
+                        "mimeType",
+                        "width",
+                        "height",
+                        "fileSize",
+                        "publicUrl",
+                        "isPrimary",
+                        "isActive",
+                      ],
+              
+                      where: {
+                        companyId,
+              
+                        isActive:
+                          true,
+              
+                        variantType: {
+                          [Op.in]: [
+                            "MEDIUM",
+                            "SMALL",
+                            "THUMBNAIL",
+                          ],
+                        },
+                      },
+              
+                      order: [
+                        [
+                          "variantType",
+                          "ASC",
+                        ],
+                        [
+                          "createdAt",
+                          "ASC",
+                        ],
+                      ],
+                    },
+                  ],
+                },
+              ],
+              order: [
+                ["variantId", "ASC"],
+                ["displayOrder", "ASC"],
+                ["createdAt", "ASC"],
+              ],
+            })
+          : [];
+
+      const preBookingVariantImagesByVariantId =
+        new Map();
+
+      for (const imageModel of preBookingVariantImageModels) {
+        const image = toPlainObject(imageModel);
+        const variantKey = String(image.variantId || "");
+
+        if (!variantKey || !image.mediaAsset) continue;
+
+        /*
+         * Only the first ordered image is required for a homepage card.
+         */
+        if (preBookingVariantImagesByVariantId.has(variantKey)) continue;
+
+        const mediaAsset =
+  image.mediaAsset;
+
+const normalizedMediaAsset =
+  buildPublicMediaAsset(
+    mediaAsset,
+    apiBaseUrl
+  );
+
+preBookingVariantImagesByVariantId.set(
+  variantKey,
+  [
+    {
+      id:
+        image.id,
+
+      imageRole:
+        image.imageRole ||
+        null,
+
+      altText:
+        image.altText ||
+        mediaAsset.altText ||
+        null,
+
+      title:
+        image.title ||
+        mediaAsset.title ||
+        null,
+
+        mediaAsset: {
+          id:
+            normalizedMediaAsset
+              ?.id ||
+            mediaAsset.id,
+        
+          publicUrl:
+            normalizedMediaAsset
+              ?.publicUrl ||
+            null,
+        
+          /*
+          |--------------------------------------------------------------------------
+          | Optimized Homepage Variants
+          |--------------------------------------------------------------------------
+          |
+          | Only MEDIUM / SMALL / THUMBNAIL were loaded above.
+          |
+          | This keeps the homepage response lean while allowing
+          | PreBookingProductCard to avoid downloading original
+          | product images.
+          |--------------------------------------------------------------------------
+          */
+        
+          variants:
+            normalizedMediaAsset
+              ?.variants ||
+            [],
+        
+          altText:
+            normalizedMediaAsset
+              ?.altText ||
+            mediaAsset.altText ||
+            null,
+        
+          title:
+            normalizedMediaAsset
+              ?.title ||
+            mediaAsset.title ||
+            null,
+        },
+    },
+  ]
+);
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | 5. Bundles
+      |--------------------------------------------------------------------------
+      |
+      | ProtectionScheme is belongsTo, not hasMany, so this remains safe.
+      |--------------------------------------------------------------------------
+      */
+
+      const bundleModels =
+        selectedCampaignProductIds.length
+          ? await db.PreBookingBundle.findAll(
+              {
+                where: {
+                  companyId,
+
+                  campaignProductId: {
+                    [Op.in]:
+                      selectedCampaignProductIds,
+                  },
+
+                  isActive:
+                    true,
+                },
+
+                include: [
+                  {
+                    model:
+                      db.ProtectionScheme,
+
+                    as:
+                      "protectionScheme",
+
+                    required:
+                      false,
+
+                    where: {
+                      companyId,
+
+                      isActive:
+                        true,
+                    },
+                  },
+                ],
+
+                order: [
+                  [
+                    "campaignProductId",
+                    "ASC",
+                  ],
+                  [
+                    "sortOrder",
+                    "ASC",
+                  ],
+                  [
+                    "createdAt",
+                    "ASC",
+                  ],
+                ],
+              }
+            )
+          : [];
+
+      const bundles =
+        bundleModels.map(
+          (
+            bundle
+          ) =>
+            toPlainObject(
+              bundle
+            )
+        );
+
+      const bundleIds =
+        bundles
+          .map(
+            (
+              bundle
+            ) =>
+              bundle.id
+          )
+          .filter(
+            Boolean
+          );
+
+      /*
+      |--------------------------------------------------------------------------
+      | 6. Bundle Items + Bundle Allocations
+      |--------------------------------------------------------------------------
+      |
+      | These run as independent queries.
+      |
+      | No bundle × item × allocation multiplication can occur.
+      |--------------------------------------------------------------------------
+      */
+
+      let bundleItemModels =
+        [];
+
+      let bundleAllocationModels =
+        [];
+
+      if (
+        bundleIds.length
+      ) {
+        [
+          bundleItemModels,
+          bundleAllocationModels,
+        ] =
+          await Promise.all([
+            /*
+            |--------------------------------------------------------------------------
+            | Bundle Items
+            |--------------------------------------------------------------------------
+            */
+
+            db.PreBookingBundleItem.findAll(
+              {
+                where: {
+                  companyId,
+
+                  bundleId: {
+                    [Op.in]:
+                      bundleIds,
+                  },
+
+                  isActive:
+                    true,
+                },
+
+                include: [
+                  {
+                    model:
+                      db.Product,
+
+                    as:
+                      "product",
+
+                    required:
+                      false,
+
+                    attributes: [
+                      "id",
+                      "name",
+                      "slug",
+                      "parentSku",
+                      "status",
+                    ],
+                  },
+
+                  {
+                    model:
+                      db.ProductVariant,
+
+                    as:
+                      "variant",
+
+                    required:
+                      false,
+
+                    attributes: [
+                      "id",
+                      "productId",
+                      "sku",
+                      "name",
+                      "isDefault",
+                      "status",
+                    ],
+                  },
+                ],
+
+                order: [
+                  [
+                    "bundleId",
+                    "ASC",
+                  ],
+                  [
+                    "sortOrder",
+                    "ASC",
+                  ],
+                  [
+                    "createdAt",
+                    "ASC",
+                  ],
+                ],
+              }
+            ),
+
+            /*
+            |--------------------------------------------------------------------------
+            | Bundle Allocations
+            |--------------------------------------------------------------------------
+            */
+
+            db.PreBookingAllocation.findAll(
+              {
+                where: {
+                  companyId,
+
+                  bundleId: {
+                    [Op.in]:
+                      bundleIds,
+                  },
+
+                  isActive:
+                    true,
+                },
+
+                include: [
+                  {
+                    model:
+                      db.ProductVariant,
+
+                    as:
+                      "variant",
+
+                    required:
+                      false,
+
+                    attributes: [
+                      "id",
+                      "productId",
+                      "sku",
+                      "name",
+                      "isDefault",
+                      "status",
+                    ],
+                  },
+                ],
+
+                order: [
+                  [
+                    "bundleId",
+                    "ASC",
+                  ],
+                  [
+                    "sortOrder",
+                    "ASC",
+                  ],
+                  [
+                    "createdAt",
+                    "ASC",
+                  ],
+                ],
+              }
+            ),
+          ]);
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | Build Lookup Maps
+      |--------------------------------------------------------------------------
+      */
+
+      const directAllocationsByCampaignProductId =
+        groupRows(
+          directAllocationModels,
+          "campaignProductId"
+        );
+
+      const bundlesByCampaignProductId =
+        groupRows(
+          bundles,
+          "campaignProductId"
+        );
+
+      const bundleItemsByBundleId =
+        groupRows(
+          bundleItemModels,
+          "bundleId"
+        );
+
+      const bundleAllocationsByBundleId =
+        groupRows(
+          bundleAllocationModels,
+          "bundleId"
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Campaign Product Lookups
+      |--------------------------------------------------------------------------
+      */
+
+      const campaignProductByProductId =
+        new Map(
+          selectedCampaignProducts.map(
+            (
+              campaignProduct
+            ) => [
+              String(
+                campaignProduct.productId
+              ),
+
+              campaignProduct,
+            ]
+          )
+        );
+
+      const campaignProductOrder =
+        new Map(
+          selectedCampaignProducts.map(
+            (
+              campaignProduct,
+              index
+            ) => [
+              String(
+                campaignProduct.productId
+              ),
+
+              Number(
+                campaignProduct.sortOrder ??
+                  index
+              ),
+            ]
+          )
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Build Public Products
+      |--------------------------------------------------------------------------
+      */
+
+      const baseProducts =
+        productModels
+          .map(
+            (
+              productModel
+            ) => {
+              const publicProduct =
+                buildPublicProduct(
+                  productModel,
+                  apiBaseUrl,
+                  availabilityByVariant
+                );
+
+              const campaignProduct =
+                campaignProductByProductId.get(
+                  String(
+                    publicProduct.id
+                  )
+                );
+
+              if (
+                !campaignProduct
+              ) {
+                return null;
+              }
+
+              /*
+              |--------------------------------------------------------------------------
+              | Product Price Override
+              |--------------------------------------------------------------------------
+              */
+
+              const parsedPriceOverride =
+                campaignProduct.priceOverride !==
+                  null &&
+                campaignProduct.priceOverride !==
+                  undefined
+                  ? Number(
+                      campaignProduct.priceOverride
+                    )
+                  : null;
+
+              const hasPriceOverride =
+                Number.isFinite(
+                  parsedPriceOverride
+                ) &&
+                parsedPriceOverride >=
+                  0;
+
+              const resolvedPrice =
+                publicProduct.price
+                  ? {
+                      ...publicProduct.price,
+                    }
+                  : null;
+
+              if (
+                resolvedPrice &&
+                hasPriceOverride
+              ) {
+                resolvedPrice.sellingPrice =
+                  parsedPriceOverride;
+              }
+
+              /*
+              |--------------------------------------------------------------------------
+              | Direct Allocations
+              |--------------------------------------------------------------------------
+              */
+
+              const directAllocations =
+                directAllocationsByCampaignProductId.get(
+                  String(
+                    campaignProduct.id
+                  )
+                ) || [];
+
+              /*
+              |--------------------------------------------------------------------------
+              | Public Pre-Booking Variants
+              |--------------------------------------------------------------------------
+              |
+              | Expose the full variant card payload only inside PRE_BOOKING.
+              | The normal PRODUCT_CAROUSEL response remains unchanged.
+              |--------------------------------------------------------------------------
+              */
+
+              const productPlain =
+                toPlainObject(
+                  productModel
+                );
+
+              const productVariants =
+                Array.isArray(
+                  productPlain.variants
+                )
+                  ? productPlain.variants
+                  : [];
+
+              const directAllocationPlain =
+                directAllocations.map(
+                  (
+                    allocation
+                  ) =>
+                    toPlainObject(
+                      allocation
+                    )
+                );
+
+              const preBookingPublicVariants =
+                productVariants.flatMap(
+                  variant => {
+                    const variantAllocations =
+                      directAllocationPlain.filter(
+                        allocation =>
+                          String(
+                            allocation.productVariantId ||
+                            allocation.variant?.id ||
+                            ""
+                          ) === String(variant.id)
+                      );
+
+                    if (!variantAllocations.length) return [];
+
+                    const allocationQuantity =
+                      variantAllocations.reduce(
+                        (total, allocation) =>
+                          total + Number(allocation.allocationQuantity || 0),
+                        0
+                      );
+
+                    const reservedQuantity =
+                      variantAllocations.reduce(
+                        (total, allocation) =>
+                          total + Number(allocation.reservedQuantity || 0),
+                        0
+                      );
+
+                    const confirmedQuantity =
+                      variantAllocations.reduce(
+                        (total, allocation) =>
+                          total + Number(allocation.confirmedQuantity || 0),
+                        0
+                      );
+
+                    const availableQuantity =
+                      Math.max(
+                        0,
+                        allocationQuantity -
+                        reservedQuantity -
+                        confirmedQuantity
+                      );
+
+                    if (availableQuantity <= 0) return [];
+
+                    const attributeValues =
+                      Array.isArray(variant.attributeValues)
+                        ? variant.attributeValues
+                        : [];
+
+                    return [
+                      {
+                        id: variant.id,
+                        sku: variant.sku,
+                        barcode: variant.barcode || null,
+                        name: variant.name,
+                        isDefault: variant.isDefault === true,
+                        sortOrder: Number(variant.sortOrder || 0),
+
+                        attributes:
+                          attributeValues.map(
+                            value => ({
+                              id: value.id,
+                              attributeId: value.attributeId,
+                              optionId: value.optionId || null,
+                              code: value.attribute?.code || null,
+                              name: value.attribute?.name || null,
+                              displayOrder: Number(
+                                value.attribute?.displayOrder ||
+                                value.sortOrder ||
+                                0
+                              ),
+                              value:
+                                value.option?.value ||
+                                value.displayValue ||
+                                null,
+                              label:
+                                value.option?.label ||
+                                value.displayValue ||
+                                null,
+                              swatchValue:
+                                value.option?.swatchValue ||
+                                null,
+                            })
+                          ),
+
+                        images:
+                          preBookingVariantImagesByVariantId.get(
+                            String(variant.id)
+                          ) || [],
+
+                        price:
+                          getPublicVariantPrice(variant),
+
+                        allocationSummary: {
+                          hasAllocation: true,
+                          availableQuantity,
+                          isAvailable: true,
+                        },
+                      },
+                    ];
+                  }
+                );
+
+              /*
+              |--------------------------------------------------------------------------
+              | Bundles
+              |--------------------------------------------------------------------------
+              */
+
+              const productBundles =
+                (
+                  bundlesByCampaignProductId.get(
+                    String(
+                      campaignProduct.id
+                    )
+                  ) || []
+                ).map(
+                  (
+                    bundle
+                  ) => ({
+                    id:
+                      bundle.id,
+
+                    campaignProductId:
+                      bundle.campaignProductId,
+
+                    code:
+                      bundle.code,
+
+                    name:
+                      bundle.name,
+
+                    description:
+                      bundle.description ||
+                      null,
+
+                    priceMode:
+                      bundle.priceMode,
+
+                    priceAmount:
+                      bundle.priceAmount,
+
+                    currencyCode:
+                      bundle.currencyCode,
+
+                    protectionSchemeId:
+                      bundle.protectionSchemeId ||
+                      null,
+
+                    protectionIncluded:
+                      bundle.protectionIncluded ===
+                      true,
+
+                    badgeText:
+                      bundle.badgeText ||
+                      null,
+
+                    isDefault:
+                      bundle.isDefault ===
+                      true,
+
+                    isActive:
+                      bundle.isActive ===
+                      true,
+
+                    sortOrder:
+                      Number(
+                        bundle.sortOrder ||
+                          0
+                      ),
+
+                    protectionScheme:
+                      bundle.protectionScheme ||
+                      null,
+
+                    items:
+                      bundleItemsByBundleId.get(
+                        String(
+                          bundle.id
+                        )
+                      ) || [],
+
+                    allocations:
+                      bundleAllocationsByBundleId.get(
+                        String(
+                          bundle.id
+                        )
+                      ) || [],
+                  })
+                );
+
+              /*
+              |--------------------------------------------------------------------------
+              | Public Product Response
+              |--------------------------------------------------------------------------
+              */
+
+              return {
+                ...publicProduct,
+
+                name:
+                  campaignProduct.displayTitle ||
+                  publicProduct.name,
+
+                price:
+                  resolvedPrice,
+
+                /*
+                 * Full variants are intentionally exposed only for the
+                 * PRE_BOOKING CMS section so the storefront can render one
+                 * card per available Color + Storage combination.
+                 */
+                variants:
+                  preBookingPublicVariants,
+
+                preBooking: {
+                  /*
+                   * Current business rule:
+                   * pre-booking is full prepaid.
+                   */
+                  bookingType:
+                    "FULL_PAYMENT",
+
+                  campaignId:
+                    campaign.id,
+
+                  campaignProductId:
+                    campaignProduct.id,
+
+                  campaignSlug:
+                    campaign.slug,
+
+                  campaignCode:
+                    campaign.code,
+
+                  campaignName:
+                    campaign.name,
+
+                  badgeText:
+                    campaignProduct.badgeText ||
+                    null,
+
+                  shortDescription:
+                    campaignProduct.shortDescription ||
+                    null,
+
+                  minimumQuantity:
+                    Number(
+                      campaignProduct.minimumQuantity ||
+                        1
+                    ),
+
+                  maximumQuantityPerOrder:
+                    Number(
+                      campaignProduct.maximumQuantityPerOrder ||
+                        1
+                    ),
+
+                  depositAmount:
+                    null,
+
+                  fullBookingPrice:
+                    hasPriceOverride
+                      ? parsedPriceOverride
+                      : resolvedPrice
+                          ?.sellingPrice ??
+                        null,
+
+                  bookingStartAt:
+                    validStart
+                      ? startAt.toISOString()
+                      : null,
+
+                  bookingEndAt:
+                    validEnd
+                      ? endAt.toISOString()
+                      : null,
+
+                  expectedLaunchAt:
+                    null,
+
+                  expectedDeliveryFrom:
+                    null,
+
+                  expectedDeliveryUntil:
+                    null,
+
+                  allowWaitlist:
+                    false,
+
+                  status:
+                    bookingStatus,
+
+                  hasDirectAllocation:
+                    directAllocations.length >
+                    0,
+
+                  hasBundles:
+                    productBundles.length >
+                    0,
+
+                  allocations:
+                    directAllocations,
+
+                  bundles:
+                    productBundles,
+                },
+              };
             }
-          : null,
-      },
-    });
-  }
+          )
+          .filter(
+            Boolean
+          );
 
-  return resolvedSections;
-};
+      /*
+      |--------------------------------------------------------------------------
+      | Preserve Campaign Sort Order
+      |--------------------------------------------------------------------------
+      */
+
+      baseProducts.sort(
+        (
+          first,
+          second
+        ) => {
+          const firstOrder =
+            campaignProductOrder.get(
+              String(
+                first.id
+              )
+            ) ??
+            0;
+
+          const secondOrder =
+            campaignProductOrder.get(
+              String(
+                second.id
+              )
+            ) ??
+            0;
+
+          return (
+            firstOrder -
+            secondOrder
+          );
+        }
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Promotion / Gift Voucher Pricing
+      |--------------------------------------------------------------------------
+      */
+
+      const products =
+        await applyGiftVoucherPricingToProducts(
+          {
+            companyId,
+
+            channelCode:
+              channel,
+
+            effectiveDate:
+              now,
+
+            products:
+              baseProducts,
+          }
+        );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Campaign URL
+      |--------------------------------------------------------------------------
+      */
+
+      const campaignUrl =
+        campaign.slug
+          ? `/pre-booking/${campaign.slug}`
+          : "/pre-booking";
+
+      const configuredButtonUrl =
+        String(
+          content.buttonUrl ||
+            ""
+        ).trim();
+
+      /*
+      |--------------------------------------------------------------------------
+      | Public Campaign Summary
+      |--------------------------------------------------------------------------
+      */
+
+      const campaignResolved =
+        {
+          id:
+            campaign.id,
+
+          code:
+            campaign.code,
+
+          name:
+            campaign.name,
+
+          slug:
+            campaign.slug,
+
+          description:
+            campaign.description ||
+            null,
+
+          status:
+            campaign.status,
+
+          bookingStatus,
+
+          bookingStartAt:
+            validStart
+              ? startAt.toISOString()
+              : null,
+
+          bookingEndAt:
+            validEnd
+              ? endAt.toISOString()
+              : null,
+
+          paymentPolicy:
+            campaign.paymentPolicy ||
+            "FULL_PREPAID",
+
+          allowCard:
+            campaign.allowCard ===
+            true,
+
+          allowTabby:
+            campaign.allowTabby ===
+            true,
+
+          allowTamara:
+            campaign.allowTamara ===
+            true,
+
+          allowCoupons:
+            campaign.allowCoupons ===
+            true,
+
+          allowGiftVouchers:
+            campaign.allowGiftVouchers ===
+            true,
+
+          checkoutSessionMinutes:
+            campaign.checkoutSessionMinutes ??
+            null,
+
+          campaignUrl,
+
+          /*
+           * Number of active campaign assignments,
+           * not merely homepage-visible products.
+           */
+          productCount:
+            allCampaignProducts.length,
+        };
+
+      /*
+      |--------------------------------------------------------------------------
+      | Final CMS Section
+      |--------------------------------------------------------------------------
+      */
+
+      resolvedSections.push({
+        ...section,
+
+        content: {
+          ...content,
+
+          bookingStatus,
+
+          bookingStartAt:
+            validStart
+              ? startAt.toISOString()
+              : null,
+
+          bookingEndAt:
+            validEnd
+              ? endAt.toISOString()
+              : null,
+
+          buttonUrl:
+            configuredButtonUrl ||
+            campaignUrl,
+
+          campaignResolved,
+
+          productIdsResolved:
+            products,
+
+          resolvedPriceList,
+        },
+      });
+    }
+
+    return resolvedSections;
+  };
+
+/*
+|--------------------------------------------------------------------------
+| Featured Grid View All Resolver
+|--------------------------------------------------------------------------
+*/
+
+const resolveFeaturedGridViewAllLinks =
+  async ({
+    sections,
+    companyId,
+  }) => {
+    const categoryIds =
+      new Set();
+
+    const brandIds =
+      new Set();
+
+    const collectionIds =
+      new Set();
+
+    for (
+      const section of
+        sections || []
+    ) {
+      const type =
+        String(
+          section?.type
+            ?.code ||
+            ""
+        )
+          .trim()
+          .toUpperCase();
+
+      if (
+        type !==
+        "FEATURED_PRODUCT_GRID"
+      ) {
+        continue;
+      }
+
+      const content =
+        section.content &&
+        typeof section.content ===
+          "object" &&
+        !Array.isArray(
+          section.content
+        )
+          ? section.content
+          : {};
+
+      const targetType =
+        String(
+          content.viewAllType ||
+            "FEATURED"
+        )
+          .trim()
+          .toUpperCase();
+
+      const targetId =
+        String(
+          content.viewAllTargetId ||
+            ""
+        ).trim();
+
+      if (!targetId) {
+        continue;
+      }
+
+      if (
+        targetType ===
+        "CATEGORY"
+      ) {
+        categoryIds.add(
+          targetId
+        );
+      }
+
+      if (
+        targetType ===
+        "BRAND"
+      ) {
+        brandIds.add(
+          targetId
+        );
+      }
+
+      if (
+        targetType ===
+        "COLLECTION"
+      ) {
+        collectionIds.add(
+          targetId
+        );
+      }
+    }
+
+    const [
+      categories,
+      brands,
+      collections,
+    ] =
+      await Promise.all([
+        categoryIds.size
+          ? db.Category.findAll({
+              where: {
+                companyId,
+
+                id: {
+                  [Op.in]:
+                    Array.from(
+                      categoryIds
+                    ),
+                },
+
+                isActive:
+                  true,
+              },
+
+              attributes: [
+                "id",
+                "slug",
+              ],
+
+              raw: true,
+            })
+          : [],
+
+        brandIds.size
+          ? db.Brand.findAll({
+              where: {
+                companyId,
+
+                id: {
+                  [Op.in]:
+                    Array.from(
+                      brandIds
+                    ),
+                },
+
+                isActive:
+                  true,
+              },
+
+              attributes: [
+                "id",
+                "slug",
+              ],
+
+              raw: true,
+            })
+          : [],
+
+        collectionIds.size
+          ? db.Collection.findAll({
+              where: {
+                companyId,
+
+                id: {
+                  [Op.in]:
+                    Array.from(
+                      collectionIds
+                    ),
+                },
+
+                isActive:
+                  true,
+              },
+
+              attributes: [
+                "id",
+                "slug",
+              ],
+
+              raw: true,
+            })
+          : [],
+      ]);
+
+    const categoryMap =
+      new Map(
+        categories.map(
+          (item) => [
+            item.id,
+            item.slug,
+          ]
+        )
+      );
+
+    const brandMap =
+      new Map(
+        brands.map(
+          (item) => [
+            item.id,
+            item.slug,
+          ]
+        )
+      );
+
+    const collectionMap =
+      new Map(
+        collections.map(
+          (item) => [
+            item.id,
+            item.slug,
+          ]
+        )
+      );
+
+    return (
+      sections || []
+    ).map(
+      (section) => {
+        const type =
+          String(
+            section?.type
+              ?.code ||
+              ""
+          )
+            .trim()
+            .toUpperCase();
+
+        if (
+          type !==
+          "FEATURED_PRODUCT_GRID"
+        ) {
+          return section;
+        }
+
+        const content =
+          section.content &&
+          typeof section.content ===
+            "object" &&
+          !Array.isArray(
+            section.content
+          )
+            ? section.content
+            : {};
+
+        const targetType =
+          String(
+            content.viewAllType ||
+              "FEATURED"
+          )
+            .trim()
+            .toUpperCase();
+
+        const targetId =
+          String(
+            content.viewAllTargetId ||
+              ""
+          ).trim();
+
+        let resolvedUrl =
+          null;
+
+        switch (
+          targetType
+        ) {
+          case "FEATURED":
+            resolvedUrl =
+              "/products/featured";
+            break;
+
+          case "CATEGORY": {
+            const slug =
+              categoryMap.get(
+                targetId
+              );
+
+            resolvedUrl =
+              slug
+                ? `/category/${slug}`
+                : null;
+
+            break;
+          }
+
+          case "BRAND": {
+            const slug =
+              brandMap.get(
+                targetId
+              );
+
+            resolvedUrl =
+              slug
+                ? `/brands/${slug}`
+                : null;
+
+            break;
+          }
+
+          case "COLLECTION": {
+            const slug =
+              collectionMap.get(
+                targetId
+              );
+
+            resolvedUrl =
+              slug
+                ? `/collections/${slug}`
+                : null;
+
+            break;
+          }
+
+          case "CUSTOM": {
+            const customUrl =
+              String(
+                content.viewAllUrl ||
+                  ""
+              ).trim();
+
+            resolvedUrl =
+              customUrl ||
+              null;
+
+            break;
+          }
+
+          case "NONE":
+          default:
+            resolvedUrl =
+              null;
+            break;
+        }
+
+        return {
+          ...section,
+
+          content: {
+            ...content,
+
+            viewAllResolvedUrl:
+              resolvedUrl,
+          },
+        };
+      }
+    );
+  };
 
 /*
  * Public storefront page entry point.
  */
 
-const getPublicStorefrontPage = async ({
+const getPublicStorefrontPageUncached = async ({
   companyCode,
   slug = "/",
   channel = "WEBSITE",
@@ -4150,10 +8327,18 @@ const getPublicStorefrontPage = async ({
             ),
         }
       );
-      
-      console.log("About to resolve navigation");
 
-      const navigationResolvedSections =
+    
+      
+      /*
+
+/*
+|--------------------------------------------------------------------------
+| Navigation
+|--------------------------------------------------------------------------
+*/
+
+const navigationResolvedSections =
   await resolveNavigationSections({
     sections:
       baseSections,
@@ -4165,9 +8350,12 @@ const getPublicStorefrontPage = async ({
       normalizedChannel,
   });
 
-console.log(
-  "Navigation resolved"
-);
+
+/*
+|--------------------------------------------------------------------------
+| Category Grid
+|--------------------------------------------------------------------------
+*/
 
 const categoryResolvedSections =
   await resolveCategoryGridSections({
@@ -4180,13 +8368,10 @@ const categoryResolvedSections =
     apiBaseUrl,
   });
 
-console.log(
-  "Category grids resolved"
-);
 
 /*
 |--------------------------------------------------------------------------
-| Collection Grids
+| Collection Grid
 |--------------------------------------------------------------------------
 */
 
@@ -4203,13 +8388,10 @@ const collectionResolvedSections =
     now,
   });
 
-console.log(
-  "Collection grids resolved"
-);
 
 /*
 |--------------------------------------------------------------------------
-| Brand Carousels
+| Brand Carousel
 |--------------------------------------------------------------------------
 */
 
@@ -4224,77 +8406,115 @@ const brandResolvedSections =
     apiBaseUrl,
   });
 
-console.log(
-  "Brand carousels resolved"
-);
+
+/*
+|--------------------------------------------------------------------------
+| Featured Product Grid
+|--------------------------------------------------------------------------
+*/
 
 const featuredResolvedSections =
   await resolveFeaturedProductGridSections({
     sections:
       brandResolvedSections,
 
-    companyId: company.id,
-    channel: normalizedChannel,
+    companyId:
+      company.id,
+
+    channel:
+      normalizedChannel,
+
     apiBaseUrl,
+
     now,
   });
 
-console.log(
-  "Featured product grids resolved"
-);
+
+/*
+|--------------------------------------------------------------------------
+| Featured View-All Links
+|--------------------------------------------------------------------------
+*/
+
+const featuredViewAllResolvedSections =
+  await resolveFeaturedGridViewAllLinks({
+    sections:
+      featuredResolvedSections,
+
+    companyId:
+      company.id,
+  });
+
+
+/*
+|--------------------------------------------------------------------------
+| Product Carousel
+|--------------------------------------------------------------------------
+*/
 
 const productCarouselResolvedSections =
   await resolveProductCarouselSections({
     sections:
-      featuredResolvedSections,
+      featuredViewAllResolvedSections,
 
-    companyId: company.id,
-    channel: normalizedChannel,
+    companyId:
+      company.id,
+
+    channel:
+      normalizedChannel,
+
     apiBaseUrl,
+
     now,
   });
 
-console.log(
-  "Product carousels resolved"
-);
+
+/*
+|--------------------------------------------------------------------------
+| Flash Deals
+|--------------------------------------------------------------------------
+*/
 
 const flashDealsResolvedSections =
   await resolveFlashDealsSections({
     sections:
       productCarouselResolvedSections,
 
-    companyId: company.id,
-    channel: normalizedChannel,
+    companyId:
+      company.id,
+
+    channel:
+      normalizedChannel,
+
     apiBaseUrl,
+
     now,
   });
 
-console.log(
-  "Flash deals resolved"
-);
+
+/*
+|--------------------------------------------------------------------------
+| Pre Booking
+|--------------------------------------------------------------------------
+*/
 
 const sections =
   await resolvePreBookingSections({
     sections:
       flashDealsResolvedSections,
 
-    companyId: company.id,
-    channel: normalizedChannel,
+    companyId:
+      company.id,
+
+    channel:
+      normalizedChannel,
+
     apiBaseUrl,
+
     now,
   });
 
-console.log(
-  "Pre-booking sections resolved"
-);
-      
-      console.log(
-        "[Storefront] Sections fully resolved",
-        {
-          count:
-            sections.length,
-        }
-      );
+
 
     /*
      * Public settings such as branding, contact,
@@ -4404,7 +8624,198 @@ console.log(
           new Date().toISOString(),
       },
     };
+    
+
+
+
   };
+
+  /*
+|--------------------------------------------------------------------------
+| Public Storefront In-Flight Request Coalescing
+|--------------------------------------------------------------------------
+|
+| Several Next.js server renders can request the exact same storefront page
+| at the same time.
+|
+| Without coalescing:
+|
+|   Request A -> full storefront resolution
+|   Request B -> full storefront resolution
+|   Request C -> full storefront resolution
+|
+| With coalescing:
+|
+|   Request A -> full storefront resolution
+|   Request B -> waits for A
+|   Request C -> waits for A
+|
+| This is intentionally NOT a persistent response cache.
+|
+| The Promise exists only while the request is being processed and is removed
+| immediately after completion, whether the request succeeds or fails.
+|--------------------------------------------------------------------------
+*/
+
+const storefrontPageInFlight =
+new Map();
+
+/*
+* Prevent pathological growth if callers somehow generate many unique keys.
+* Under normal storefront traffic this map should contain only a handful
+* of entries and entries live only for the duration of the request.
+*/
+const MAX_STOREFRONT_INFLIGHT =
+100;
+
+const getPublicStorefrontPage = async ({
+companyCode,
+slug = "/",
+channel = "WEBSITE",
+apiBaseUrl,
+}) => {
+/*
+|--------------------------------------------------------------------------
+| Normalize Key Components
+|--------------------------------------------------------------------------
+*/
+
+const normalizedCompanyCode =
+  String(
+    companyCode ||
+      ""
+  )
+    .trim()
+    .toUpperCase();
+
+const normalizedSlug =
+  normalizeSlug(
+    slug
+  );
+
+const normalizedChannel =
+  String(
+    channel ||
+      "WEBSITE"
+  )
+    .trim()
+    .toUpperCase();
+
+/*
+ * apiBaseUrl is included because generated public media URLs depend on it.
+ */
+const normalizedApiBaseUrl =
+  String(
+    apiBaseUrl ||
+      ""
+  )
+    .trim()
+    .replace(
+      /\/+$/,
+      ""
+    );
+
+const requestKey =
+  [
+    normalizedCompanyCode,
+    normalizedSlug,
+    normalizedChannel,
+    normalizedApiBaseUrl,
+  ].join(
+    "|"
+  );
+
+/*
+|--------------------------------------------------------------------------
+| Reuse Existing In-Flight Request
+|--------------------------------------------------------------------------
+*/
+
+const existingPromise =
+  storefrontPageInFlight.get(
+    requestKey
+  );
+
+if (
+  existingPromise
+) {
+  return existingPromise;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Safety Guard
+|--------------------------------------------------------------------------
+|
+| This should almost never be reached, but don't allow malformed/random
+| traffic to create an unlimited number of unique in-flight entries.
+|--------------------------------------------------------------------------
+*/
+
+if (
+  storefrontPageInFlight.size >=
+  MAX_STOREFRONT_INFLIGHT
+) {
+  return getPublicStorefrontPageUncached({
+    companyCode:
+      normalizedCompanyCode,
+
+    slug:
+      normalizedSlug,
+
+    channel:
+      normalizedChannel,
+
+    apiBaseUrl:
+      normalizedApiBaseUrl,
+  });
+}
+
+/*
+|--------------------------------------------------------------------------
+| Start One Real Resolution
+|--------------------------------------------------------------------------
+*/
+
+const requestPromise =
+  getPublicStorefrontPageUncached({
+    companyCode:
+      normalizedCompanyCode,
+
+    slug:
+      normalizedSlug,
+
+    channel:
+      normalizedChannel,
+
+    apiBaseUrl:
+      normalizedApiBaseUrl,
+  });
+
+storefrontPageInFlight.set(
+  requestKey,
+  requestPromise
+);
+
+try {
+  return await requestPromise;
+} finally {
+  /*
+   * Delete only if this exact Promise still owns the key.
+   */
+  if (
+    storefrontPageInFlight.get(
+      requestKey
+    ) ===
+    requestPromise
+  ) {
+    storefrontPageInFlight.delete(
+      requestKey
+    );
+  }
+}
+};
+  
 
 module.exports = {
   getPublicStorefrontPage,

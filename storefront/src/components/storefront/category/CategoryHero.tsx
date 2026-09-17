@@ -29,48 +29,135 @@ export default function CategoryHero({
   category: PublicCategory;
 }) {
   const imageUrl =
-    getAssetUrl(category);
+    getAssetUrl(
+      category
+    );
 
   return (
-    <section className="relative isolate overflow-hidden rounded-[26px] border border-storefront bg-storefront-surface">
+    <section className="relative isolate overflow-hidden rounded-[18px] border border-storefront-border-light bg-storefront-surface sm:rounded-[26px]">
+
       {imageUrl ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={imageUrl}
+            src={
+              imageUrl
+            }
             alt={
-              category.bannerAsset
+              category
+                .bannerAsset
                 ?.altText ||
               category.name
             }
-            className="absolute inset-0 h-full w-full object-cover"
+            className="
+              absolute
+              inset-0
+              h-full
+              w-full
+              object-cover
+              object-center
+            "
           />
 
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/45 to-black/10" />
+          <div
+            className="
+              absolute
+              inset-0
+              bg-gradient-to-r
+              from-black/75
+              via-black/35
+              to-black/5
+              sm:from-black/80
+              sm:via-black/45
+              sm:to-black/10
+            "
+          />
         </>
       ) : null}
 
       <div
         className={[
-          "relative z-10 flex min-h-[230px] flex-col justify-center p-7 sm:min-h-[290px] sm:p-10 lg:p-12",
+          `
+            relative
+            z-10
+            flex
+            min-h-[150px]
+            flex-col
+            justify-center
+            px-5
+            py-6
+
+            sm:min-h-[230px]
+            sm:p-8
+
+            md:min-h-[260px]
+            md:p-10
+
+            lg:min-h-[290px]
+            lg:p-12
+          `,
+
           imageUrl
             ? "text-white"
             : "text-storefront-text",
-        ].join(" ")}
+        ].join(
+          " "
+        )}
       >
-        <p className="text-xs font-black uppercase tracking-[0.18em] opacity-80">
+        <p
+          className="
+            text-[10px]
+            font-black
+            uppercase
+            tracking-[0.18em]
+            opacity-80
+
+            sm:text-xs
+          "
+        >
           Shop by category
         </p>
 
-        <h1 className="mt-3 max-w-3xl text-3xl font-black tracking-tight sm:text-5xl">
+        <h1
+          className="
+            mt-2
+            max-w-3xl
+            text-2xl
+            font-black
+            tracking-tight
+
+            sm:mt-3
+            sm:text-4xl
+
+            lg:text-5xl
+          "
+        >
           {category.name}
         </h1>
 
-        {category.shortDescription ||
-        category.description ? (
-          <p className="mt-4 max-w-2xl text-sm leading-6 opacity-90 sm:text-base">
-            {category.shortDescription ||
-              category.description}
+        {category
+          .shortDescription ||
+        category
+          .description ? (
+          <p
+            className="
+              mt-3
+              max-w-2xl
+              text-xs
+              leading-5
+              opacity-90
+
+              sm:mt-4
+              sm:text-sm
+              sm:leading-6
+
+              lg:text-base
+            "
+          >
+            {category
+              .shortDescription ||
+              category
+                .description}
           </p>
         ) : null}
       </div>

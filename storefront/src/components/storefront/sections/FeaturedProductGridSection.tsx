@@ -9,7 +9,8 @@ import type {
 } from "@/types/storefront";
 
 interface FeaturedProductGridSectionProps {
-  section: StorefrontSection;
+  section:
+    StorefrontSection;
 }
 
 const getColumnClasses = (
@@ -114,6 +115,38 @@ export default function FeaturedProductGridSection({
     content.subtitle ||
     "";
 
+  const showViewAll =
+    content.showViewAll !==
+    false;
+
+  const viewAllLabel =
+    content.viewAllLabel ||
+    "View all products";
+
+  /*
+   * Existing sections created before this
+   * feature default to Featured Products.
+   */
+  const viewAllUrl =
+    content.viewAllResolvedUrl ||
+    (
+      !content.viewAllType ||
+      content.viewAllType ===
+        "FEATURED"
+        ? "/products/featured"
+        : null
+    );
+
+  const viewAllNewTab =
+    content.viewAllNewTab ===
+    true;
+
+  const canShowViewAll =
+    showViewAll &&
+    Boolean(
+      viewAllUrl
+    );
+
   return (
     <section
       data-section-id={
@@ -125,63 +158,85 @@ export default function FeaturedProductGridSection({
       data-section-type={
         section.type.code
       }
-      className="w-full py-8 sm:py-10 lg:py-12"
+      className="w-full"
     >
       <div className="mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-storefront-primary">
-              Recommended for you
-            </p>
 
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-storefront-text sm:text-3xl">
+        {/* Header */}
+
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-storefront-text sm:text-[22px]">
               {title}
             </h2>
 
             {subtitle ? (
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-storefront-muted sm:text-base">
+              <p className="mt-1.5 max-w-2xl text-sm font-normal leading-5 text-storefront-muted">
                 {subtitle}
               </p>
             ) : null}
           </div>
 
-          <Link
-            href="/products"
-            className="shrink-0 text-sm font-bold text-storefront-primary transition hover:opacity-75"
-          >
-            View all products
-          </Link>
+          {canShowViewAll &&
+          viewAllUrl ? (
+            <Link
+              href={
+                viewAllUrl
+              }
+              target={
+                viewAllNewTab
+                  ? "_blank"
+                  : undefined
+              }
+              rel={
+                viewAllNewTab
+                  ? "noopener noreferrer"
+                  : undefined
+              }
+              className="shrink-0 text-sm font-bold text-storefront-primary transition hover:opacity-75"
+            >
+              {
+                viewAllLabel
+              }
+            </Link>
+          ) : null}
         </div>
+
+        {/* Products */}
 
         <div
           className={[
-            "grid gap-3 sm:gap-4 lg:gap-5",
+            "grid gap-3 sm:gap-4 lg:gap-4",
             getColumnClasses(
               settings
             ),
-          ].join(" ")}
+          ].join(
+            " "
+          )}
         >
           {visibleProducts.map(
-            (product) => (
+            (
+              product
+            ) => (
               <StorefrontProductCard
-                key={product.id}
-                product={product}
-
+                key={
+                  product.id
+                }
+                product={
+                  product
+                }
                 showPrice={
                   settings.showPrice !==
                   false
                 }
-
                 showBrand={
                   settings.showBrand !==
                   false
                 }
-
                 showWishlist={
                   settings.showWishlist !==
                   false
                 }
-
                 showAddToCart={
                   settings.showAddToCart !==
                   false

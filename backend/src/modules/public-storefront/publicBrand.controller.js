@@ -3,6 +3,59 @@ const publicBrandService =
     "./publicBrand.service"
   );
 
+const getPublicApiBaseUrl =
+  require(
+    "../../utils/getPublicApiBaseUrl"
+  );
+
+const getPublicBrands =
+  async (
+    req,
+    res,
+    next
+  ) => {
+    try {
+      const companyCode =
+        req.headers[
+          "x-company-code"
+        ] ||
+        req.query.companyCode;
+
+      const apiBaseUrl =
+        getPublicApiBaseUrl(
+          req
+        );
+
+      const result =
+        await publicBrandService
+          .getPublicBrands({
+            companyCode,
+
+            channel:
+              req.query.channel ||
+              "WEBSITE",
+
+            apiBaseUrl,
+          });
+
+      res.status(
+        200
+      ).json({
+        success:
+          true,
+
+        data:
+          result,
+      });
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
+    }
+  };
+
 const getPublicBrand =
   async (
     req,
@@ -17,9 +70,9 @@ const getPublicBrand =
         req.query.companyCode;
 
       const apiBaseUrl =
-        `${req.protocol}://${req.get(
-          "host"
-        )}`;
+        getPublicApiBaseUrl(
+          req
+        );
 
       const result =
         await publicBrandService
@@ -39,15 +92,25 @@ const getPublicBrand =
             apiBaseUrl,
           });
 
-      res.status(200).json({
-        success: true,
-        data: result,
+      res.status(
+        200
+      ).json({
+        success:
+          true,
+
+        data:
+          result,
       });
-    } catch (error) {
-      next(error);
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
     }
   };
 
 module.exports = {
+  getPublicBrands,
   getPublicBrand,
 };

@@ -35,6 +35,8 @@ import {
   splitGlobalStorefrontSections,
 } from "@/lib/storefront/storefront-sections";
 
+import StorefrontPageViewTracker from "@/components/storefront/tracking/StorefrontPageViewTracker";
+
 /*
 |--------------------------------------------------------------------------
 | Route Props
@@ -100,41 +102,30 @@ const getMediaUrl = (
     | null
     | undefined
 ) => {
-  if (
-    !asset
-  ) {
+  if (!asset) {
     return null;
   }
 
   const preferred =
     asset.variants?.find(
-      (
-        variant
-      ) =>
-        variant.variantType ===
-          "LARGE" &&
+      (variant) =>
+        variant.variantType === "LARGE" &&
         variant.publicUrl
     ) ||
     asset.variants?.find(
-      (
-        variant
-      ) =>
-        variant.variantType ===
-          "MEDIUM" &&
+      (variant) =>
+        variant.variantType === "MEDIUM" &&
         variant.publicUrl
     ) ||
     asset.variants?.find(
-      (
-        variant
-      ) =>
+      (variant) =>
         Boolean(
           variant.publicUrl
         )
     );
 
   return (
-    preferred
-      ?.publicUrl ||
+    preferred?.publicUrl ||
     asset.publicUrl ||
     asset.previewUrl ||
     asset.thumbnailUrl ||
@@ -149,18 +140,12 @@ const parseCsv = (
 ) =>
   value
     ? value
-        .split(
-          ","
-        )
+        .split(",")
         .map(
-          (
-            item
-          ) =>
+          (item) =>
             item.trim()
         )
-        .filter(
-          Boolean
-        )
+        .filter(Boolean)
     : [];
 
 const parseOptionalNumber = (
@@ -169,22 +154,16 @@ const parseOptionalNumber = (
     undefined
 ) => {
   if (
-    value ===
-      undefined ||
-    value ===
-      ""
+    value === undefined ||
+    value === ""
   ) {
     return undefined;
   }
 
   const parsed =
-    Number(
-      value
-    );
+    Number(value);
 
-  return Number.isFinite(
-    parsed
-  )
+  return Number.isFinite(parsed)
     ? parsed
     : undefined;
 };
@@ -226,45 +205,35 @@ const buildCollectionHref = ({
   const params =
     new URLSearchParams();
 
-  if (
-    query.search
-  ) {
+  if (query.search) {
     params.set(
       "search",
       query.search
     );
   }
 
-  if (
-    query.sort
-  ) {
+  if (query.sort) {
     params.set(
       "sort",
       query.sort
     );
   }
 
-  if (
-    query.brandIds
-  ) {
+  if (query.brandIds) {
     params.set(
       "brandIds",
       query.brandIds
     );
   }
 
-  if (
-    query.minPrice
-  ) {
+  if (query.minPrice) {
     params.set(
       "minPrice",
       query.minPrice
     );
   }
 
-  if (
-    query.maxPrice
-  ) {
+  if (query.maxPrice) {
     params.set(
       "maxPrice",
       query.maxPrice
@@ -273,9 +242,7 @@ const buildCollectionHref = ({
 
   params.set(
     "page",
-    String(
-      page
-    )
+    String(page)
   );
 
   return `/collections/${encodeURIComponent(
@@ -327,18 +294,12 @@ export async function generateMetadata({
       keywords:
         collection.metaKeywords
           ? collection.metaKeywords
-              .split(
-                ","
-              )
+              .split(",")
               .map(
-                (
-                  keyword
-                ) =>
+                (keyword) =>
                   keyword.trim()
               )
-              .filter(
-                Boolean
-              )
+              .filter(Boolean)
           : undefined,
 
       alternates: {
@@ -483,8 +444,7 @@ export default async function CollectionPage({
 
     const globalSections =
       splitGlobalStorefrontSections(
-        storefront.page
-          .sections
+        storefront.page.sections
       );
 
     const {
@@ -536,8 +496,24 @@ export default async function CollectionPage({
           }
         />
 
+        <StorefrontPageViewTracker
+          activityType="VIEW_COLLECTION"
+          collectionId={
+            collection.id
+          }
+          source="COLLECTION_PAGE"
+          metadata={{
+            collectionName:
+              collection.name,
+
+            collectionSlug:
+              collection.slug,
+          }}
+        />
+
         <main className="flex-1 bg-storefront-background">
           <div className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
+
             {/*
             |--------------------------------------------------------------------------
             | Breadcrumbs
@@ -556,8 +532,7 @@ export default async function CollectionPage({
                     }
                     className="flex items-center"
                   >
-                    {index >
-                    0 ? (
+                    {index > 0 ? (
                       <ChevronRight
                         size={
                           14
@@ -593,6 +568,18 @@ export default async function CollectionPage({
             |--------------------------------------------------------------------------
             | Collection Hero
             |--------------------------------------------------------------------------
+            |
+            | No overlay.
+            |
+            | Mobile:
+            | 205px
+            |
+            | Tablet:
+            | 300px
+            |
+            | Desktop:
+            | 380px
+            |--------------------------------------------------------------------------
             */}
 
             <section className="relative overflow-hidden rounded-[24px] border border-storefront bg-storefront-surface">
@@ -618,31 +605,49 @@ export default async function CollectionPage({
                     alt={
                       collection.name
                     }
-                    className="h-[220px] w-full object-cover sm:h-[300px] lg:h-[380px]"
+                    className="
+                      h-[205px]
+                      w-full
+                      object-cover
+                      object-center
+
+                      sm:h-[300px]
+
+                      lg:h-[380px]
+                    "
                   />
                 </picture>
               ) : (
-                <div className="min-h-[220px] bg-storefront-primary sm:min-h-[300px]" />
+                <div className="min-h-[205px] bg-storefront-primary sm:min-h-[300px] lg:min-h-[380px]" />
               )}
 
-              <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/40 to-transparent" />
+              {/*
+              |--------------------------------------------------------------------------
+              | Hero Text
+              |--------------------------------------------------------------------------
+              |
+              | IMPORTANT:
+              | There is NO image overlay here.
+              |--------------------------------------------------------------------------
+              */}
 
               <div className="absolute inset-0 flex items-end p-6 sm:p-10 lg:p-14">
                 <div className="max-w-3xl text-white">
+
                   {collection.isFeatured ? (
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-white/80">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/90">
                       Featured collection
                     </p>
                   ) : null}
 
-                  <h1 className="mt-2 text-3xl font-black sm:text-4xl lg:text-5xl">
+                  <h1 className="mt-2 text-3xl font-bold sm:text-4xl lg:text-5xl">
                     {
                       collection.name
                     }
                   </h1>
 
                   {collection.shortDescription ? (
-                    <p className="mt-4 max-w-2xl text-sm leading-7 text-white/90 sm:text-base">
+                    <p className="mt-4 max-w-2xl text-sm leading-7 text-white sm:text-base">
                       {
                         collection.shortDescription
                       }
@@ -650,7 +655,7 @@ export default async function CollectionPage({
                   ) : null}
 
                   {collection.showProductCount ? (
-                    <p className="mt-4 text-sm font-bold text-white/85">
+                    <p className="mt-4 text-sm font-bold text-white">
                       {
                         pagination.totalItems
                       }{" "}
@@ -688,11 +693,11 @@ export default async function CollectionPage({
 
             <div className="mt-8 flex flex-col gap-4 border-b border-storefront pb-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-storefront-primary">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-storefront-primary">
                   Shop the collection
                 </p>
 
-                <h2 className="mt-2 text-2xl font-black text-storefront-text sm:text-3xl">
+                <h2 className="mt-2 text-2xl font-bold text-storefront-text sm:text-3xl">
                   Products
                 </h2>
 
@@ -709,6 +714,7 @@ export default async function CollectionPage({
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
+
                 {/*
                 |--------------------------------------------------------------------------
                 | Mobile Filters
@@ -731,11 +737,6 @@ export default async function CollectionPage({
                   method="GET"
                   className="flex flex-col gap-2 sm:flex-row"
                 >
-                  {/*
-                  |--------------------------------------------------------------------------
-                  | Preserve Brand Filter
-                  |--------------------------------------------------------------------------
-                  */}
 
                   {query.brandIds ? (
                     <input
@@ -747,12 +748,6 @@ export default async function CollectionPage({
                     />
                   ) : null}
 
-                  {/*
-                  |--------------------------------------------------------------------------
-                  | Preserve Min Price
-                  |--------------------------------------------------------------------------
-                  */}
-
                   {query.minPrice ? (
                     <input
                       type="hidden"
@@ -762,12 +757,6 @@ export default async function CollectionPage({
                       }
                     />
                   ) : null}
-
-                  {/*
-                  |--------------------------------------------------------------------------
-                  | Preserve Max Price
-                  |--------------------------------------------------------------------------
-                  */}
 
                   {query.maxPrice ? (
                     <input
@@ -820,7 +809,7 @@ export default async function CollectionPage({
 
                   <button
                     type="submit"
-                    className="h-11 rounded-storefront-button bg-storefront-primary px-5 text-sm font-black text-white"
+                    className="h-11 rounded-storefront-button bg-storefront-primary px-5 text-sm font-bold text-white"
                   >
                     Apply
                   </button>
@@ -836,6 +825,7 @@ export default async function CollectionPage({
 
             <section className="mt-7">
               <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+
                 {/*
                 |--------------------------------------------------------------------------
                 | Desktop Filters
@@ -868,7 +858,7 @@ export default async function CollectionPage({
                               product.id
                             }
                             product={
-                              product
+                              product as never
                             }
                           />
                         )
@@ -884,7 +874,7 @@ export default async function CollectionPage({
                         />
                       </div>
 
-                      <h2 className="mt-5 text-xl font-black text-storefront-text">
+                      <h2 className="mt-5 text-xl font-bold text-storefront-text">
                         No products found
                       </h2>
 
@@ -994,4 +984,4 @@ export default async function CollectionPage({
 
     throw error;
   }
-}             
+}

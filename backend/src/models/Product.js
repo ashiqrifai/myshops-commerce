@@ -16,7 +16,7 @@ const Product = sequelize.define(
     brandId: {
       type: DataTypes.UUID,
       allowNull: true,
-    },    
+    },
     primaryCategoryId: {
       type: DataTypes.UUID,
       allowNull: true,
@@ -82,6 +82,85 @@ const Product = sequelize.define(
       allowNull: false,
       defaultValue: 0,
     },
+    isExtendedWarrantyEligible: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+
+    /*
+    |--------------------------------------------------------------------------
+    | Customer-facing delivery promise
+    |--------------------------------------------------------------------------
+    |
+    | These are separate from supplier-direct fulfilment fields below.
+    | Product variants may optionally override these values.
+    |--------------------------------------------------------------------------
+    */
+
+    expressDeliveryEnabled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+
+    expressDeliveryHours: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 4,
+      validate: {
+        min: 1,
+        max: 168,
+      },
+    },
+
+    deliveryMinDays: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      validate: {
+        min: 0,
+        max: 365,
+      },
+    },
+
+    deliveryMaxDays: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      validate: {
+        min: 0,
+        max: 365,
+      },
+    },
+
+    deliveryNote: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+    },
+
+    isDirectDelivery: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+
+    directDeliverySupplierId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+
+    directDeliveryLeadTimeDays: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      validate: {
+        min: 0,
+      },
+    },
+
+    directDeliveryNote: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+    },
+
     sortOrder: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -96,6 +175,11 @@ const Product = sequelize.define(
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: true,
+    },
+    alwaysAvailableForSale: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
     },
     metaTitle: {
       type: DataTypes.STRING(300),

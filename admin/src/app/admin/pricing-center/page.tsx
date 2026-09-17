@@ -28,9 +28,13 @@ import {
 
 
 import {
-    useExecutePricingImportMutation,
-    usePreviewPricingImportMutation,
-  } from "@/store/api/pricingImportApi";
+  useExecutePricingImportMutation,
+  usePreviewPricingImportMutation,
+} from "@/store/api/pricingImportApi";
+
+import type {
+  PricingImportRow,
+} from "@/store/api/pricingImportApi";
 
 import PriceEditorDrawer from "./components/PriceEditorDrawer";
 
@@ -2492,6 +2496,82 @@ interface CsvPricingRow {
     compareAtPrice: string;
 }
 
+const toPricingImportRow = (
+  row: CsvPricingRow
+): PricingImportRow => {
+  const normalizedStatus =
+    row.status
+      ?.trim()
+      .toUpperCase();
+
+  return {
+    rowNumber:
+      row.rowNumber,
+
+    productSku:
+      row.productSku
+        ?.trim() ||
+      undefined,
+
+    variantSku:
+      row.variantSku.trim(),
+
+    priceListCode:
+      row.priceListCode.trim(),
+
+    currencyCode:
+      row.currencyCode
+        ?.trim()
+        .toUpperCase() ||
+      undefined,
+
+    sellingPrice:
+      row.sellingPrice.trim(),
+
+    regularPrice:
+      row.regularPrice.trim(),
+
+    compareAtPrice:
+      row.compareAtPrice
+        ?.trim() ||
+      null,
+
+    priority:
+      row.priority
+        ?.trim() ||
+      null,
+
+    validFrom:
+      row.validFrom
+        ?.trim() ||
+      null,
+
+    validTo:
+      row.validTo
+        ?.trim() ||
+      null,
+
+    minimumQuantity:
+      row.minimumQuantity
+        ?.trim() ||
+      null,
+
+    maximumQuantity:
+      row.maximumQuantity
+        ?.trim() ||
+      null,
+
+    status:
+      normalizedStatus ===
+      "ACTIVE"
+        ? "ACTIVE"
+        : normalizedStatus ===
+          "INACTIVE"
+          ? "INACTIVE"
+          : undefined,
+  };
+};
+
 interface CsvValidationResult {
   row:
     CsvPricingRow;
@@ -3411,6 +3491,7 @@ function CsvImportWorkspace() {
         "currencyCode",
         "sellingPrice",
         "regularPrice",
+        "compareAtPrice",
         "priority",
         "validFrom",
         "validTo",
@@ -3426,6 +3507,7 @@ function CsvImportWorkspace() {
         "AED",
         "4999.00",
         "5299.00",
+        "5499.00",
         "100",
         "2026-08-01",
         "2026-12-31",
@@ -3590,125 +3672,143 @@ function CsvImportWorkspace() {
     }
   };
 
-  const handlePreview = async () => {
-
-    try {
-
-        const rows =
-            validationResults
-                .filter(
-                    x => x.status !== "ERROR"
+  const handlePreview =
+    async () => {
+      try {
+        const rows:
+          PricingImportRow[] =
+          validationResults
+            .filter(
+              (
+                result
+              ) =>
+                result.status !==
+                "ERROR"
+            )
+            .map(
+              (
+                result
+              ) =>
+                toPricingImportRow(
+                  result.row
                 )
-                .map(
-                    x => x.row
-                );
+            );
 
         const response =
-            await previewPricingImport({
-                rows,
-            }).unwrap();
+          await previewPricingImport({
+            rows,
+          }).unwrap();
 
-        console.log(response);
+        console.log(
+          response
+        );
 
         setPreviewResult(
-            response.data
+          response.data
+        );
+      } catch (
+        error
+      ) {
+        console.error(
+          "Pricing preview error:",
+          error
         );
 
-    } catch (error) {
-
-        console.error(error);
-
-        alert(
-            "Unable to generate preview."
+        window.alert(
+          getApiErrorMessage(
+            error
+          )
         );
-
-    }
-
-};
-
+      }
+    };
 
 const handleImport =
-  async () => {
-    if (
-      !previewResult ||
-      previewResult.summary
-        .changeCount <=
-        0
-    ) {
-      return;
-    }
+    async () => {
+      if (
+        !previewResult ||
+        previewResult.summary
+          .changeCount <=
+          0
+      ) {
+        return;
+      }
 
-    const confirmed =
-      window.confirm(
-        `Apply ${previewResult.summary.changeCount} pricing change(s)?`
-      );
+      const confirmed =
+        window.confirm(
+          `Apply ${previewResult.summary.changeCount} pricing change(s)?`
+        );
 
-    if (!confirmed) {
-      return;
-    }
+      if (
+        !confirmed
+      ) {
+        return;
+      }
 
-    try {
-      const rows =
-        validationResults
-          .filter(
-            (
-              result
-            ) =>
-              result.status !==
-              "ERROR"
+      try {
+        const rows:
+          PricingImportRow[] =
+          validationResults
+            .filter(
+              (
+                result
+              ) =>
+                result.status !==
+                "ERROR"
+            )
+            .map(
+              (
+                result
+              ) =>
+                toPricingImportRow(
+                  result.row
+                )
+            );
+
+        const response =
+          await executePricingImport({
+            rows,
+          }).unwrap();
+
+        setImportResult(
+          response.data
+        );
+
+        window.alert(
+          [
+            "Pricing import completed successfully.",
+            `Created: ${response.data.summary.created}`,
+            `Updated: ${response.data.summary.updated}`,
+            `Deactivated: ${response.data.summary.deactivated}`,
+            `Unchanged: ${response.data.summary.unchanged}`,
+            `Skipped: ${response.data.summary.skipped}`,
+          ].join(
+            ""
           )
-          .map(
-            (
-              result
-            ) =>
-              result.row
-          );
+        );
 
-      const response =
-        await executePricingImport({
-          rows,
-        }).unwrap();
+        const refreshedPreview =
+          await previewPricingImport({
+            rows,
+          }).unwrap();
 
-      setImportResult(
-        response.data
-      );
-
-      window.alert(
-        [
-          "Pricing import completed successfully.",
-          `Created: ${response.data.summary.created}`,
-          `Updated: ${response.data.summary.updated}`,
-          `Deactivated: ${response.data.summary.deactivated}`,
-          `Unchanged: ${response.data.summary.unchanged}`,
-          `Skipped: ${response.data.summary.skipped}`,
-        ].join(
-          "\n"
-        )
-      );
-
-      const refreshedPreview =
-        await previewPricingImport({
-          rows,
-        }).unwrap();
-
-      setPreviewResult(
-        refreshedPreview.data
-      );
-    } catch (
-      error
-    ) {
-      console.error(
-        "Pricing import error:",
+        setPreviewResult(
+          refreshedPreview.data
+        );
+      } catch (
         error
-      );
-
-      window.alert(
-        getApiErrorMessage(
+      ) {
+        console.error(
+          "Pricing import error:",
           error
-        )
-      );
-    }
-  };
+        );
+
+        window.alert(
+          getApiErrorMessage(
+            error
+          )
+        );
+      }
+    };
 
   return (
     <PlaceholderPanel

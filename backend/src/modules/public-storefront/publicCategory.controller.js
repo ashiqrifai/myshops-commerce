@@ -3,6 +3,59 @@ const publicCategoryService =
     "./publicCategory.service"
   );
 
+const getPublicApiBaseUrl =
+  require(
+    "../../utils/getPublicApiBaseUrl"
+  );
+
+const getPublicCategories =
+  async (
+    req,
+    res,
+    next
+  ) => {
+    try {
+      const companyCode =
+        req.headers[
+          "x-company-code"
+        ] ||
+        req.query.companyCode;
+
+      const apiBaseUrl =
+        getPublicApiBaseUrl(
+          req
+        );
+
+      const result =
+        await publicCategoryService
+          .getPublicCategories({
+            companyCode,
+
+            channel:
+              req.query.channel ||
+              "WEBSITE",
+
+            apiBaseUrl,
+          });
+
+      res.status(
+        200
+      ).json({
+        success:
+          true,
+
+        data:
+          result,
+      });
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
+    }
+  };
+
 const getPublicCategory =
   async (
     req,
@@ -17,31 +70,47 @@ const getPublicCategory =
         req.query.companyCode;
 
       const apiBaseUrl =
-        `${req.protocol}://${req.get(
-          "host"
-        )}`;
+        getPublicApiBaseUrl(
+          req
+        );
 
       const result =
         await publicCategoryService
           .getPublicCategory({
             companyCode,
-            slug: req.params.slug,
+
+            slug:
+              req.params.slug,
+
             channel:
               req.query.channel ||
               "WEBSITE",
-            query: req.query,
+
+            query:
+              req.query,
+
             apiBaseUrl,
           });
 
-      res.status(200).json({
-        success: true,
-        data: result,
+      res.status(
+        200
+      ).json({
+        success:
+          true,
+
+        data:
+          result,
       });
-    } catch (error) {
-      next(error);
+    } catch (
+      error
+    ) {
+      next(
+        error
+      );
     }
   };
 
 module.exports = {
+  getPublicCategories,
   getPublicCategory,
 };

@@ -39,6 +39,21 @@ const initialFormValues: CollectionFormValues = {
   collectionType:
     "MANUAL",
 
+  smartRules: {
+    match:
+      "ALL",
+    rules: [
+      {
+        field:
+          "EXPRESS_DELIVERY_ENABLED",
+        operator:
+          "IS",
+        value:
+          true,
+      },
+    ],
+  },
+
   sortOrder:
     1,
 
@@ -196,7 +211,9 @@ export default function NewCollectionPage() {
         form.name.trim();
 
       const slug =
-        form.slug.trim();
+        form.slug
+          ?.trim() ||
+        "";
 
       if (!name) {
         toast.error(
@@ -226,6 +243,19 @@ export default function NewCollectionPage() {
       ) {
         toast.error(
           "Publish until must be later than publish from."
+        );
+
+        return;
+      }
+
+      if (
+        form.collectionType ===
+          "SMART" &&
+        !form.smartRules
+          ?.rules?.length
+      ) {
+        toast.error(
+          "Add at least one smart collection rule."
         );
 
         return;
@@ -553,15 +583,21 @@ export default function NewCollectionPage() {
                 </div>
 
                 {form.collectionType ===
-                  "SMART" && (
-                  <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
-                    Smart collection
-                    rules will be
-                    configured after the
-                    collection is
-                    created.
-                  </div>
-                )}
+                  "SMART" ? (
+                  <SmartCollectionRulesEditor
+                    value={
+                      form.smartRules
+                    }
+                    onChange={(
+                      smartRules
+                    ) =>
+                      updateField(
+                        "smartRules",
+                        smartRules
+                      )
+                    }
+                  />
+                ) : null}
               </FormCard>
 
               <FormCard
@@ -770,7 +806,7 @@ export default function NewCollectionPage() {
                       label="Allow indexing"
                       description="Allow search engines to include this collection."
                       checked={
-                        form.robotsIndex
+                        form.robotsIndex ?? false
                       }
                       onChange={(
                         checked
@@ -786,7 +822,7 @@ export default function NewCollectionPage() {
                       label="Follow links"
                       description="Allow search engines to follow product links."
                       checked={
-                        form.robotsFollow
+                        form.robotsFollow ?? false
                       }
                       onChange={(
                         checked
@@ -811,7 +847,7 @@ export default function NewCollectionPage() {
                   label="Active"
                   description="Make this collection available according to its publishing dates."
                   checked={
-                    form.isActive
+                    form.isActive ?? false
                   }
                   onChange={(
                     checked
@@ -833,7 +869,7 @@ export default function NewCollectionPage() {
                     label="Featured"
                     description="Highlight this collection in featured areas."
                     checked={
-                      form.isFeatured
+                      form.isFeatured ?? false
                     }
                     onChange={(
                       checked
@@ -849,7 +885,7 @@ export default function NewCollectionPage() {
                     label="Show in menu"
                     description="Allow this collection to be selected in navigation."
                     checked={
-                      form.showInMenu
+                      form.showInMenu ?? false
                     }
                     onChange={(
                       checked
@@ -865,7 +901,7 @@ export default function NewCollectionPage() {
                     label="Show on homepage"
                     description="Allow this collection to appear in homepage sections."
                     checked={
-                      form.showOnHome
+                      form.showOnHome ?? false
                     }
                     onChange={(
                       checked
@@ -881,7 +917,7 @@ export default function NewCollectionPage() {
                     label="Searchable"
                     description="Include the collection in storefront search."
                     checked={
-                      form.isSearchable
+                      form.isSearchable ?? false
                     }
                     onChange={(
                       checked
@@ -897,7 +933,7 @@ export default function NewCollectionPage() {
                     label="Show product count"
                     description="Display the number of products to customers."
                     checked={
-                      form.showProductCount
+                      form.showProductCount ?? false
                     }
                     onChange={(
                       checked
@@ -1191,6 +1227,481 @@ function CheckboxField({
         </span>
       </span>
     </label>
+  );
+}
+
+
+const SMART_RULE_FIELD_OPTIONS = [
+  {
+    value:
+      "EXPRESS_DELIVERY_ENABLED",
+    label:
+      "Express Delivery Enabled",
+    kind:
+      "BOOLEAN",
+  },
+  {
+    value:
+      "STATUS",
+    label:
+      "Product Status",
+    kind:
+      "STATUS",
+  },
+  {
+    value:
+      "IS_FEATURED",
+    label:
+      "Featured",
+    kind:
+      "BOOLEAN",
+  },
+  {
+    value:
+      "IS_SEARCHABLE",
+    label:
+      "Searchable",
+    kind:
+      "BOOLEAN",
+  },
+  {
+    value:
+      "PRODUCT_TYPE",
+    label:
+      "Product Type",
+    kind:
+      "PRODUCT_TYPE",
+  },
+] as const;
+
+function SmartCollectionRulesEditor({
+  value,
+  onChange,
+}: {
+  value:
+    import("@/types/collection")
+      .SmartCollectionRules |
+    null |
+    undefined;
+
+  onChange: (
+    value:
+      import("@/types/collection")
+        .SmartCollectionRules
+  ) => void;
+}) {
+  const rules =
+    value?.rules?.length
+      ? value.rules
+      : [
+          {
+            field:
+              "EXPRESS_DELIVERY_ENABLED" as const,
+            operator:
+              "IS" as const,
+            value:
+              true,
+          },
+        ];
+
+  const match =
+    value?.match ||
+    "ALL";
+
+  const updateRule = (
+    index:
+      number,
+    patch:
+      Partial<
+        import("@/types/collection")
+          .SmartCollectionRule
+      >
+  ) => {
+    const next =
+      rules.map(
+        (
+          rule,
+          ruleIndex
+        ) =>
+          ruleIndex ===
+          index
+            ? {
+                ...rule,
+                ...patch,
+              }
+            : rule
+      );
+
+    onChange({
+      match,
+      rules:
+        next,
+    });
+  };
+
+  const addRule =
+    () => {
+      onChange({
+        match,
+        rules: [
+          ...rules,
+          {
+            field:
+              "EXPRESS_DELIVERY_ENABLED",
+            operator:
+              "IS",
+            value:
+              true,
+          },
+        ],
+      });
+    };
+
+  const removeRule = (
+    index:
+      number
+  ) => {
+    if (
+      rules.length <=
+      1
+    ) {
+      return;
+    }
+
+    onChange({
+      match,
+      rules:
+        rules.filter(
+          (
+            _rule,
+            ruleIndex
+          ) =>
+            ruleIndex !==
+            index
+        ),
+    });
+  };
+
+  return (
+    <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-900">
+            Smart Collection Rules
+          </h3>
+
+          <p className="mt-1 text-xs text-slate-500">
+            Products matching these conditions are assigned automatically.
+          </p>
+        </div>
+
+        <label className="block min-w-[190px]">
+          <span className="mb-1 block text-xs font-medium text-slate-600">
+            Match
+          </span>
+
+          <select
+            value={
+              match
+            }
+            onChange={(
+              event
+            ) =>
+              onChange({
+                match:
+                  event.target
+                    .value as
+                    import("@/types/collection")
+                      .SmartCollectionMatch,
+                rules,
+              })
+            }
+            className="admin-input"
+          >
+            <option value="ALL">
+              All conditions
+            </option>
+
+            <option value="ANY">
+              Any condition
+            </option>
+          </select>
+        </label>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {rules.map(
+          (
+            rule,
+            index
+          ) => {
+            const fieldOption =
+              SMART_RULE_FIELD_OPTIONS
+                .find(
+                  (
+                    option
+                  ) =>
+                    option.value ===
+                    rule.field
+                ) ||
+              SMART_RULE_FIELD_OPTIONS[
+                0
+              ];
+
+            return (
+              <div
+                key={
+                  `${rule.field}-${index}`
+                }
+                className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 md:grid-cols-[minmax(0,1.5fr)_150px_minmax(0,1fr)_auto]"
+              >
+                <label>
+                  <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                    Field
+                  </span>
+
+                  <select
+                    value={
+                      rule.field
+                    }
+                    onChange={(
+                      event
+                    ) => {
+                      const field =
+                        event.target
+                          .value as
+                          import("@/types/collection")
+                            .SmartCollectionRuleField;
+
+                      const option =
+                        SMART_RULE_FIELD_OPTIONS
+                          .find(
+                            (
+                              item
+                            ) =>
+                              item.value ===
+                              field
+                          );
+
+                      updateRule(
+                        index,
+                        {
+                          field,
+                          value:
+                            option
+                              ?.kind ===
+                            "BOOLEAN"
+                              ? true
+                              : option
+                                  ?.kind ===
+                                "STATUS"
+                                ? "ACTIVE"
+                                : "SIMPLE",
+                        }
+                      );
+                    }}
+                    className="admin-input"
+                  >
+                    {SMART_RULE_FIELD_OPTIONS.map(
+                      (
+                        option
+                      ) => (
+                        <option
+                          key={
+                            option.value
+                          }
+                          value={
+                            option.value
+                          }
+                        >
+                          {
+                            option.label
+                          }
+                        </option>
+                      )
+                    )}
+                  </select>
+                </label>
+
+                <label>
+                  <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                    Operator
+                  </span>
+
+                  <select
+                    value={
+                      rule.operator
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      updateRule(
+                        index,
+                        {
+                          operator:
+                            event.target
+                              .value as
+                              import("@/types/collection")
+                                .SmartCollectionRuleOperator,
+                        }
+                      )
+                    }
+                    className="admin-input"
+                  >
+                    <option value="IS">
+                      Is
+                    </option>
+
+                    <option value="IS_NOT">
+                      Is not
+                    </option>
+                  </select>
+                </label>
+
+                <label>
+                  <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                    Value
+                  </span>
+
+                  {fieldOption.kind ===
+                  "BOOLEAN" ? (
+                    <select
+                      value={
+                        rule.value ===
+                        false
+                          ? "FALSE"
+                          : "TRUE"
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateRule(
+                          index,
+                          {
+                            value:
+                              event.target
+                                .value ===
+                              "TRUE",
+                          }
+                        )
+                      }
+                      className="admin-input"
+                    >
+                      <option value="TRUE">
+                        Yes
+                      </option>
+
+                      <option value="FALSE">
+                        No
+                      </option>
+                    </select>
+                  ) : fieldOption.kind ===
+                    "STATUS" ? (
+                    <select
+                      value={
+                        String(
+                          rule.value ||
+                          "ACTIVE"
+                        )
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateRule(
+                          index,
+                          {
+                            value:
+                              event.target
+                                .value,
+                          }
+                        )
+                      }
+                      className="admin-input"
+                    >
+                      <option value="ACTIVE">
+                        Active
+                      </option>
+                      <option value="DRAFT">
+                        Draft
+                      </option>
+                      <option value="INACTIVE">
+                        Inactive
+                      </option>
+                      <option value="ARCHIVED">
+                        Archived
+                      </option>
+                    </select>
+                  ) : (
+                    <select
+                      value={
+                        String(
+                          rule.value ||
+                          "SIMPLE"
+                        )
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateRule(
+                          index,
+                          {
+                            value:
+                              event.target
+                                .value,
+                          }
+                        )
+                      }
+                      className="admin-input"
+                    >
+                      <option value="SIMPLE">
+                        Simple
+                      </option>
+                      <option value="VARIABLE">
+                        Variable
+                      </option>
+                      <option value="BUNDLE">
+                        Bundle
+                      </option>
+                      <option value="SERVICE">
+                        Service
+                      </option>
+                    </select>
+                  )}
+                </label>
+
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    disabled={
+                      rules.length <=
+                      1
+                    }
+                    onClick={() =>
+                      removeRule(
+                        index
+                      )
+                    }
+                    className="h-10 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            );
+          }
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={
+          addRule
+        }
+        className="mt-3 inline-flex h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+      >
+        + Add Rule
+      </button>
+    </div>
   );
 }
 

@@ -3,6 +3,11 @@ const publicSearchService =
     "./publicSearch.service"
   );
 
+  const getPublicApiBaseUrl =
+  require(
+    "../../utils/getPublicApiBaseUrl"
+  );
+
 const searchProducts =
   async (
     req,
@@ -16,10 +21,10 @@ const searchProducts =
         ] ||
         req.query.companyCode;
 
-      const apiBaseUrl =
-        `${req.protocol}://${req.get(
-          "host"
-        )}`;
+        const apiBaseUrl =
+        getPublicApiBaseUrl(
+          req
+        );
 
       const result =
         await publicSearchService

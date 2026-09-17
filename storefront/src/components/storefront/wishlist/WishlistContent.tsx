@@ -12,14 +12,7 @@ import {
   selectWishlistItems,
 } from "@/store/slices/wishlistSlice";
 
-const money = (value: number | null, currency: string) => {
-  if (value == null) return "Price unavailable";
-
-  return new Intl.NumberFormat("en-AE", {
-    style: "currency",
-    currency: currency || "AED",
-  }).format(value);
-};
+import StorefrontMoney from "@/components/storefront/money/StorefrontMoney";
 
 export default function WishlistContent() {
   const dispatch = useAppDispatch();
@@ -124,9 +117,22 @@ export default function WishlistContent() {
                 ) : null}
 
                 <div className="mt-auto pt-4">
-                  <p className="text-lg font-black">
-                    {money(item.unitPrice, item.currencyCode)}
-                  </p>
+                {item.unitPrice !==
+                    null ? (
+                      <StorefrontMoney
+                        amount={
+                          item.unitPrice
+                        }
+                        currencyCode={
+                          item.currencyCode
+                        }
+                        className="text-lg font-black text-storefront-text"
+                      />
+                    ) : (
+                      <p className="text-sm font-semibold text-storefront-muted">
+                        Price unavailable
+                      </p>
+                    )}
 
                   <div className="mt-4 grid grid-cols-[1fr_44px] gap-2">
                     <button

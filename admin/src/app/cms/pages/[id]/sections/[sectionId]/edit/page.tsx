@@ -29,10 +29,15 @@ import DynamicObjectEditor from "@/components/cms/page-builder/editor/DynamicObj
 import NavigationEditor from "@/components/cms/page-builder/editor/NavigationEditor";
 
 import HeroCarouselEditor from "@/components/cms/page-builder/editor/HeroCarouselEditor";
+import HeroPromoGridEditor from "@/components/cms/page-builder/editor/HeroPromoGridEditor";
+
+import AnnouncementBarEditor from "@/components/cms/page-builder/editor/AnnouncementBarEditor";
 
 import SectionVisibilityEditor from "@/components/cms/page-builder/editor/SectionVisibilityEditor";
 
 import CategoryGridEditor from "@/components/cms/page-builder/editor/CategoryGridEditor";
+
+import CollectionGridEditor from "@/components/cms/page-builder/editor/CollectionGridEditor";
 
 import FeaturedProductGridEditor from "@/components/cms/page-builder/editor/FeaturedProductGridEditor";
 
@@ -44,9 +49,11 @@ import FlashDealsEditor from "@/components/cms/page-builder/editor/FlashDealsEdi
 
 import PromotionBannerGridEditor from "@/components/cms/page-builder/editor/PromotionBannerGridEditor";
 
+import StoreVisitCarouselEditor from "@/components/cms/page-builder/editor/StoreVisitCarouselEditor";
+
 import PreBookingEditor from "@/components/cms/page-builder/editor/PreBookingEditor";
 
-import CollectionGridEditor from "@/components/cms/page-builder/editor/CollectionGridEditor";
+import TrustBenefitsEditor from "@/components/cms/page-builder/editor/TrustBenefitsEditor";
 
 import {
   useGetCmsPageSectionByIdQuery,
@@ -231,6 +238,12 @@ const SectionEditorForm = ({
       const isHeroCarousel =
       sectionTypeCode ===
       "HERO_CAROUSEL";
+
+    const isHeroPromoGrid = sectionTypeCode === "HERO_PROMO_GRID";
+
+    const isAnnouncementBar =
+      sectionTypeCode ===
+      "ANNOUNCEMENT_BAR";
     
     const isNavigation =
       sectionTypeCode ===
@@ -239,6 +252,14 @@ const SectionEditorForm = ({
     const isCategoryGrid =
       sectionTypeCode ===
       "CATEGORY_GRID";
+
+    const isCategoryCarousel =
+      sectionTypeCode ===
+      "CATEGORY_CAROUSEL";
+
+    const isCollectionGrid =
+      sectionTypeCode ===
+      "COLLECTION_GRID";
 
     const isFeaturedProductGrid =
       sectionTypeCode ===
@@ -260,12 +281,16 @@ const SectionEditorForm = ({
       sectionTypeCode ===
       "PROMOTION_BANNER_GRID";
     
-    const isCollectionGrid =
+    const isStoreVisitCarousel =
       sectionTypeCode ===
-      "COLLECTION_GRID";
-        
+      "STORE_VISIT_CAROUSEL";
+    
     
     const isPreBooking = sectionTypeCode === "PRE_BOOKING";
+
+    const isTrustBenefits =
+      sectionTypeCode ===
+      "TRUST_BENEFITS";
 
 
   const validateHeroCarousel =
@@ -401,7 +426,10 @@ const SectionEditorForm = ({
 
     const validateCategoryGrid =
   (): boolean => {
-    if (!isCategoryGrid) {
+    if (
+      !isCategoryGrid &&
+      !isCategoryCarousel
+    ) {
       return true;
     }
 
@@ -438,60 +466,6 @@ const SectionEditorForm = ({
     ) {
       toast.error(
         "Select at least one category."
-      );
-
-      return false;
-    }
-
-    return true;
-  };
-
-
-  const validateCollectionGrid =
-  (): boolean => {
-    if (
-      !isCollectionGrid
-    ) {
-      return true;
-    }
-
-    const sourceType =
-      typeof settings.sourceType ===
-      "string"
-        ? settings.sourceType
-            .trim()
-            .toUpperCase()
-        : "MANUAL";
-
-    if (
-      sourceType !==
-      "MANUAL"
-    ) {
-      return true;
-    }
-
-    const collectionIds =
-      Array.isArray(
-        content.collectionIds
-      )
-        ? content.collectionIds.filter(
-            (
-              collectionId
-            ): collectionId is string =>
-              typeof collectionId ===
-                "string" &&
-              Boolean(
-                collectionId.trim()
-              )
-          )
-        : [];
-
-    if (
-      collectionIds.length ===
-      0
-    ) {
-      toast.error(
-        "Select at least one collection."
       );
 
       return false;
@@ -618,6 +592,74 @@ const SectionEditorForm = ({
       return true;
     };
 
+  const validateTrustBenefits =
+    (): boolean => {
+      if (!isTrustBenefits) {
+        return true;
+      }
+
+      const items =
+        Array.isArray(content.items)
+          ? content.items
+          : [];
+
+      const activeItems =
+        items.filter((item) => {
+          if (
+            !item ||
+            typeof item !==
+              "object" ||
+            Array.isArray(item)
+          ) {
+            return false;
+          }
+
+          return (
+            (item as Record<
+              string,
+              unknown
+            >).isActive !== false
+          );
+        });
+
+      if (activeItems.length === 0) {
+        toast.error(
+          "Add at least one active trust benefit."
+        );
+
+        return false;
+      }
+
+      for (
+        let index = 0;
+        index < activeItems.length;
+        index += 1
+      ) {
+        const item =
+          activeItems[index] as Record<
+            string,
+            unknown
+          >;
+
+        if (
+          !String(
+            item.title ||
+              ""
+          ).trim()
+        ) {
+          toast.error(
+            `Title is required for trust benefit ${
+              index + 1
+            }.`
+          );
+
+          return false;
+        }
+      }
+
+      return true;
+    };
+
   const handleSubmit = async (
     event: FormEvent<HTMLFormElement>
   ) => {
@@ -667,13 +709,13 @@ const SectionEditorForm = ({
     }
 
     if (
-      !validateCollectionGrid()
+      !validatePromotionBannerGrid()
     ) {
       return;
     }
 
     if (
-      !validatePromotionBannerGrid()
+      !validateTrustBenefits()
     ) {
       return;
     }
@@ -864,16 +906,29 @@ const SectionEditorForm = ({
             </div>
           </section>
 
-          <DynamicObjectEditor
-            title="Section settings"
-            description="Control layout, behaviour, appearance and rendering options."
-            value={settings}
-            onChange={
-              setSettings
-            }
-          />
+          {!isAnnouncementBar &&
+              !isTrustBenefits &&
+              !isStoreVisitCarousel ? (
+                <DynamicObjectEditor
+                  title="Section settings"
+                  description="Control layout, behaviour, appearance and rendering options."
+                  value={settings}
+                  onChange={
+                    setSettings
+                  }
+                />
+              ) : null}
 
-{isHeroCarousel ? (
+{isHeroPromoGrid ? (
+  <HeroPromoGridEditor value={content} settings={settings} onChange={setContent} onSettingsChange={setSettings} />
+) : isAnnouncementBar ? (
+  <AnnouncementBarEditor
+    value={content}
+    settings={settings}
+    onChange={setContent}
+    onSettingsChange={setSettings}
+  />
+) : isHeroCarousel ? (
   <HeroCarouselEditor
     value={content}
     onChange={setContent}
@@ -883,12 +938,14 @@ const SectionEditorForm = ({
     value={content}
     onChange={setContent}
   />
-) : isCategoryGrid ? (
-  <CategoryGridEditor
-    value={content}
-    settings={settings}
-    onChange={setContent}
-  />
+) : isCategoryGrid ||
+isCategoryCarousel ? (
+<CategoryGridEditor
+value={content}
+settings={settings}
+onChange={setContent}
+onSettingsChange={setSettings}
+/>
 ) : isCollectionGrid ? (
   <CollectionGridEditor
     value={content}
@@ -927,8 +984,23 @@ const SectionEditorForm = ({
     onSettingsChange={setSettings}
   />
 
+) : isStoreVisitCarousel ? (
+  <StoreVisitCarouselEditor
+    value={content}
+    settings={settings}
+    onChange={setContent}
+    onSettingsChange={setSettings}
+  />
+
 ) : isPreBooking ? (
   <PreBookingEditor
+    value={content}
+    settings={settings}
+    onChange={setContent}
+    onSettingsChange={setSettings}
+  />
+) : isTrustBenefits ? (
+  <TrustBenefitsEditor
     value={content}
     settings={settings}
     onChange={setContent}

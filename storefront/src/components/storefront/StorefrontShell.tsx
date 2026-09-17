@@ -11,6 +11,7 @@ import {
 } from "@/lib/storefront/storefront-theme";
 
 import StorefrontAiAssistant from "@/components/storefront/ai/StorefrontAiAssistant";
+import WhatsAppFloatButton from "@/components/storefront/WhatsAppFloatButton";
 
 interface StorefrontShellProps {
   storefront:
@@ -44,14 +45,15 @@ export default function StorefrontShell({
       className="storefront-root flex min-h-screen flex-col"
     >
       {children}
+      <WhatsAppFloatButton />
 
-      {aiEnabled ? (
+      {/* {aiEnabled ? (
         <StorefrontAiAssistant
           storefront={
             storefront
           }
         />
-      ) : null}
+      ) : null} */}
     </div>
   );
 }

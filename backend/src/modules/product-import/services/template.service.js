@@ -49,6 +49,16 @@ const {
     "sortOrder",
     "isFeatured",
     "isSearchable",
+    "erpId",
+    "isDirectDelivery",
+    "directDeliverySupplierCode",
+    "directDeliveryLeadTimeDays",
+    "directDeliveryNote",
+    "expressDeliveryEnabled",
+    "expressDeliveryHours",
+    "deliveryMinDays",
+    "deliveryMaxDays",
+    "deliveryNote",
   
     "websiteVisible",
     "websitePublishStatus",
@@ -86,6 +96,12 @@ const {
     "width",
     "height",
     "dimensionUnit",
+    "variantOverrideDeliverySettings",
+    "variantExpressDeliveryEnabled",
+    "variantExpressDeliveryHours",
+    "variantDeliveryMinDays",
+    "variantDeliveryMaxDays",
+    "variantDeliveryNote",
     "variantMediaGroup",
     "variantMediaImportMode",
     "variantPrimaryMediaAssetId",
@@ -502,6 +518,66 @@ const {
         description:
             "Variant image alt text.",
     },
+    erpId: {
+      required:
+        false,
+
+      scope:
+        "PRODUCT",
+
+      description:
+        "External ERP item identifier. For Zoho, store the Zoho item_id here.",
+    },
+
+    isDirectDelivery: {
+      required:
+        false,
+
+      scope:
+        "PRODUCT",
+
+      allowedValues: [
+        "TRUE",
+        "FALSE",
+      ],
+
+      description:
+        "TRUE when this product is fulfilled directly by the supplier.",
+    },
+
+    directDeliverySupplierCode: {
+      required:
+        false,
+
+      scope:
+        "PRODUCT",
+
+      description:
+        "Existing supplier code. Required when isDirectDelivery is TRUE.",
+    },
+
+    directDeliveryLeadTimeDays: {
+      required:
+        false,
+
+      scope:
+        "PRODUCT",
+
+      description:
+        "Non-negative whole number of supplier delivery lead-time days.",
+    },
+
+    directDeliveryNote: {
+      required:
+        false,
+
+      scope:
+        "PRODUCT",
+
+      description:
+        "Direct-delivery note. Maximum 500 characters.",
+    },
+
   
     websiteVisible: {
       required:

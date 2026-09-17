@@ -1,23 +1,22 @@
-import Link from "next/link";
+import ForgotPasswordForm from "@/components/account/ForgotPasswordForm";
 
-export default function ForgotPasswordPlaceholderPage() {
+export default function ForgotPasswordPage() {
   return (
     <main className="min-h-screen bg-storefront-background px-4 py-16">
-      <div className="mx-auto max-w-lg rounded-[24px] border border-storefront bg-white p-8 text-center">
-        <h1 className="text-3xl font-black text-storefront-text">
-          Forgot password
-        </h1>
+      <div className="mx-auto max-w-lg rounded-[24px] border border-storefront bg-white p-8 shadow-sm">
+        <div className="text-center">
+          <h1 className="text-3xl font-black text-storefront-text">
+            Forgot password
+          </h1>
 
-        <p className="mt-3 text-sm leading-6 text-storefront-muted">
-          Password reset will be connected in Customer Identity Phase 2.
-        </p>
+          <p className="mt-3 text-sm leading-6 text-storefront-muted">
+            Enter the email address linked to your MyShops account. If the account exists, we will send you a secure reset link.
+          </p>
+        </div>
 
-        <Link
-          href="/account/login"
-          className="mt-6 inline-flex h-11 items-center justify-center rounded-storefront-button bg-storefront-primary px-5 text-sm font-black text-white"
-        >
-          Back to sign in
-        </Link>
+        <div className="mt-8">
+          <ForgotPasswordForm />
+        </div>
       </div>
     </main>
   );

@@ -1,6 +1,18 @@
 const { Op } = require("sequelize");
 
 const db = require("../../models");
+
+const publicAvailabilityService =
+  require(
+    "./publicAvailability.service"
+  );
+
+  const giftVoucherPromotionService =
+  require(
+    "../gift-voucher-promotions/giftVoucherPromotion.service"
+  );
+
+
 const AppError = require("../../utils/AppError");
 
 const toPlain = (value) =>
@@ -62,6 +74,100 @@ const publicMedia = (asset, apiBaseUrl) => {
   };
 };
 
+/*
+|--------------------------------------------------------------------------
+| Product Card Media Include
+|--------------------------------------------------------------------------
+|
+| Category / brand listing cards display one product image and do not need
+| the complete DAM variant collection.
+|
+| Keep only:
+|
+| - THUMBNAIL AVIF
+| - SMALL AVIF
+| - MEDIUM AVIF
+|
+| MEDIUM is retained so larger desktop product cards still have a
+| high-quality source.
+|--------------------------------------------------------------------------
+*/
+
+const productCardMediaInclude = (
+  companyId,
+  as
+) => ({
+  model:
+    db.MediaAsset,
+
+  as,
+
+  required:
+    false,
+
+  where: {
+    companyId,
+
+    status:
+      "READY",
+
+    isPublic:
+      true,
+
+    isActive:
+      true,
+  },
+
+  include: [
+    {
+      model:
+        db.MediaAssetVariant,
+
+      as:
+        "variants",
+
+      required:
+        false,
+
+      separate:
+        true,
+
+      where: {
+        companyId,
+
+        isActive:
+          true,
+
+        variantType: {
+          [Op.in]: [
+            "THUMBNAIL",
+            "SMALL",
+            "MEDIUM",
+          ],
+        },
+
+        format: {
+          [Op.in]: [
+            "avif",
+          ],
+        },
+      },
+
+      order: [
+        [
+          "variantType",
+          "ASC",
+        ],
+
+        [
+          "createdAt",
+          "ASC",
+        ],
+      ],
+    },
+  ],
+});
+
 const mediaInclude = (companyId, as) => ({
   model: db.MediaAsset,
   as,
@@ -113,6 +219,239 @@ const publicCategory = (categoryModel, apiBaseUrl) => {
     imageAsset,
     bannerAsset,
     image: thumbnailAsset || imageAsset || bannerAsset || null,
+  };
+};
+
+/*
+|--------------------------------------------------------------------------
+| Compact Public Category Media
+|--------------------------------------------------------------------------
+|
+| Category listing/navigation responses do not need the complete DAM
+| representation for thumbnailAsset, imageAsset and bannerAsset.
+|
+| Keep one compact image source with only the small AVIF variants required
+| by category navigation cards.
+|--------------------------------------------------------------------------
+*/
+
+const compactCategoryMedia = (
+  asset,
+  apiBaseUrl
+) => {
+  if (!asset) {
+    return null;
+  }
+
+  const item =
+    toPlain(
+      asset
+    );
+
+  const variants =
+    Array.isArray(
+      item.variants
+    )
+      ? item.variants
+          .filter(
+            (variant) =>
+              variant &&
+              variant.isActive ===
+                true &&
+              [
+                "THUMBNAIL",
+                "SMALL",
+              ].includes(
+                String(
+                  variant.variantType ||
+                    ""
+                ).toUpperCase()
+              ) &&
+              String(
+                variant.format ||
+                  ""
+              ).toLowerCase() ===
+                "avif"
+          )
+          .map(
+            (variant) => ({
+              id:
+                variant.id,
+
+              variantType:
+                variant.variantType,
+
+              format:
+                variant.format,
+
+              width:
+                variant.width ??
+                null,
+
+              height:
+                variant.height ??
+                null,
+
+              publicUrl:
+                absoluteUrl(
+                  variant.publicUrl ||
+                    variant.storagePath,
+                  apiBaseUrl
+                ),
+            })
+          )
+          .filter(
+            (variant) =>
+              Boolean(
+                variant.publicUrl
+              )
+          )
+      : [];
+
+  const thumbnail =
+    variants.find(
+      (variant) =>
+        variant.variantType ===
+        "THUMBNAIL"
+    );
+
+  const small =
+    variants.find(
+      (variant) =>
+        variant.variantType ===
+        "SMALL"
+    );
+
+  return {
+    id:
+      item.id,
+
+    title:
+      item.title ||
+      null,
+
+    altText:
+      item.altText ||
+      null,
+
+    publicUrl:
+      absoluteUrl(
+        item.publicUrl ||
+          item.storagePath,
+        apiBaseUrl
+      ),
+
+    thumbnailUrl:
+      thumbnail
+        ?.publicUrl ||
+      absoluteUrl(
+        item.thumbnailPath
+          ? `/media/${item.thumbnailPath}`
+          : null,
+        apiBaseUrl
+      ),
+
+    previewUrl:
+      small
+        ?.publicUrl ||
+      absoluteUrl(
+        item.previewPath
+          ? `/media/${item.previewPath}`
+          : null,
+        apiBaseUrl
+      ),
+
+    variants,
+  };
+};
+
+/*
+|--------------------------------------------------------------------------
+| Compact Category Navigation Object
+|--------------------------------------------------------------------------
+|
+| Used for the main category and child-category navigation information.
+|--------------------------------------------------------------------------
+*/
+
+const compactPublicCategory = (
+  categoryModel,
+  apiBaseUrl
+) => {
+  if (!categoryModel) {
+    return null;
+  }
+
+  const category =
+    toPlain(
+      categoryModel
+    );
+
+  const sourceAsset =
+    category.thumbnailAsset ||
+    category.imageAsset ||
+    category.bannerAsset ||
+    null;
+
+  const image =
+    compactCategoryMedia(
+      sourceAsset,
+      apiBaseUrl
+    );
+
+  return {
+    id:
+      category.id,
+
+    name:
+      category.name,
+
+    slug:
+      category.slug,
+
+    parentCategoryId:
+      category.parentCategoryId ||
+      null,
+
+    shortDescription:
+      category.shortDescription ||
+      null,
+
+    categoryPath:
+      category.categoryPath ||
+      null,
+
+    level:
+      Number(
+        category.level ||
+          0
+      ),
+
+    sortOrder:
+      Number(
+        category.sortOrder ||
+          0
+      ),
+
+    iconName:
+      category.iconName ||
+      null,
+
+    iconUrl:
+      absoluteUrl(
+        category.iconUrl,
+        apiBaseUrl
+      ),
+
+    /*
+     * Preserve the existing frontend-compatible image properties while
+     * avoiding three complete DAM objects.
+     */
+    thumbnailAsset:
+      image,
+
+    image:
+      image,
   };
 };
 
@@ -579,7 +918,24 @@ const filterIdsByAttributes = async ({
   return result;
 };
 
-const productIncludes = ({ companyId, channel, priceListId, now }) => [
+
+/*
+|--------------------------------------------------------------------------
+| Full Product Includes
+|--------------------------------------------------------------------------
+|
+| Used only AFTER category pagination, so the heavier storefront card
+| relationships are loaded for the current page only.
+|
+|--------------------------------------------------------------------------
+*/
+
+const productIncludes = ({
+  companyId,
+  channel,
+  priceListId,
+  now,
+}) => [
   {
     model: db.ProductChannel,
     as: "channels",
@@ -590,7 +946,11 @@ const productIncludes = ({ companyId, channel, priceListId, now }) => [
       isVisible: true,
       publishStatus: "PUBLISHED",
     },
-    attributes: ["channelCode", "channelTitle", "channelDescription"],
+    attributes: [
+      "channelCode",
+      "channelTitle",
+      "channelDescription",
+    ],
   },
   {
     model: db.Brand,
@@ -608,14 +968,35 @@ const productIncludes = ({ companyId, channel, priceListId, now }) => [
     model: db.ProductImage,
     as: "images",
     required: false,
-    where: { companyId, isActive: true },
-    include: [mediaInclude(companyId, "mediaAsset")],
+    separate: true,
+    order: [
+      ["displayOrder", "ASC"],
+      ["createdAt", "ASC"],
+    ],
+    where: {
+      companyId,
+      isActive: true,
+    },
+    include: [
+      productCardMediaInclude(
+        companyId,
+        "mediaAsset"
+      ),
+    ],
   },
   {
     model: db.ProductVariant,
     as: "variants",
     required: true,
-    where: { companyId, status: "ACTIVE" },
+    separate: true,
+    order: [
+      ["sortOrder", "ASC"],
+      ["createdAt", "ASC"],
+    ],
+    where: {
+      companyId,
+      status: "ACTIVE",
+    },
     include: [
       {
         model: db.ProductVariantPrice,
@@ -624,7 +1005,9 @@ const productIncludes = ({ companyId, channel, priceListId, now }) => [
         where: {
           companyId,
           isActive: true,
-          ...(priceListId ? { priceListId } : {}),
+          ...(priceListId
+            ? { priceListId }
+            : {}),
           ...validityWindow(now),
         },
         include: [
@@ -632,6 +1015,249 @@ const productIncludes = ({ companyId, channel, priceListId, now }) => [
             model: db.PriceList,
             as: "priceList",
             required: false,
+            attributes: [
+              "id",
+              "code",
+              "name",
+              "currencyCode",
+              "isTaxInclusive",
+              "channelCode",
+            ],
+          },
+        ],
+      },
+      {
+        model:
+          db.ProductVariantAttributeValue,
+        as:
+          "attributeValues",
+        required:
+          false,
+        attributes: [
+          "id",
+          "productVariantId",
+          "attributeId",
+          "optionId",
+          "displayValue",
+          "sortOrder",
+        ],
+        include: [
+          {
+            model:
+              db.Attribute,
+            as:
+              "attribute",
+            required:
+              false,
+            where: {
+              companyId,
+              isActive:
+                true,
+            },
+            attributes: [
+              "id",
+              "code",
+              "name",
+              "isVariantDefining",
+              "displayOrder",
+            ],
+          },
+          {
+            model:
+              db.AttributeOption,
+            as:
+              "option",
+            required:
+              false,
+            where: {
+              companyId,
+              isActive:
+                true,
+            },
+            attributes: [
+              "id",
+              "label",
+              "value",
+              "swatchValue",
+              "displayOrder",
+            ],
+          },
+        ],
+      },
+    ],
+  },
+];
+
+/*
+|--------------------------------------------------------------------------
+| Lightweight Category Product Query
+|--------------------------------------------------------------------------
+|
+| Used BEFORE pagination.
+|
+| Deliberately excludes:
+|
+| - product images
+| - media assets
+| - media variants
+| - variant attribute summaries
+|
+| We only load enough information to:
+|
+| - verify publication
+| - determine brand
+| - determine default variant
+| - resolve price
+| - calculate availability
+| - apply filters
+| - sort
+|
+|--------------------------------------------------------------------------
+*/
+
+const categoryEligibilityIncludes = ({
+  companyId,
+  channel,
+  priceListId,
+  now,
+}) => [
+  {
+    model:
+      db.ProductChannel,
+
+    as:
+      "channels",
+
+    required:
+      true,
+
+    where: {
+      companyId,
+      channelCode:
+        channel,
+      isVisible:
+        true,
+      publishStatus:
+        "PUBLISHED",
+    },
+
+    attributes: [
+      "channelCode",
+      "channelTitle",
+      "channelDescription",
+    ],
+  },
+
+  {
+    model:
+      db.Brand,
+
+    as:
+      "brand",
+
+    required:
+      false,
+
+    attributes: [
+      "id",
+      "name",
+      "slug",
+    ],
+  },
+
+  {
+    model:
+      db.ProductVariant,
+
+    as:
+      "variants",
+
+    required:
+      true,
+
+    separate:
+      true,
+
+    attributes: [
+      "id",
+      "productId",
+      "sku",
+      "barcode",
+      "name",
+      "isDefault",
+      "sortOrder",
+      "status",
+    ],
+
+    where: {
+      companyId,
+      status:
+        "ACTIVE",
+    },
+
+    order: [
+      [
+        "sortOrder",
+        "ASC",
+      ],
+      [
+        "createdAt",
+        "ASC",
+      ],
+    ],
+
+    include: [
+      {
+        model:
+          db.ProductVariantPrice,
+
+        as:
+          "prices",
+
+        required:
+          false,
+
+        separate:
+          true,
+
+        where: {
+          companyId,
+          isActive:
+            true,
+
+          ...(priceListId
+            ? {
+                priceListId,
+              }
+            : {}),
+
+          ...validityWindow(
+            now
+          ),
+        },
+
+        order: [
+          [
+            "priority",
+            "ASC",
+          ],
+          [
+            "createdAt",
+            "ASC",
+          ],
+        ],
+
+        include: [
+          {
+            model:
+              db.PriceList,
+
+            as:
+              "priceList",
+
+            required:
+              false,
+
             attributes: [
               "id",
               "code",
@@ -699,7 +1325,541 @@ const variantPrice = (variant) => {
   };
 };
 
-const publicProduct = (productModel, apiBaseUrl) => {
+
+/*
+|--------------------------------------------------------------------------
+| Lightweight Category Product Mapper
+|--------------------------------------------------------------------------
+|
+| Used only for availability, price filtering, dynamic filters, sorting
+| and pagination. Heavy image/media/variant-summary data is intentionally
+| excluded here.
+|
+|--------------------------------------------------------------------------
+*/
+
+const categoryEligibilityProduct = (
+  productModel,
+  availabilityByVariant
+) => {
+  const product =
+    toPlain(productModel);
+
+  const variant =
+    defaultVariant(product);
+
+  const channel =
+    Array.isArray(product.channels)
+      ? product.channels[0]
+      : null;
+
+  return {
+    id:
+      product.id,
+
+    name:
+      channel?.channelTitle ||
+      product.name,
+
+    slug:
+      product.slug,
+
+    productType:
+      product.productType,
+
+    parentSku:
+      product.parentSku || null,
+
+    shortDescription:
+      channel?.channelDescription ||
+      product.shortDescription ||
+      null,
+
+    isFeatured:
+      product.isFeatured === true,
+
+    sortOrder:
+      Number(product.sortOrder || 0),
+
+    createdAt:
+      product.createdAt,
+
+    brand:
+      product.brand
+        ? {
+            id: product.brand.id,
+            name: product.brand.name,
+            slug:
+              product.brand.slug || null,
+          }
+        : null,
+
+    defaultVariant:
+      variant
+        ? {
+            id: variant.id,
+            sku: variant.sku,
+            barcode:
+              variant.barcode || null,
+            name: variant.name,
+            isDefault:
+              variant.isDefault === true,
+          }
+        : null,
+
+    price:
+      variantPrice(variant),
+
+    availability:
+      publicAvailabilityService
+        .getAvailabilityForProduct({
+          product,
+          availabilityByVariant,
+        }),
+  };
+};
+
+
+/*
+|--------------------------------------------------------------------------
+| Apply Gift Voucher Discount To Public Price
+|--------------------------------------------------------------------------
+*/
+
+const applyGiftVoucherToPrice = (
+  price,
+  giftVoucher
+) => {
+  if (
+    !price
+  ) {
+    return null;
+  }
+
+  const regularPrice =
+    Number(
+      price.regularPrice ||
+      0
+    );
+
+  const baseSellingPrice =
+    Number(
+      price.sellingPrice ||
+      0
+    );
+
+  const priceDiscountAmount =
+    Math.max(
+      0,
+      regularPrice -
+        baseSellingPrice
+    );
+
+  const giftVoucherDiscountAmount =
+    giftVoucher
+      ? Number(
+          giftVoucher.unitDiscount ||
+          0
+        )
+      : 0;
+
+  const sellingPrice =
+    Math.max(
+      0,
+      baseSellingPrice -
+        giftVoucherDiscountAmount
+    );
+
+  const totalDiscountAmount =
+    Math.max(
+      0,
+      regularPrice -
+        sellingPrice
+    );
+
+  const totalDiscountPercent =
+    regularPrice > 0
+      ? (
+          totalDiscountAmount /
+          regularPrice
+        ) *
+        100
+      : 0;
+
+  return {
+    ...price,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Regular Pricing
+    |--------------------------------------------------------------------------
+    */
+
+    regularPrice:
+      Number(
+        regularPrice.toFixed(
+          4
+        )
+      ),
+
+    baseSellingPrice:
+      Number(
+        baseSellingPrice.toFixed(
+          4
+        )
+      ),
+
+    priceDiscountAmount:
+      Number(
+        priceDiscountAmount.toFixed(
+          4
+        )
+      ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gift Voucher Discount
+    |--------------------------------------------------------------------------
+    */
+
+    giftVoucherDiscountAmount:
+      Number(
+        giftVoucherDiscountAmount.toFixed(
+          4
+        )
+      ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Actual Customer Price
+    |--------------------------------------------------------------------------
+    */
+
+    sellingPrice:
+      Number(
+        sellingPrice.toFixed(
+          4
+        )
+      ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Combined Discount
+    |--------------------------------------------------------------------------
+    */
+
+    totalDiscountAmount:
+      Number(
+        totalDiscountAmount.toFixed(
+          4
+        )
+      ),
+
+    totalDiscountPercent:
+      Number(
+        totalDiscountPercent.toFixed(
+          4
+        )
+      ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Public Promotion Information
+    |--------------------------------------------------------------------------
+    |
+    | Don't expose internal/external accounting information
+    | to storefront customers.
+    |--------------------------------------------------------------------------
+    */
+
+    giftVoucher:
+      giftVoucher
+        ? {
+            promotionId:
+              giftVoucher.id,
+
+            code:
+              giftVoucher.code,
+
+            name:
+              giftVoucher.name,
+
+            discountType:
+              giftVoucher.discountType,
+
+            discountValue:
+              giftVoucher.discountValue,
+
+            discountAmount:
+              Number(
+                giftVoucherDiscountAmount.toFixed(
+                  4
+                )
+              ),
+
+            validFrom:
+              giftVoucher.validFrom,
+
+            validUntil:
+              giftVoucher.validUntil,
+          }
+        : null,
+  };
+};
+
+const buildVariantSummary = (
+  product
+) => {
+  const variants =
+    Array.isArray(
+      product?.variants
+    )
+      ? product.variants
+      : [];
+
+  if (
+    !variants.length
+  ) {
+    return {
+      hasVariants:
+        false,
+
+      variantCount:
+        0,
+
+      selectorCount:
+        0,
+
+      selectors:
+        [],
+    };
+  }
+
+  const selectorMap =
+    new Map();
+
+  for (
+    const variant of
+    variants
+  ) {
+    const attributeValues =
+      Array.isArray(
+        variant.attributeValues
+      )
+        ? variant.attributeValues
+        : [];
+
+    for (
+      const value of
+      attributeValues
+    ) {
+      const attribute =
+        value.attribute;
+
+      if (
+        !attribute ||
+        attribute.isVariantDefining !==
+          true
+      ) {
+        continue;
+      }
+
+      const attributeId =
+        attribute.id ||
+        value.attributeId;
+
+      if (
+        !attributeId
+      ) {
+        continue;
+      }
+
+      if (
+        !selectorMap.has(
+          attributeId
+        )
+      ) {
+        selectorMap.set(
+          attributeId,
+          {
+            id:
+              attributeId,
+
+            code:
+              String(
+                attribute.code ||
+                  ""
+              )
+                .trim()
+                .toUpperCase(),
+
+            name:
+              attribute.name ||
+              "Option",
+
+            displayOrder:
+              Number(
+                attribute.displayOrder ||
+                  0
+              ),
+
+            optionsMap:
+              new Map(),
+          }
+        );
+      }
+
+      const selector =
+        selectorMap.get(
+          attributeId
+        );
+
+      const option =
+        value.option;
+
+      const optionId =
+        option?.id ||
+        value.optionId ||
+        value.displayValue ||
+        null;
+
+      if (
+        !optionId ||
+        selector.optionsMap.has(
+          optionId
+        )
+      ) {
+        continue;
+      }
+
+      selector.optionsMap.set(
+        optionId,
+        {
+          id:
+            optionId,
+
+          label:
+            option?.label ||
+            value.displayValue ||
+            option?.value ||
+            "Option",
+
+          swatchValue:
+            option?.swatchValue ||
+            null,
+
+          displayOrder:
+            Number(
+              option?.displayOrder ||
+                value.sortOrder ||
+                0
+            ),
+        }
+      );
+    }
+  }
+
+  const selectors =
+    Array.from(
+      selectorMap.values()
+    )
+      .sort(
+        (
+          first,
+          second
+        ) =>
+          first.displayOrder -
+          second.displayOrder
+      )
+      .map(
+        (
+          selector
+        ) => {
+          const options =
+            Array.from(
+              selector.optionsMap
+                .values()
+            ).sort(
+              (
+                first,
+                second
+              ) =>
+                first.displayOrder -
+                second.displayOrder
+            );
+
+          const normalizedName =
+            String(
+              selector.name ||
+                ""
+            )
+              .trim()
+              .toLowerCase();
+
+          const isColor =
+            selector.code ===
+              "COLOR" ||
+            normalizedName ===
+              "color" ||
+            normalizedName ===
+              "colour";
+
+          return {
+            id:
+              selector.id,
+
+            code:
+              selector.code,
+
+            name:
+              selector.name,
+
+            optionCount:
+              options.length,
+
+            options:
+              isColor
+                ? options.map(
+                    (
+                      option
+                    ) => ({
+                      id:
+                        option.id,
+
+                      label:
+                        option.label,
+
+                      swatchValue:
+                        option.swatchValue,
+                    })
+                  )
+                : [],
+          };
+        }
+      );
+
+  return {
+    hasVariants:
+      variants.length >
+        1 &&
+      selectors.length >
+        0,
+
+    variantCount:
+      variants.length,
+
+    selectorCount:
+      selectors.length,
+
+    selectors,
+  };
+};
+
+const publicProduct = (
+  productModel,
+  apiBaseUrl,
+  availabilityByVariant
+) => {
   const product = toPlain(productModel);
   const variant = defaultVariant(product);
   const channel = Array.isArray(product.channels) ? product.channels[0] : null;
@@ -713,6 +1873,52 @@ const publicProduct = (productModel, apiBaseUrl) => {
     shortDescription:
       channel?.channelDescription || product.shortDescription || null,
     isFeatured: product.isFeatured === true,
+
+
+    delivery: {
+      expressDeliveryEnabled:
+        product.expressDeliveryEnabled ===
+        true,
+
+      expressDeliveryHours:
+        product.expressDeliveryHours !==
+          null &&
+        product.expressDeliveryHours !==
+          undefined
+          ? Number(
+              product.expressDeliveryHours
+            )
+          : null,
+
+      deliveryMinDays:
+        product.deliveryMinDays !==
+          null &&
+        product.deliveryMinDays !==
+          undefined
+          ? Number(
+              product.deliveryMinDays
+            )
+          : null,
+
+      deliveryMaxDays:
+        product.deliveryMaxDays !==
+          null &&
+        product.deliveryMaxDays !==
+          undefined
+          ? Number(
+              product.deliveryMaxDays
+            )
+          : null,
+
+      deliveryNote:
+        product.deliveryNote ||
+        null,
+    },
+
+    isDirectDelivery:
+      product.isDirectDelivery ===
+      true,
+
     taxPercent: Number(product.taxPercent || 0),
     brand: product.brand
       ? {
@@ -738,7 +1944,21 @@ const publicProduct = (productModel, apiBaseUrl) => {
           isDefault: variant.isDefault === true,
         }
       : null,
+    variantSummary:
+      buildVariantSummary(
+        product
+      ),
+
     price: variantPrice(variant),
+
+    availability:
+  publicAvailabilityService
+    .getAvailabilityForProduct({
+      product,
+
+      availabilityByVariant,
+    }),
+
     productUrl: `/products/${product.slug}`,
   };
 };
@@ -1333,6 +2553,13 @@ const sortProducts = (products, sort) => {
     case "PRICE_DESC":
       result.sort((a, b) => price(b) - price(a));
       break;
+    case "NEWEST":
+      result.sort((a, b) => {
+        const first = new Date(a.createdAt || 0).getTime();
+        const second = new Date(b.createdAt || 0).getTime();
+        return second - first;
+      });
+      break;
     case "NAME_ASC":
       result.sort((a, b) => a.name.localeCompare(b.name));
       break;
@@ -1348,6 +2575,126 @@ const sortProducts = (products, sort) => {
   return result;
 };
 
+const getPublicCategories = async ({
+  companyCode,
+  channel = "WEBSITE",
+  apiBaseUrl,
+}) => {
+  const normalizedChannel =
+    String(
+      channel ||
+      "WEBSITE"
+    )
+      .trim()
+      .toUpperCase();
+
+  if (
+    ![
+      "WEBSITE",
+      "KIOSK",
+    ].includes(
+      normalizedChannel
+    )
+  ) {
+    throw new AppError(
+      "Channel must be WEBSITE or KIOSK.",
+      400,
+      "INVALID_STOREFRONT_CHANNEL"
+    );
+  }
+
+  const company =
+    await getCompany(
+      companyCode
+    );
+
+  const categoryModels =
+    await db.Category.findAll({
+      where: {
+        companyId:
+          company.id,
+
+        parentCategoryId:
+          null,
+
+        isActive:
+          true,
+
+        isSearchable:
+          true,
+      },
+
+      include: [
+        mediaInclude(
+          company.id,
+          "thumbnailAsset"
+        ),
+
+        mediaInclude(
+          company.id,
+          "imageAsset"
+        ),
+
+        mediaInclude(
+          company.id,
+          "bannerAsset"
+        ),
+      ],
+
+      order: [
+        [
+          "sortOrder",
+          "ASC",
+        ],
+
+        [
+          "name",
+          "ASC",
+        ],
+      ],
+    });
+
+  const categories =
+    categoryModels.map(
+      (category) =>
+        publicCategory(
+          category,
+          apiBaseUrl
+        )
+    );
+
+  return {
+    company: {
+      id:
+        company.id,
+
+      name:
+        company.name,
+
+      code:
+        company.code,
+
+      currency:
+        company.currency,
+    },
+
+    categories,
+
+    meta: {
+      channel:
+        normalizedChannel,
+
+      total:
+        categories.length,
+
+      generatedAt:
+        new Date()
+          .toISOString(),
+    },
+  };
+};
+
+
 const getPublicCategory = async ({
   companyCode,
   slug,
@@ -1356,6 +2703,9 @@ const getPublicCategory = async ({
   apiBaseUrl,
 }) => {
   const now = new Date();
+
+
+
   const normalizedChannel = String(channel || "WEBSITE")
     .trim()
     .toUpperCase();
@@ -1369,21 +2719,50 @@ const getPublicCategory = async ({
   }
 
   const company = await getCompany(companyCode);
-  const category = await db.Category.findOne({
-    where: {
-      companyId: company.id,
-      slug: String(slug || "").trim().toLowerCase(),
-      isActive: true,
-      isSearchable: true,
-    },
-    include: [
-      mediaInclude(company.id, "thumbnailAsset"),
-      mediaInclude(company.id, "imageAsset"),
-      mediaInclude(company.id, "bannerAsset"),
-    ],
-  });
 
-  if (!category) {
+
+
+
+
+
+    /*
+  |--------------------------------------------------------------------------
+  | Main Category — Optimized Media Loading
+  |--------------------------------------------------------------------------
+  |
+  | Do not join thumbnailAsset/imageAsset/bannerAsset and all of their
+  | MediaAssetVariant rows directly into the Category query.
+  |
+  | The same MediaAsset may be reused for multiple category media roles.
+  | Loading the assets separately avoids SQL row multiplication and large
+  | Sequelize object graphs.
+  |--------------------------------------------------------------------------
+  */
+
+  const categoryModel =
+    await db.Category.findOne({
+      where: {
+        companyId:
+          company.id,
+
+        slug:
+          String(
+            slug || ""
+          )
+            .trim()
+            .toLowerCase(),
+
+        isActive:
+          true,
+
+        isSearchable:
+          true,
+      },
+    });
+
+  if (
+    !categoryModel
+  ) {
     throw new AppError(
       "Category was not found.",
       404,
@@ -1391,32 +2770,394 @@ const getPublicCategory = async ({
     );
   }
 
+  /*
+   * Convert to a plain object before manually attaching media.
+   */
+
+  const categoryPlain =
+    toPlain(
+      categoryModel
+    );
+
+  /*
+   * A category can use the same MediaAsset for multiple roles.
+   * De-duplicate the IDs before querying.
+   */
+
+  const categoryMediaAssetIds =
+    Array.from(
+      new Set(
+        [
+          categoryPlain
+            .thumbnailAssetId,
+
+          categoryPlain
+            .imageAssetId,
+
+          categoryPlain
+            .bannerAssetId,
+        ].filter(
+          Boolean
+        )
+      )
+    );
+
+  /*
+   * Load each referenced MediaAsset once.
+   *
+   * MediaAssetVariant is loaded separately so variants do not multiply
+   * MediaAsset rows in the main SQL query.
+   */
+
+  const categoryMediaAssets =
+    categoryMediaAssetIds.length
+      ? await db.MediaAsset.findAll({
+          where: {
+            id: {
+              [Op.in]:
+                categoryMediaAssetIds,
+            },
+
+            companyId:
+              company.id,
+
+            status:
+              "READY",
+
+            isPublic:
+              true,
+
+            isActive:
+              true,
+          },
+
+          include: [
+            {
+              model:
+                db.MediaAssetVariant,
+
+              as:
+                "variants",
+
+              required:
+                false,
+
+              separate:
+                true,
+
+                where: {
+                  companyId:
+                    company.id,
+                
+                  isActive:
+                    true,
+                
+                  variantType: {
+                    [Op.in]: [
+                      "THUMBNAIL",
+                      "SMALL",
+                    ],
+                  },
+                
+                  format: {
+                    [Op.in]: [
+                      "avif",
+                    ],
+                  },
+                },
+            },
+          ],
+        })
+      : [];
+
+  const categoryMediaMap =
+    new Map(
+      categoryMediaAssets.map(
+        (assetModel) => {
+          const asset =
+            toPlain(
+              assetModel
+            );
+
+          return [
+            String(
+              asset.id
+            ),
+            asset,
+          ];
+        }
+      )
+    );
+
+  /*
+   * Restore the exact relationship shape expected by publicCategory().
+   */
+
+  const category = {
+    ...categoryPlain,
+
+    thumbnailAsset:
+      categoryPlain
+        .thumbnailAssetId
+        ? categoryMediaMap.get(
+            String(
+              categoryPlain
+                .thumbnailAssetId
+            )
+          ) ||
+          null
+        : null,
+
+    imageAsset:
+      categoryPlain
+        .imageAssetId
+        ? categoryMediaMap.get(
+            String(
+              categoryPlain
+                .imageAssetId
+            )
+          ) ||
+          null
+        : null,
+
+    bannerAsset:
+      categoryPlain
+        .bannerAssetId
+        ? categoryMediaMap.get(
+            String(
+              categoryPlain
+                .bannerAssetId
+            )
+          ) ||
+          null
+        : null,
+  };
+
+
   const categoryIds = await descendantCategoryIds({
     companyId: company.id,
     rootCategoryId: category.id,
   });
 
-  const children = await db.Category.findAll({
-    where: {
-      companyId: company.id,
-      parentCategoryId: category.id,
-      isActive: true,
-    },
-    include: [
-      mediaInclude(company.id, "thumbnailAsset"),
-      mediaInclude(company.id, "imageAsset"),
-      mediaInclude(company.id, "bannerAsset"),
-    ],
-    order: [
-      ["sortOrder", "ASC"],
-      ["name", "ASC"],
-    ],
-  });
+
+    /*
+  |--------------------------------------------------------------------------
+  | Child Categories — Optimized Media Loading
+  |--------------------------------------------------------------------------
+  |
+  | IMPORTANT:
+  |
+  | Do NOT join thumbnailAsset/imageAsset/bannerAsset and all of their
+  | MediaAssetVariant rows into the Category query.
+  |
+  | A category may reuse the same MediaAsset for multiple roles and many
+  | categories may share the same banner. Joining three hasMany variant
+  | relationships causes a large SQL row multiplication.
+  |
+  | Instead:
+  |
+  | 1. Load child categories only.
+  | 2. Collect unique media asset IDs.
+  | 3. Load each MediaAsset once.
+  | 4. Load its variants separately.
+  | 5. Attach the assets back to each child category.
+  |--------------------------------------------------------------------------
+  */
+
+  const childRows =
+    await db.Category.findAll({
+      where: {
+        companyId:
+          company.id,
+
+        parentCategoryId:
+          category.id,
+
+        isActive:
+          true,
+      },
+
+      order: [
+        [
+          "sortOrder",
+          "ASC",
+        ],
+
+        [
+          "name",
+          "ASC",
+        ],
+      ],
+    });
+
+  /*
+   * Convert child Sequelize models to plain objects before attaching
+   * manually loaded media relationships.
+   */
+
+  const childPlainRows =
+    childRows.map(
+      (child) =>
+        toPlain(child)
+    );
+
+  /*
+   * Collect each referenced asset only once.
+   */
+
+  const childMediaAssetIds =
+    Array.from(
+      new Set(
+        childPlainRows
+          .flatMap(
+            (child) => [
+              child.thumbnailAssetId,
+              child.imageAssetId,
+              child.bannerAssetId,
+            ]
+          )
+          .filter(Boolean)
+      )
+    );
+
+  /*
+   * Load only the media assets actually referenced by these children.
+   *
+   * `separate: true` prevents MediaAssetVariant rows from multiplying
+   * the MediaAsset result set.
+   */
+
+  const childMediaAssets =
+    childMediaAssetIds.length
+      ? await db.MediaAsset.findAll({
+          where: {
+            id: {
+              [Op.in]:
+                childMediaAssetIds,
+            },
+
+            companyId:
+              company.id,
+
+            status:
+              "READY",
+
+            isPublic:
+              true,
+
+            isActive:
+              true,
+          },
+
+          include: [
+            {
+              model:
+                db.MediaAssetVariant,
+
+              as:
+                "variants",
+
+              required:
+                false,
+
+              separate:
+                true,
+
+                where: {
+                  companyId:
+                    company.id,
+                
+                  isActive:
+                    true,
+                
+                  variantType: {
+                    [Op.in]: [
+                      "THUMBNAIL",
+                      "SMALL",
+                    ],
+                  },
+                
+                  format: {
+                    [Op.in]: [
+                      "avif",
+                    ],
+                  },
+                },
+            },
+          ],
+        })
+      : [];
+
+  /*
+   * Build a lookup map.
+   */
+
+  const childMediaMap =
+    new Map(
+      childMediaAssets.map(
+        (assetModel) => {
+          const asset =
+            toPlain(
+              assetModel
+            );
+
+          return [
+            String(
+              asset.id
+            ),
+            asset,
+          ];
+        }
+      )
+    );
+
+  /*
+   * Restore the same object shape expected by publicCategory().
+   */
+
+  const children =
+    childPlainRows.map(
+      (child) => ({
+        ...child,
+
+        thumbnailAsset:
+          child.thumbnailAssetId
+            ? childMediaMap.get(
+                String(
+                  child.thumbnailAssetId
+                )
+              ) ||
+              null
+            : null,
+
+        imageAsset:
+          child.imageAssetId
+            ? childMediaMap.get(
+                String(
+                  child.imageAssetId
+                )
+              ) ||
+              null
+            : null,
+
+        bannerAsset:
+          child.bannerAssetId
+            ? childMediaMap.get(
+                String(
+                  child.bannerAssetId
+                )
+              ) ||
+              null
+            : null,
+      })
+    );
+
 
   let productIds = await categoryProductIds({
     companyId: company.id,
     categoryIds,
   });
+
 
   const brandIds = csv(query.brandIds || query.brands);
   if (brandIds.length && productIds.length) {
@@ -1432,6 +3173,7 @@ const getPublicCategory = async ({
     productIds = rows.map((row) => row.id);
   }
 
+
   const selectedAttributes =
     selectedAttributeFilters(query);
 
@@ -1443,77 +3185,582 @@ const getPublicCategory = async ({
         selectedAttributes,
     });
 
+
   const priceListModel = await findPriceList({
     companyId: company.id,
     channel: normalizedChannel,
     now,
   });
+
+
   const priceList = priceListModel ? toPlain(priceListModel) : null;
   const search = String(query.search || "").trim();
 
-  const productModels = productIds.length
+  /*
+  |--------------------------------------------------------------------------
+  | Category Products
+  |--------------------------------------------------------------------------
+  |
+  | Product availability MUST be calculated before pagination.
+  |
+  | Otherwise unavailable products are counted in totalItems and can occupy
+  | entire pages, producing empty pages even though later pages contain
+  | available products.
+  |--------------------------------------------------------------------------
+  */
+
+  const page =
+    Math.max(
+      Number(
+        query.page ||
+          1
+      ),
+      1
+    );
+
+  const pageSize =
+    Math.min(
+      Math.max(
+        Number(
+          query.pageSize ||
+            24
+        ),
+        1
+      ),
+      100
+    );
+
+  const sort =
+    String(
+      query.sort ||
+        "FEATURED"
+    )
+      .trim()
+      .toUpperCase();
+
+  const minPrice =
+    query.minPrice !==
+      undefined
+      ? Number(
+          query.minPrice
+        )
+      : null;
+
+  const maxPrice =
+    query.maxPrice !==
+      undefined
+      ? Number(
+          query.maxPrice
+        )
+      : null;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Phase 1 — Lightweight Eligible Products
+  |--------------------------------------------------------------------------
+  |
+  | Load only the fields needed for publication, availability, pricing,
+  | filters and sorting. Images/media/variant summary data are intentionally
+  | deferred until AFTER pagination.
+  |
+  |--------------------------------------------------------------------------
+  */
+
+  const eligibilityModels =
+  productIds.length
     ? await db.Product.findAll({
         where: {
-          companyId: company.id,
-          id: { [Op.in]: productIds },
-          status: "ACTIVE",
-          isSearchable: true,
+          companyId:
+            company.id,
+
+          id: {
+            [Op.in]:
+              productIds,
+          },
+
+          status:
+            "ACTIVE",
+
+          isSearchable:
+            true,
+
           ...(search
             ? {
                 [Op.or]: [
-                  { name: { [Op.iLike]: `%${search}%` } },
-                  { parentSku: { [Op.iLike]: `%${search}%` } },
-                  { shortDescription: { [Op.iLike]: `%${search}%` } },
+                  {
+                    name: {
+                      [Op.iLike]:
+                        `%${search}%`,
+                    },
+                  },
+
+                  {
+                    parentSku: {
+                      [Op.iLike]:
+                        `%${search}%`,
+                    },
+                  },
+
+                  {
+                    shortDescription: {
+                      [Op.iLike]:
+                        `%${search}%`,
+                    },
+                  },
                 ],
               }
             : {}),
         },
-        include: productIncludes({
-          companyId: company.id,
-          channel: normalizedChannel,
-          priceListId: priceList?.id || null,
-          now,
-        }),
-        order: [
-          ["isFeatured", "DESC"],
-          ["sortOrder", "ASC"],
-          ["createdAt", "DESC"],
-          [{ model: db.ProductImage, as: "images" }, "displayOrder", "ASC"],
-          [{ model: db.ProductVariant, as: "variants" }, "sortOrder", "ASC"],
+
+        /*
+        |--------------------------------------------------------------------------
+        | Lightweight Phase-1 Product Columns
+        |--------------------------------------------------------------------------
+        |
+        | Phase 1 runs BEFORE pagination and can contain hundreds of products.
+        |
+        | Only load fields required for:
+        |
+        | - publication
+        | - availability
+        | - pricing
+        | - filters
+        | - sorting
+        | - pagination
+        |
+        | Images/media/full product relationships remain deferred until
+        | Phase 2, after pagination.
+        |--------------------------------------------------------------------------
+        */
+
+        attributes: [
+          "id",
+          "companyId",
+          "brandId",
+          "name",
+          "slug",
+          "productType",
+          "parentSku",
+          "shortDescription",
+          "isFeatured",
+          "sortOrder",
+          "isDirectDelivery",
+          "createdAt",
         ],
-        distinct: true,
+
+        include:
+          categoryEligibilityIncludes({
+            companyId:
+              company.id,
+
+            channel:
+              normalizedChannel,
+
+            priceListId:
+              priceList?.id ||
+              null,
+
+            now,
+          }),
+
+        order: [
+          [
+            "isFeatured",
+            "DESC",
+          ],
+
+          [
+            "sortOrder",
+            "ASC",
+          ],
+
+          [
+            "createdAt",
+            "DESC",
+          ],
+        ],
+
+        distinct:
+          true,
       })
     : [];
 
-  let products = productModels.map((model) => publicProduct(model, apiBaseUrl));
-  const minPrice = query.minPrice !== undefined ? Number(query.minPrice) : null;
-  const maxPrice = query.maxPrice !== undefined ? Number(query.maxPrice) : null;
 
-  if (Number.isFinite(minPrice)) {
-    products = products.filter(
-      (product) => Number(product.price?.sellingPrice) >= minPrice
+  /*
+  |--------------------------------------------------------------------------
+  | Availability — All Lightweight Candidates
+  |--------------------------------------------------------------------------
+  */
+
+  const eligibilityAvailabilityByVariant =
+    await publicAvailabilityService
+      .getVariantAvailabilityMap({
+        companyId:
+          company.id,
+
+        products:
+          eligibilityModels,
+      });
+
+
+  let eligibleProducts =
+    publicAvailabilityService
+      .filterAvailablePublicProducts(
+        eligibilityModels.map(
+          (model) =>
+            categoryEligibilityProduct(
+              model,
+              eligibilityAvailabilityByVariant
+            )
+        )
+      );
+
+
+  /*
+  |--------------------------------------------------------------------------
+  | Gift Voucher Pricing — Before Price Filters / Sort / Pagination
+  |--------------------------------------------------------------------------
+  */
+
+  const eligibilityGiftVoucherItems =
+    eligibleProducts
+      .filter(
+        (product) =>
+          product.defaultVariant?.id &&
+          product.price?.sellingPrice !== null &&
+          product.price?.sellingPrice !== undefined
+      )
+      .map(
+        (product) => ({
+          productId:
+            product.id,
+
+          productVariantId:
+            product.defaultVariant.id,
+
+          sellingPrice:
+            product.price.sellingPrice,
+
+          quantity:
+            1,
+        })
+      );
+
+  const eligibilityGiftVoucherMap =
+    await giftVoucherPromotionService
+      .resolveApplicablePromotionsBatch({
+        companyId:
+          company.id,
+
+        items:
+          eligibilityGiftVoucherItems,
+
+        channelCode:
+          normalizedChannel,
+
+        effectiveDate:
+          now,
+      });
+
+  eligibleProducts =
+    eligibleProducts.map(
+      (product) => {
+        if (
+          !product.defaultVariant?.id ||
+          !product.price
+        ) {
+          return product;
+        }
+
+        const key =
+          `${product.id}:${product.defaultVariant.id}`;
+
+        const giftVoucher =
+          eligibilityGiftVoucherMap.get(
+            key
+          ) || null;
+
+        return {
+          ...product,
+
+          price:
+            applyGiftVoucherToPrice(
+              product.price,
+              giftVoucher
+            ),
+        };
+      }
     );
+
+
+  /*
+  |--------------------------------------------------------------------------
+  | Price Filters
+  |--------------------------------------------------------------------------
+  */
+
+  if (
+    Number.isFinite(
+      minPrice
+    )
+  ) {
+    eligibleProducts =
+      eligibleProducts.filter(
+        (product) =>
+          Number(
+            product.price
+              ?.sellingPrice
+          ) >= minPrice
+      );
   }
-  if (Number.isFinite(maxPrice)) {
-    products = products.filter(
-      (product) => Number(product.price?.sellingPrice) <= maxPrice
+
+  if (
+    Number.isFinite(
+      maxPrice
+    )
+  ) {
+    eligibleProducts =
+      eligibleProducts.filter(
+        (product) =>
+          Number(
+            product.price
+              ?.sellingPrice
+          ) <= maxPrice
+      );
+  }
+
+  
+  /*
+  |--------------------------------------------------------------------------
+  | Dynamic Filters
+  |--------------------------------------------------------------------------
+  |
+  | dynamicFilters() already loads specification values using targeted
+  | ProductAttributeValue / ProductVariantAttributeValue queries, so the
+  | full storefront product graph is not required here.
+  |
+  |--------------------------------------------------------------------------
+  */
+
+  const filters =
+    await dynamicFilters({
+      companyId:
+        company.id,
+
+      categoryIds,
+
+      products:
+        eligibleProducts,
+    });
+
+
+  /*
+  |--------------------------------------------------------------------------
+  | Sort Lightweight Products
+  |--------------------------------------------------------------------------
+  */
+
+  eligibleProducts =
+    sortProducts(
+      eligibleProducts,
+      sort
     );
-  }
 
-  const filters = await dynamicFilters({
-    companyId: company.id,
-    categoryIds,
-    products,
-  });
+  /*
+  |--------------------------------------------------------------------------
+  | Pagination BEFORE Full Hydration
+  |--------------------------------------------------------------------------
+  */
 
-  const sort = String(query.sort || "FEATURED").trim().toUpperCase();
-  products = sortProducts(products, sort);
+  const totalItems =
+    eligibleProducts.length;
 
-  const page = Math.max(Number(query.page || 1), 1);
-  const pageSize = Math.min(Math.max(Number(query.pageSize || 24), 1), 100);
-  const totalItems = products.length;
-  const totalPages = Math.ceil(totalItems / pageSize);
-  const listedProducts = products.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages =
+    Math.ceil(
+      totalItems /
+        pageSize
+    );
+
+  const pageProducts =
+    eligibleProducts.slice(
+      (page - 1) *
+        pageSize,
+
+      page *
+        pageSize
+    );
+
+  const pageProductIds =
+    pageProducts.map(
+      (product) =>
+        product.id
+    );
+
+
+  /*
+  |--------------------------------------------------------------------------
+  | Phase 2 — Fully Hydrate Current Page Only
+  |--------------------------------------------------------------------------
+  */
+
+  const pageProductModels =
+    pageProductIds.length
+      ? await db.Product.findAll({
+          where: {
+            companyId:
+              company.id,
+
+            id: {
+              [Op.in]:
+                pageProductIds,
+            },
+
+            status:
+              "ACTIVE",
+
+            isSearchable:
+              true,
+          },
+
+          include:
+            productIncludes({
+              companyId:
+                company.id,
+
+              channel:
+                normalizedChannel,
+
+              priceListId:
+                priceList?.id ||
+                null,
+
+              now,
+            }),
+
+          distinct:
+            true,
+        })
+      : [];
+
+
+  const pageAvailabilityByVariant =
+    await publicAvailabilityService
+      .getVariantAvailabilityMap({
+        companyId:
+          company.id,
+
+        products:
+          pageProductModels,
+      });
+
+
+  let listedProducts =
+    pageProductModels.map(
+      (model) =>
+        publicProduct(
+          model,
+          apiBaseUrl,
+          pageAvailabilityByVariant
+        )
+    );
+
+  /*
+  |--------------------------------------------------------------------------
+  | Reapply Already-Resolved Gift Voucher Pricing
+  |--------------------------------------------------------------------------
+  |
+  | Do not execute the promotion resolver a second time.
+  |
+  |--------------------------------------------------------------------------
+  */
+
+  listedProducts =
+    listedProducts.map(
+      (product) => {
+        if (
+          !product.defaultVariant?.id ||
+          !product.price
+        ) {
+          return product;
+        }
+
+        const key =
+          `${product.id}:${product.defaultVariant.id}`;
+
+        const giftVoucher =
+          eligibilityGiftVoucherMap.get(
+            key
+          ) || null;
+
+        return {
+          ...product,
+
+          price:
+            applyGiftVoucherToPrice(
+              product.price,
+              giftVoucher
+            ),
+        };
+      }
+    );
+
+  /*
+  |--------------------------------------------------------------------------
+  | Preserve Lightweight Sort / Pagination Order
+  |--------------------------------------------------------------------------
+  |
+  | SQL IN (...) does not guarantee input order.
+  |
+  |--------------------------------------------------------------------------
+  */
+
+  const pageOrder =
+    new Map(
+      pageProductIds.map(
+        (
+          productId,
+          index
+        ) => [
+          String(
+            productId
+          ),
+          index,
+        ]
+      )
+    );
+
+  listedProducts.sort(
+    (
+      first,
+      second
+    ) =>
+      (
+        pageOrder.get(
+          String(
+            first.id
+          )
+        ) ??
+        Number.MAX_SAFE_INTEGER
+      ) -
+      (
+        pageOrder.get(
+          String(
+            second.id
+          )
+        ) ??
+        Number.MAX_SAFE_INTEGER
+      )
+  );
+
+
+  const resolvedBreadcrumbs =
+    await breadcrumbs({
+      companyId:
+        company.id,
+
+      category,
+    });
+
 
   return {
     company: {
@@ -1522,9 +3769,23 @@ const getPublicCategory = async ({
       code: company.code,
       currency: company.currency,
     },
-    category: publicCategory(category, apiBaseUrl),
-    breadcrumbs: await breadcrumbs({ companyId: company.id, category }),
-    children: children.map((child) => publicCategory(child, apiBaseUrl)),
+    category:
+  compactPublicCategory(
+    category,
+    apiBaseUrl
+  ),
+
+breadcrumbs:
+  resolvedBreadcrumbs,
+
+children:
+  children.map(
+    (child) =>
+      compactPublicCategory(
+        child,
+        apiBaseUrl
+      )
+  ),
     products: listedProducts,
     filters,
     sortOptions: [
@@ -1575,6 +3836,1063 @@ const getPublicCategory = async ({
   };
 };
 
-module.exports = {
-  getPublicCategory,
+
+/*
+|--------------------------------------------------------------------------
+| Express Delivery Products
+|--------------------------------------------------------------------------
+|
+| This collection is driven ONLY by live inventory.
+|
+| DXB_SHJ:
+|   DXB_WAREHOUSE + DXB_WAFI + DXB_DEIRA_CC
+|
+| AUH:
+|   AUH_SAJ
+|
+| Available stock:
+|   quantityOnHand - quantityReserved
+|
+| The legacy Product.expressDeliveryEnabled flag is intentionally NOT used.
+|--------------------------------------------------------------------------
+*/
+
+const EXPRESS_DELIVERY_REGIONS = {
+  DXB_SHJ: {
+    code: "DXB_SHJ",
+    label: "Dubai / Sharjah",
+    deliveryLabel: "2-Hour Delivery — Dubai / Sharjah",
+    hours: 2,
+    locationCodes: [
+      "DXB_WAREHOUSE",
+      "DXB_WAFI",
+      "DXB_DEIRA_CC",
+    ],
+  },
+
+  AUH: {
+    code: "AUH",
+    label: "Abu Dhabi",
+    deliveryLabel: "1-Hour Delivery — Abu Dhabi",
+    hours: 1,
+    locationCodes: [
+      "AUH_SAJ",
+    ],
+  },
 };
+
+const normalizeExpressRegion = (
+  value
+) => {
+  const normalized =
+    String(
+      value ||
+      "DXB_SHJ"
+    )
+      .trim()
+      .toUpperCase();
+
+  if (
+    [
+      "DXB_SHJ",
+      "DUBAI_SHARJAH",
+      "DUBAI_SHJ",
+      "DXB-SHJ",
+    ].includes(
+      normalized
+    )
+  ) {
+    return "DXB_SHJ";
+  }
+
+  if (
+    [
+      "AUH",
+      "ABU_DHABI",
+      "ABUDHABI",
+      "ABU-DHABI",
+    ].includes(
+      normalized
+    )
+  ) {
+    return "AUH";
+  }
+
+  throw new AppError(
+    "Express delivery region must be DXB_SHJ or AUH.",
+    400,
+    "INVALID_EXPRESS_DELIVERY_REGION"
+  );
+};
+
+const getExpressEligibleVariantMap =
+  async ({
+    companyId,
+    region,
+  }) => {
+    const config =
+      EXPRESS_DELIVERY_REGIONS[
+        region
+      ];
+
+    const locations =
+      await db.InventoryLocation.findAll({
+        where: {
+          companyId,
+
+          code: {
+            [Op.in]:
+              config.locationCodes,
+          },
+
+          isActive:
+            true,
+
+          isDeliveryEnabled:
+            true,
+        },
+
+        attributes: [
+          "id",
+          "code",
+          "name",
+        ],
+
+        raw:
+          true,
+      });
+
+    if (
+      !locations.length
+    ) {
+      return {
+        eligibleVariantIds:
+          [],
+
+        availableByVariant:
+          new Map(),
+      };
+    }
+
+    const locationIds =
+      locations.map(
+        (location) =>
+          location.id
+      );
+
+    const balances =
+      await db.InventoryBalance.findAll({
+        where: {
+          companyId,
+
+          inventoryLocationId: {
+            [Op.in]:
+              locationIds,
+          },
+        },
+
+        attributes: [
+          "productVariantId",
+          "inventoryLocationId",
+          "quantityOnHand",
+          "quantityReserved",
+        ],
+
+        raw:
+          true,
+      });
+
+    const availableByVariant =
+      new Map();
+
+    for (
+      const balance of
+      balances
+    ) {
+      const onHand =
+        Number(
+          balance.quantityOnHand ||
+          0
+        );
+
+      const reserved =
+        Number(
+          balance.quantityReserved ||
+          0
+        );
+
+      const available =
+        Math.max(
+          0,
+          onHand -
+            reserved
+        );
+
+      if (
+        available <=
+        0
+      ) {
+        continue;
+      }
+
+      const current =
+        Number(
+          availableByVariant.get(
+            balance.productVariantId
+          ) ||
+          0
+        );
+
+      availableByVariant.set(
+        balance.productVariantId,
+        current +
+          available
+      );
+    }
+
+    return {
+      eligibleVariantIds:
+        Array.from(
+          availableByVariant.keys()
+        ),
+
+      availableByVariant,
+    };
+  };
+
+const getExpressDeliveryProducts =
+  async ({
+    companyCode,
+    region =
+      "DXB_SHJ",
+    channel =
+      "WEBSITE",
+    query =
+      {},
+    apiBaseUrl,
+  }) => {
+    const now =
+      new Date();
+
+    const normalizedRegion =
+      normalizeExpressRegion(
+        region ||
+        query.region
+      );
+
+    const regionConfig =
+      EXPRESS_DELIVERY_REGIONS[
+        normalizedRegion
+      ];
+
+    const normalizedChannel =
+      String(
+        channel ||
+        "WEBSITE"
+      )
+        .trim()
+        .toUpperCase();
+
+    if (
+      ![
+        "WEBSITE",
+        "KIOSK",
+      ].includes(
+        normalizedChannel
+      )
+    ) {
+      throw new AppError(
+        "Channel must be WEBSITE or KIOSK.",
+        400,
+        "INVALID_STOREFRONT_CHANNEL"
+      );
+    }
+
+    const company =
+      await getCompany(
+        companyCode
+      );
+
+    const {
+      eligibleVariantIds,
+      availableByVariant,
+    } =
+      await getExpressEligibleVariantMap({
+        companyId:
+          company.id,
+
+        region:
+          normalizedRegion,
+      });
+
+    const page =
+      Math.max(
+        Number(
+          query.page ||
+          1
+        ),
+        1
+      );
+
+    const pageSize =
+      Math.min(
+        Math.max(
+          Number(
+            query.pageSize ||
+            24
+          ),
+          1
+        ),
+        100
+      );
+
+    const sort =
+      String(
+        query.sort ||
+        "FEATURED"
+      )
+        .trim()
+        .toUpperCase();
+
+    const search =
+      String(
+        query.search ||
+        ""
+      ).trim();
+
+    const brandIds =
+      csv(
+        query.brandIds ||
+        query.brands
+      );
+
+    const categoryIds =
+      csv(
+        query.categoryIds ||
+        query.categories
+      );
+
+    const minPrice =
+      query.minPrice !==
+        undefined &&
+      query.minPrice !==
+        ""
+        ? Number(
+            query.minPrice
+          )
+        : null;
+
+    const maxPrice =
+      query.maxPrice !==
+        undefined &&
+      query.maxPrice !==
+        ""
+        ? Number(
+            query.maxPrice
+          )
+        : null;
+
+    if (
+      !eligibleVariantIds.length
+    ) {
+      return {
+        company: {
+          id:
+            company.id,
+
+          name:
+            company.name,
+
+          code:
+            company.code,
+
+          currency:
+            company.currency,
+        },
+
+        region: {
+          ...regionConfig,
+        },
+
+        products:
+          [],
+
+        filters: {
+          categories:
+            [],
+          brands:
+            [],
+          price: {
+            minimum:
+              null,
+            maximum:
+              null,
+            currencyCode:
+              "AED",
+          },
+        },
+
+        sortOptions: [
+          {
+            value:
+              "FEATURED",
+            label:
+              "Featured",
+          },
+          {
+            value:
+              "PRICE_LOW_TO_HIGH",
+            label:
+              "Price: Low to High",
+          },
+          {
+            value:
+              "PRICE_HIGH_TO_LOW",
+            label:
+              "Price: High to Low",
+          },
+          {
+            value:
+              "NAME_ASC",
+            label:
+              "Name: A to Z",
+          },
+        ],
+
+        pagination: {
+          page,
+          pageSize,
+          totalItems:
+            0,
+          totalPages:
+            0,
+          hasPreviousPage:
+            false,
+          hasNextPage:
+            false,
+        },
+
+        meta: {
+          channel:
+            normalizedChannel,
+
+          generatedAt:
+            new Date()
+              .toISOString(),
+        },
+      };
+    }
+
+    const eligibleVariantRows =
+      await db.ProductVariant.findAll({
+        where: {
+          companyId:
+            company.id,
+
+          id: {
+            [Op.in]:
+              eligibleVariantIds,
+          },
+
+          status:
+            "ACTIVE",
+        },
+
+        attributes: [
+          "id",
+          "productId",
+        ],
+
+        raw:
+          true,
+      });
+
+    const productIds =
+      Array.from(
+        new Set(
+          eligibleVariantRows.map(
+            (row) =>
+              row.productId
+          )
+        )
+      );
+
+    const priceListModel =
+      await findPriceList({
+        companyId:
+          company.id,
+
+        channel:
+          normalizedChannel,
+
+        now,
+      });
+
+    const priceList =
+      priceListModel
+        ? toPlain(
+            priceListModel
+          )
+        : null;
+
+    const productModels =
+      productIds.length
+        ? await db.Product.findAll({
+            where: {
+              companyId:
+                company.id,
+
+              id: {
+                [Op.in]:
+                  productIds,
+              },
+
+              status:
+                "ACTIVE",
+
+              isSearchable:
+                true,
+
+              ...(brandIds.length
+                ? {
+                    brandId: {
+                      [Op.in]:
+                        brandIds,
+                    },
+                  }
+                : {}),
+
+              ...(categoryIds.length
+                ? {
+                    primaryCategoryId: {
+                      [Op.in]:
+                        categoryIds,
+                    },
+                  }
+                : {}),
+
+              ...(search
+                ? {
+                    [Op.or]: [
+                      {
+                        name: {
+                          [Op.iLike]:
+                            `%${search}%`,
+                        },
+                      },
+
+                      {
+                        parentSku: {
+                          [Op.iLike]:
+                            `%${search}%`,
+                        },
+                      },
+
+                      {
+                        shortDescription: {
+                          [Op.iLike]:
+                            `%${search}%`,
+                        },
+                      },
+                    ],
+                  }
+                : {}),
+            },
+
+            include:
+              productIncludes({
+                companyId:
+                  company.id,
+
+                channel:
+                  normalizedChannel,
+
+                priceListId:
+                  priceList?.id ||
+                  null,
+
+                now,
+              }),
+
+            order: [
+              [
+                "isFeatured",
+                "DESC",
+              ],
+
+              [
+                "sortOrder",
+                "ASC",
+              ],
+
+              [
+                "createdAt",
+                "DESC",
+              ],
+            ],
+
+            distinct:
+              true,
+          })
+        : [];
+
+    const availabilityByVariant =
+      await publicAvailabilityService
+        .getVariantAvailabilityMap({
+          companyId:
+            company.id,
+
+          products:
+            productModels,
+        });
+
+    let products =
+      publicAvailabilityService
+        .filterAvailablePublicProducts(
+          productModels.map(
+            (model) =>
+              publicProduct(
+                model,
+                apiBaseUrl,
+                availabilityByVariant
+              )
+          )
+        );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Keep Product Card and Collection Eligibility Aligned
+    |--------------------------------------------------------------------------
+    |
+    | StorefrontProductCard currently checks express eligibility using the
+    | default variant. To make the collection and its badge always agree,
+    | only products whose default variant is express-eligible are listed.
+    |--------------------------------------------------------------------------
+    */
+
+    const eligibleVariantSet =
+      new Set(
+        eligibleVariantIds
+      );
+
+    products =
+      products.filter(
+        (product) =>
+          product.defaultVariant
+            ?.id &&
+          eligibleVariantSet.has(
+            product.defaultVariant
+              .id
+          )
+      );
+
+    products =
+      products.map(
+        (product) => ({
+          ...product,
+
+          expressDelivery: {
+            region:
+              normalizedRegion,
+
+            regionLabel:
+              regionConfig.label,
+
+            deliveryLabel:
+              regionConfig
+                .deliveryLabel,
+
+            hours:
+              regionConfig.hours,
+
+            availableQuantity:
+              Number(
+                availableByVariant.get(
+                  product
+                    .defaultVariant
+                    ?.id
+                ) ||
+                0
+              ),
+
+            locationCodes: [
+              ...regionConfig
+                .locationCodes,
+            ],
+          },
+        })
+      );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Dynamic Express Filters
+    |--------------------------------------------------------------------------
+    |
+    | Build counts BEFORE the currently selected category/brand/price filters
+    | are applied so the sidebar remains useful.
+    |--------------------------------------------------------------------------
+    */
+
+    const categoryFilterMap =
+      new Map();
+
+    const brandFilterMap =
+      new Map();
+
+    const allPrices =
+      [];
+
+    for (
+      const product of
+      products
+    ) {
+      if (
+        product.primaryCategory
+          ?.id
+      ) {
+        const current =
+          categoryFilterMap.get(
+            product.primaryCategory.id
+          ) || {
+            id:
+              product.primaryCategory.id,
+
+            label:
+              product.primaryCategory.name,
+
+            slug:
+              product.primaryCategory.slug ||
+              null,
+
+            count:
+              0,
+          };
+
+        current.count +=
+          1;
+
+        categoryFilterMap.set(
+          product.primaryCategory.id,
+          current
+        );
+      }
+
+      if (
+        product.brand
+          ?.id
+      ) {
+        const current =
+          brandFilterMap.get(
+            product.brand.id
+          ) || {
+            id:
+              product.brand.id,
+
+            label:
+              product.brand.name,
+
+            slug:
+              product.brand.slug ||
+              null,
+
+            count:
+              0,
+          };
+
+        current.count +=
+          1;
+
+        brandFilterMap.set(
+          product.brand.id,
+          current
+        );
+      }
+
+      const numericPrice =
+        Number(
+          product.price
+            ?.sellingPrice
+        );
+
+      if (
+        Number.isFinite(
+          numericPrice
+        )
+      ) {
+        allPrices.push(
+          numericPrice
+        );
+      }
+    }
+
+    if (
+      categoryIds.length
+    ) {
+      const allowed =
+        new Set(
+          categoryIds
+        );
+
+      products =
+        products.filter(
+          (product) =>
+            product.primaryCategory
+              ?.id &&
+            allowed.has(
+              product.primaryCategory.id
+            )
+        );
+    }
+
+    if (
+      brandIds.length
+    ) {
+      const allowed =
+        new Set(
+          brandIds
+        );
+
+      products =
+        products.filter(
+          (product) =>
+            product.brand
+              ?.id &&
+            allowed.has(
+              product.brand.id
+            )
+        );
+    }
+
+    if (
+      Number.isFinite(
+        minPrice
+      )
+    ) {
+      products =
+        products.filter(
+          (product) =>
+            Number(
+              product.price
+                ?.sellingPrice
+            ) >=
+            minPrice
+        );
+    }
+
+    if (
+      Number.isFinite(
+        maxPrice
+      )
+    ) {
+      products =
+        products.filter(
+          (product) =>
+            Number(
+              product.price
+                ?.sellingPrice
+            ) <=
+            maxPrice
+        );
+    }
+
+    const filters = {
+      categories:
+        Array.from(
+          categoryFilterMap.values()
+        ).sort(
+          (a, b) =>
+            a.label.localeCompare(
+              b.label
+            )
+        ),
+
+      brands:
+        Array.from(
+          brandFilterMap.values()
+        ).sort(
+          (a, b) =>
+            a.label.localeCompare(
+              b.label
+            )
+        ),
+
+      price: {
+        minimum:
+          allPrices.length
+            ? Math.min(
+                ...allPrices
+              )
+            : null,
+
+        maximum:
+          allPrices.length
+            ? Math.max(
+                ...allPrices
+              )
+            : null,
+
+        currencyCode:
+          products.find(
+            (product) =>
+              product.price
+                ?.currencyCode
+          )?.price
+            ?.currencyCode ||
+          "AED",
+      },
+    };
+
+    products =
+      sortProducts(
+        products,
+        sort
+      );
+
+    const totalItems =
+      products.length;
+
+    const totalPages =
+      Math.ceil(
+        totalItems /
+        pageSize
+      );
+
+    const listedProducts =
+      products.slice(
+        (page -
+          1) *
+          pageSize,
+
+        page *
+          pageSize
+      );
+
+    return {
+      company: {
+        id:
+          company.id,
+
+        name:
+          company.name,
+
+        code:
+          company.code,
+
+        currency:
+          company.currency,
+      },
+
+      region: {
+        ...regionConfig,
+      },
+
+      products:
+        listedProducts,
+
+      filters,
+
+      sortOptions: [
+        {
+          value:
+            "FEATURED",
+          label:
+            "Featured",
+        },
+        {
+          value:
+            "PRICE_LOW_TO_HIGH",
+          label:
+            "Price: Low to High",
+        },
+        {
+          value:
+            "PRICE_HIGH_TO_LOW",
+          label:
+            "Price: High to Low",
+        },
+        {
+          value:
+            "NAME_ASC",
+          label:
+            "Name: A to Z",
+        },
+      ],
+
+      pagination: {
+        page,
+        pageSize,
+        totalItems,
+        totalPages,
+        hasPreviousPage:
+          page >
+          1,
+        hasNextPage:
+          page <
+          totalPages,
+      },
+
+      appliedFilters: {
+        search:
+          search ||
+          null,
+
+        categoryIds,
+
+        brandIds,
+
+        minPrice:
+          Number.isFinite(
+            minPrice
+          )
+            ? minPrice
+            : null,
+
+        maxPrice:
+          Number.isFinite(
+            maxPrice
+          )
+            ? maxPrice
+            : null,
+
+        sort,
+      },
+
+      resolvedPriceList:
+        priceList
+          ? {
+              id:
+                priceList.id,
+
+              code:
+                priceList.code,
+
+              name:
+                priceList.name,
+
+              currencyCode:
+                priceList
+                  .currencyCode,
+
+              isTaxInclusive:
+                priceList
+                  .isTaxInclusive,
+            }
+          : null,
+
+      meta: {
+        channel:
+          normalizedChannel,
+
+        generatedAt:
+          new Date()
+            .toISOString(),
+      },
+    };
+  };
+
+  module.exports = {
+    getPublicCategories,
+    getPublicCategory,
+    getExpressDeliveryProducts,
+  };

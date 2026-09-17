@@ -152,6 +152,69 @@ const db = require(
         payload.parentSku
       ) || null,
   
+
+    erpId:
+      clean(
+        payload.erpId
+      ) || null,
+
+    isDirectDelivery:
+      payload.isDirectDelivery ===
+      true,
+
+    directDeliverySupplierId:
+      payload.isDirectDelivery ===
+      true
+        ? payload.directDeliverySupplierId ||
+          null
+        : null,
+
+    directDeliveryLeadTimeDays:
+      payload.isDirectDelivery ===
+        true &&
+      payload.directDeliveryLeadTimeDays !==
+        null &&
+      payload.directDeliveryLeadTimeDays !==
+        undefined
+        ? Number(
+            payload.directDeliveryLeadTimeDays
+          )
+        : null,
+
+    directDeliveryNote:
+      payload.isDirectDelivery ===
+      true
+        ? clean(
+            payload.directDeliveryNote
+          ) || null
+        : null,
+
+    expressDeliveryEnabled:
+      payload.expressDeliveryEnabled ===
+      true,
+
+    expressDeliveryHours:
+      payload.expressDeliveryEnabled ===
+      true
+        ? Number(
+            payload.expressDeliveryHours ||
+            4
+          )
+        : null,
+
+    deliveryMinDays:
+      payload.deliveryMinDays ??
+      null,
+
+    deliveryMaxDays:
+      payload.deliveryMaxDays ??
+      null,
+
+    deliveryNote:
+      clean(
+        payload.deliveryNote
+      ) || null,
+
     shortDescription:
       payload.shortDescription ||
       null,
@@ -368,14 +431,25 @@ const db = require(
     payload,
     transaction,
   }) => {
-    await product.update(
-      buildProductModelPayload({
-        payload,
-        companyId,
+    const updateValues = {
+      ...payload,
+      updatedBy:
         userId,
-        isCreate:
-          false,
-      }),
+    };
+
+    delete updateValues.companyId;
+    delete updateValues.categoryIds;
+    delete updateValues.categories;
+    delete updateValues.collectionIds;
+    delete updateValues.collections;
+    delete updateValues.channels;
+    delete updateValues.attributeValues;
+    delete updateValues.mediaImportMode;
+    delete updateValues.images;
+    delete updateValues.variants;
+
+    await product.update(
+      updateValues,
       {
         transaction,
       }
@@ -1303,6 +1377,12 @@ const replaceVariantImages =
         );
     }
   
+    if (
+      Object.prototype.hasOwnProperty.call(
+        variantPayload,
+        "attributeValues"
+      )
+    ) {
     await replaceVariantAttributeValues({
       companyId,
   
@@ -1315,7 +1395,14 @@ const replaceVariantImages =
   
       transaction,
     });
+    }
   
+    if (
+      Object.prototype.hasOwnProperty.call(
+        variantPayload,
+        "channels"
+      )
+    ) {
     await replaceVariantChannels({
       companyId,
   
@@ -1328,7 +1415,14 @@ const replaceVariantImages =
   
       transaction,
     });
+    }
   
+    if (
+      Object.prototype.hasOwnProperty.call(
+        variantPayload,
+        "prices"
+      )
+    ) {
     await replaceVariantPrices({
       companyId,
   
@@ -1343,6 +1437,7 @@ const replaceVariantImages =
   
       transaction,
     });
+    }
 
     const variantMediaImportMode =
 
@@ -1363,6 +1458,12 @@ const replaceVariantImages =
 
 
 
+    if (
+      Object.prototype.hasOwnProperty.call(
+        variantPayload,
+        "images"
+      )
+    ) {
     await syncVariantImages({
 
 
@@ -1394,6 +1495,7 @@ const replaceVariantImages =
 
 
     });
+    }
 
 
     
@@ -1622,6 +1724,12 @@ const replaceVariantImages =
         "CREATE";
     }
   
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "categories"
+      )
+    ) {
     await replaceProductCategories({
       companyId,
   
@@ -1636,7 +1744,14 @@ const replaceVariantImages =
   
       transaction,
     });
+    }
   
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "collections"
+      )
+    ) {
     await replaceProductCollections({
       companyId,
   
@@ -1653,7 +1768,14 @@ const replaceVariantImages =
   
       transaction,
     });
+    }
   
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "attributeValues"
+      )
+    ) {
     await replaceProductAttributeValues({
       companyId,
   
@@ -1666,7 +1788,14 @@ const replaceVariantImages =
   
       transaction,
     });
+    }
   
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "channels"
+      )
+    ) {
     await replaceProductChannels({
       companyId,
   
@@ -1679,6 +1808,7 @@ const replaceVariantImages =
   
       transaction,
     });
+    }
 
 
     const mediaImportMode =
@@ -1687,6 +1817,12 @@ const replaceVariantImages =
         "MERGE"
       );
 
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "images"
+      )
+    ) {
     await syncProductImages({
       companyId,
       productId:
@@ -1696,6 +1832,7 @@ const replaceVariantImages =
       mediaImportMode,
       transaction,
     });
+    }
   
     const variantResults =
       await executeVariants({

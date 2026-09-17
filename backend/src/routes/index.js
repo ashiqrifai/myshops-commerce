@@ -32,9 +32,9 @@ const mediaAssetRoutes = require(
   "../modules/media-assets/mediaAsset.routes"
 );
 
-const publicStorefrontRoutes =
+const publicPreBookingRoutes =
   require(
-    "../modules/public-storefront/publicStorefront.routes"
+    "../modules/public-pre-booking/publicPreBooking.routes"
   );
 
 const navigationRoutes = require(
@@ -128,6 +128,54 @@ require(
   "../modules/collection-import/collectionImport.routes"
 );
 
+const supplierRoutes = require(
+  "../modules/suppliers/supplier.routes"
+);
+
+const inventoryLocationRoutes = require(
+  "../modules/inventory-locations/inventoryLocation.routes"
+);
+
+const inventoryRoutes = require(
+  "../modules/inventory/inventory.routes"
+);
+
+const inventoryImportRoutes =
+  require("../modules/inventory-import/inventoryImport.routes");
+
+const tamaraRoutes = require("../routes/tamaraRoutes");
+const tabbyRoutes = require("../routes/tabbyRoutes");
+
+const adminOrderRoutes =
+  require(
+    "./adminOrderRoutes"
+  );
+
+  const publicOrderTrackingRoutes =
+  require(
+    "./publicOrderTracking.routes"
+  );
+
+  const productMergeRoutes = require(
+    "../modules/products/productMerge.routes"
+  );
+
+  const giftVoucherPromotionRoutes = require("../modules/gift-voucher-promotions/giftVoucherPromotion.routes");
+
+
+  const bundlePromotionRoutes = require(
+    "../modules/bundle-promotions/bundlePromotion.routes"
+  );
+
+  const preBookingRoutes =
+  require(
+    "../modules/pre-booking/preBooking.routes"
+  );
+
+  const publicStorefrontRoutes =
+  require(
+    "../modules/public-storefront/publicStorefront.routes"
+  );
 
 
 const router = express.Router();
@@ -189,6 +237,13 @@ router.use(
   "/public/storefront",
   publicStorefrontRoutes
 );
+
+
+router.use(
+  "/public/pre-booking",
+  publicPreBookingRoutes
+);
+
 
 router.use(
   "/admin/cms/navigation",
@@ -290,5 +345,66 @@ router.use(
   "/collection-import",
   collectionImportRoutes
 );
+
+router.use(
+  "/suppliers",
+  supplierRoutes
+);
+
+router.use(
+  "/inventory-locations",
+  inventoryLocationRoutes
+);
+
+router.use(
+  "/inventory",
+  inventoryRoutes
+);
+
+router.use(
+  "/inventory-import",
+  inventoryImportRoutes
+);
+
+router.use(
+  "/payments/tamara",
+  tamaraRoutes
+);
+
+router.use(
+  "/payments/tabby",
+  tabbyRoutes
+);
+
+router.use(
+  "/admin/orders",
+  adminOrderRoutes
+);
+
+router.use(
+  "/public/order-tracking",
+  publicOrderTrackingRoutes
+);
+
+router.use(
+  "/products/merge",
+  productMergeRoutes
+);
+
+
+router.use("/gift-voucher-promotions", giftVoucherPromotionRoutes);
+
+
+router.use(
+  "/bundle-promotions",
+  bundlePromotionRoutes
+);
+
+
+router.use(
+  "/pre-booking",
+  preBookingRoutes
+);
+
 
 module.exports = router;

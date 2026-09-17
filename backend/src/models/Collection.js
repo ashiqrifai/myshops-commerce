@@ -96,6 +96,17 @@ const {
           defaultValue:
             "MANUAL",
         },
+
+        smartRules: {
+          type:
+            DataTypes.JSONB,
+
+          allowNull:
+            true,
+
+          defaultValue:
+            null,
+        },
   
         sortOrder: {
           type:

@@ -24,13 +24,32 @@ import type {
 } from "@/types/category";
 
 interface CategoryGridEditorProps {
-  value: Record<string, unknown>;
+  value:
+    Record<
+      string,
+      unknown
+    >;
 
   settings:
-    Record<string, unknown>;
+    Record<
+      string,
+      unknown
+    >;
 
   onChange: (
-    value: Record<string, unknown>
+    value:
+      Record<
+        string,
+        unknown
+      >
+  ) => void;
+
+  onSettingsChange: (
+    value:
+      Record<
+        string,
+        unknown
+      >
   ) => void;
 }
 
@@ -121,10 +140,73 @@ const getStringValue = (
     : fallback;
 };
 
+function BooleanCard({
+  label,
+  description,
+  value,
+  onChange,
+}: {
+  label: string;
+  description?: string;
+  value: boolean;
+  onChange: (
+    value: boolean
+  ) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        onChange(
+          !value
+        )
+      }
+      className="flex w-full items-center justify-between gap-4 rounded-xl border border-[#e1e3e5] bg-white p-4 text-left transition hover:bg-[#fafafa]"
+    >
+      <span>
+        <span className="block text-sm font-medium text-[#202223]">
+          {label}
+        </span>
+
+        {description ? (
+          <span className="mt-1 block text-xs leading-5 text-[#6d7175]">
+            {
+              description
+            }
+          </span>
+        ) : null}
+      </span>
+
+      <span
+        className={[
+          "relative h-6 w-11 shrink-0 rounded-full transition",
+          value
+            ? "bg-[#303030]"
+            : "bg-[#c9cccf]",
+        ].join(
+          " "
+        )}
+      >
+        <span
+          className={[
+            "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition",
+            value
+              ? "left-[22px]"
+              : "left-0.5",
+          ].join(
+            " "
+          )}
+        />
+      </span>
+    </button>
+  );
+}
+
 export default function CategoryGridEditor({
   value,
   settings,
   onChange,
+  onSettingsChange,
 }: CategoryGridEditorProps) {
   const [search, setSearch] =
     useState("");
@@ -261,6 +343,33 @@ export default function CategoryGridEditor({
       ...value,
       [field]: fieldValue,
     });
+  };
+
+  const updateSettings = (
+    changes:
+      Record<
+        string,
+        unknown
+      >
+  ) => {
+    onSettingsChange({
+      ...settings,
+      ...changes,
+    });
+  };
+
+  const updateSetting = (
+    field: string,
+    fieldValue: unknown
+  ) => {
+    onChange({
+      ...value,
+    });
+  
+    /*
+     * We need a settings updater from
+     * the parent editor.
+     */
   };
 
   const handleToggleCategory = (

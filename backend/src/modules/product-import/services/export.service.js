@@ -717,6 +717,13 @@ const loadProductsForExport =
               `%${search}%`,
           },
         },
+
+        {
+          erpId: {
+            [Op.iLike]:
+              `%${search}%`,
+          },
+        },
       ];
     }
 
@@ -775,6 +782,7 @@ const loadExportChildren =
       return {
         categoryAssignments: [],
         collectionAssignments: [],
+        directDeliverySuppliers: [],
         productChannels: [],
         productImages: [],
         productAttributes: [],
@@ -1080,6 +1088,41 @@ const loadExportChildren =
             )
         ).values(),
       ];
+    const directDeliverySupplierIds =
+      [
+        ...new Set(
+          products
+            .map(
+              (product) =>
+                asPlain(
+                  product
+                ).directDeliverySupplierId
+            )
+            .filter(Boolean)
+        ),
+      ];
+
+    const directDeliverySuppliers =
+      directDeliverySupplierIds.length
+        ? await db.Supplier.findAll({
+            where: {
+              companyId,
+
+              id: {
+                [Op.in]:
+                  directDeliverySupplierIds,
+              },
+            },
+
+            attributes: [
+              "id",
+              "code",
+              "name",
+              "isActive",
+            ],
+          })
+        : [];
+
 
     return {
       categoryAssignments:
@@ -1089,6 +1132,11 @@ const loadExportChildren =
 
       collectionAssignments:
         collectionAssignments.map(
+          asPlain
+        ),
+
+      directDeliverySuppliers:
+        directDeliverySuppliers.map(
           asPlain
         ),
 
@@ -1283,6 +1331,19 @@ const buildRows = ({
   references,
   children,
 }) => {
+  const directDeliverySupplierById =
+    new Map(
+      (
+        children.directDeliverySuppliers ||
+        []
+      ).map(
+        (supplier) => [
+          supplier.id,
+          supplier,
+        ]
+      )
+    );
+
   const categoriesByProduct =
     groupBy(
       children.categoryAssignments,
@@ -1562,6 +1623,55 @@ const buildRows = ({
             false
           ),
 
+
+        erpId:
+          product.erpId ||
+          "",
+
+        isDirectDelivery:
+          toCsvBoolean(
+            product.isDirectDelivery ===
+            true
+          ),
+
+        directDeliverySupplierCode:
+          product.directDeliverySupplierId
+            ? directDeliverySupplierById.get(
+                product.directDeliverySupplierId
+              )?.code ||
+              ""
+            : "",
+
+        directDeliveryLeadTimeDays:
+          product.directDeliveryLeadTimeDays ??
+          "",
+
+        directDeliveryNote:
+          product.directDeliveryNote ||
+          "",
+
+        expressDeliveryEnabled:
+          toCsvBoolean(
+            product.expressDeliveryEnabled ===
+            true
+          ),
+
+        expressDeliveryHours:
+          product.expressDeliveryHours ??
+          "",
+
+        deliveryMinDays:
+          product.deliveryMinDays ??
+          "",
+
+        deliveryMaxDays:
+          product.deliveryMaxDays ??
+          "",
+
+        deliveryNote:
+          product.deliveryNote ||
+          "",
+
         websiteVisible:
           toCsvBoolean(
             website?.isVisible ===
@@ -1688,6 +1798,37 @@ const buildRows = ({
 
         dimensionUnit:
           variant.dimensionUnit ||
+          "",
+
+        variantOverrideDeliverySettings:
+          toCsvBoolean(
+            variant.overrideDeliverySettings ===
+            true
+          ),
+
+        variantExpressDeliveryEnabled:
+          variant.overrideDeliverySettings ===
+            true
+            ? toCsvBoolean(
+                variant.expressDeliveryEnabled ===
+                true
+              )
+            : "",
+
+        variantExpressDeliveryHours:
+          variant.expressDeliveryHours ??
+          "",
+
+        variantDeliveryMinDays:
+          variant.deliveryMinDays ??
+          "",
+
+        variantDeliveryMaxDays:
+          variant.deliveryMaxDays ??
+          "",
+
+        variantDeliveryNote:
+          variant.deliveryNote ||
           "",
 
         variantMediaGroup:

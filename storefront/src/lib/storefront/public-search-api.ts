@@ -111,6 +111,18 @@ export async function getPublicSearch({
     );
   }
 
+  if (
+    query.featured !==
+    undefined
+  ) {
+    searchParams.set(
+      "featured",
+      String(
+        query.featured
+      )
+    );
+  }
+
   if (query.sort) {
     searchParams.set(
       "sort",

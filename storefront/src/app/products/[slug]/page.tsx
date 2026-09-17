@@ -12,6 +12,7 @@ import {
   notFound,
 } from "next/navigation";
 
+import ProductAttachmentSuggestions from "@/components/storefront/product/ProductAttachmentSuggestions";
 import ProductDetailsContent from "@/components/storefront/product/ProductDetailsContent";
 import ProductPurchasePanel from "@/components/storefront/product/ProductPurchasePanel";
 import ProductTemplateSections from "@/components/storefront/product/ProductTemplateSections";
@@ -284,6 +285,23 @@ export default async function ProductRoute({
             <ProductPurchasePanel
               data={
                 productData
+              }
+            />
+
+            <ProductAttachmentSuggestions
+              productId={
+                productData
+                  .product
+                  .id
+              }
+              currencyCode={
+                productData
+                  .company
+                  .currency ||
+                "AED"
+              }
+              maximumItems={
+                8
               }
             />
 

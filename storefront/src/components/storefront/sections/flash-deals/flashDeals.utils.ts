@@ -1,5 +1,10 @@
 export interface FlashDealsSettings {
-  sourceType?: string;
+  sourceType?:
+    | "MANUAL"
+    | "PROMOTION"
+    | "CATEGORY"
+    | "BRAND"
+    | "COLLECTION";
 
   layout?:
     | "BANNER_TOP"
@@ -12,8 +17,28 @@ export interface FlashDealsSettings {
   itemsKiosk?: number;
 
   maximumProducts?: number;
+
   showCountdown?: boolean;
   showNavigation?: boolean;
+
+  showBadge?: boolean;
+  showTitle?: boolean;
+  showSubtitle?: boolean;
+  showButton?: boolean;
+
+  /*
+  |--------------------------------------------------------------------------
+  | View All
+  |--------------------------------------------------------------------------
+  */
+
+  showViewAll?: boolean;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Appearance
+  |--------------------------------------------------------------------------
+  */
 
   backgroundColor?: string;
   textColor?: string;
@@ -37,15 +62,76 @@ export interface FlashDealsContent {
   title?: string;
   subtitle?: string;
 
+  /*
+  |--------------------------------------------------------------------------
+  | Banner CTA
+  |--------------------------------------------------------------------------
+  */
+
   buttonLabel?: string;
   buttonUrl?: string;
   openInNewTab?: boolean;
 
-  desktopAssetId?: string | null;
-  mobileAssetId?: string | null;
+  /*
+  |--------------------------------------------------------------------------
+  | Product Carousel View All
+  |--------------------------------------------------------------------------
+  */
 
-  desktopAssetIdResolved?: StorefrontMediaAsset | null;
-  mobileAssetIdResolved?: StorefrontMediaAsset | null;
+  viewAllLabel?: string;
+  viewAllUrl?: string;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Product Source
+  |--------------------------------------------------------------------------
+  */
+
+  productIds?: string[];
+
+  categoryId?:
+    | string
+    | null;
+
+  brandId?:
+    | string
+    | null;
+
+  collectionId?:
+    | string
+    | null;
+
+  campaignId?:
+    | string
+    | null;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Media
+  |--------------------------------------------------------------------------
+  */
+
+  desktopAssetId?:
+    | string
+    | null;
+
+  mobileAssetId?:
+    | string
+    | null;
+
+  desktopAssetIdResolved?:
+    | StorefrontMediaAsset
+    | null;
+
+  mobileAssetIdResolved?:
+    | StorefrontMediaAsset
+    | null;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Resolved Products
+  |--------------------------------------------------------------------------
+  */
 
   productIdsResolved?: Array<
     Record<string, unknown> & {
@@ -53,8 +139,19 @@ export interface FlashDealsContent {
     }
   >;
 
-  startAt?: string | null;
-  endAt?: string | null;
+  /*
+  |--------------------------------------------------------------------------
+  | Deal Timing
+  |--------------------------------------------------------------------------
+  */
+
+  startAt?:
+    | string
+    | null;
+
+  endAt?:
+    | string
+    | null;
 
   dealStatus?:
     | "ACTIVE"
@@ -63,15 +160,33 @@ export interface FlashDealsContent {
 }
 
 export interface StorefrontMediaAsset {
-  publicUrl?: string | null;
-  previewUrl?: string | null;
-  thumbnailUrl?: string | null;
+  publicUrl?:
+    | string
+    | null;
+
+  previewUrl?:
+    | string
+    | null;
+
+  thumbnailUrl?:
+    | string
+    | null;
 
   variants?: Array<{
-    variantType?: string;
-    publicUrl?: string | null;
+    variantType?:
+      string;
+
+    publicUrl?:
+      | string
+      | null;
   }>;
 }
+
+/*
+|--------------------------------------------------------------------------
+| Media URL Resolver
+|--------------------------------------------------------------------------
+*/
 
 export function getMediaUrl(
   asset?:
@@ -96,7 +211,9 @@ export function getMediaUrl(
   ) {
     const variant =
       asset.variants?.find(
-        (item) =>
+        (
+          item
+        ) =>
           item.variantType ===
             variantType &&
           Boolean(
@@ -118,6 +235,12 @@ export function getMediaUrl(
     null
   );
 }
+
+/*
+|--------------------------------------------------------------------------
+| Product Card Widths
+|--------------------------------------------------------------------------
+*/
 
 export function getCardWidthClasses(
   settings:
@@ -151,25 +274,32 @@ export function getCardWidthClasses(
     );
 
   const mobileClass =
-    mobile >= 2
+    mobile >=
+    2
       ? "basis-[calc(50%-0.375rem)]"
       : "basis-[86%]";
 
   const tabletClass =
-    tablet >= 4
+    tablet >=
+    4
       ? "sm:basis-[calc(25%-0.75rem)]"
-      : tablet === 3
+      : tablet ===
+          3
         ? "sm:basis-[calc(33.333%-0.75rem)]"
         : "sm:basis-[calc(50%-0.5rem)]";
 
   const desktopClass =
-    desktop >= 6
+    desktop >=
+    6
       ? "lg:basis-[calc(16.666%-1rem)]"
-      : desktop === 5
+      : desktop ===
+          5
         ? "lg:basis-[calc(20%-1rem)]"
-        : desktop === 4
+        : desktop ===
+            4
           ? "lg:basis-[calc(25%-0.9375rem)]"
-          : desktop === 3
+          : desktop ===
+              3
             ? "lg:basis-[calc(33.333%-0.875rem)]"
             : "lg:basis-[calc(50%-0.625rem)]";
 
@@ -177,21 +307,31 @@ export function getCardWidthClasses(
     mobileClass,
     tabletClass,
     desktopClass,
-  ].join(" ");
+  ].join(
+    " "
+  );
 }
+
+/*
+|--------------------------------------------------------------------------
+| Text Alignment
+|--------------------------------------------------------------------------
+*/
 
 export function getTextAlignmentClass(
   alignment?:
     FlashDealsSettings["contentAlignment"]
 ) {
   if (
-    alignment === "CENTER"
+    alignment ===
+    "CENTER"
   ) {
     return "items-center text-center";
   }
 
   if (
-    alignment === "RIGHT"
+    alignment ===
+    "RIGHT"
   ) {
     return "items-end text-right";
   }

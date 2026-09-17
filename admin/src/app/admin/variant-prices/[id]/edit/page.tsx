@@ -26,6 +26,7 @@ import {
 } from "@/store/api/priceListApi";
 
 import {
+  useGetProductByIdQuery,
   useGetProductsQuery,
 } from "@/store/api/productApi";
 
@@ -154,8 +155,7 @@ function PageLoadingState({
         />
 
         <p className="mt-4 text-sm font-semibold text-[#202223]">
-          Preparing pricing
-          form
+          Preparing pricing form
         </p>
 
         <p className="mt-1 text-sm text-[#6d7175]">
@@ -246,6 +246,29 @@ export default function EditVariantPricePage() {
 
   /*
   |--------------------------------------------------------------------------
+  | Attached Product ID
+  |--------------------------------------------------------------------------
+  |
+  | The variant-price response already knows which product owns the variant.
+  |
+  | We derive that exact product ID before running the product lookup below.
+  |--------------------------------------------------------------------------
+  */
+
+  const selectedProductId =
+    variantPriceResponse
+      ?.data
+      ?.variant
+      ?.product
+      ?.id ||
+    variantPriceResponse
+      ?.data
+      ?.variant
+      ?.productId ||
+    "";
+
+  /*
+  |--------------------------------------------------------------------------
   | Price Lists
   |--------------------------------------------------------------------------
   */
@@ -291,7 +314,11 @@ export default function EditVariantPricePage() {
 
   /*
   |--------------------------------------------------------------------------
-  | Products
+  | Product List
+  |--------------------------------------------------------------------------
+  |
+  | Keep the normal product list because VariantPriceForm uses it for its
+  | product selector.
   |--------------------------------------------------------------------------
   */
 
@@ -336,6 +363,49 @@ export default function EditVariantPricePage() {
 
   /*
   |--------------------------------------------------------------------------
+  | Exact Attached Product
+  |--------------------------------------------------------------------------
+  |
+  | IMPORTANT:
+  |
+  | The product list above is paginated. Therefore the product attached to
+  | this price may be perfectly valid but absent from page 1.
+  |
+  | Load the exact product directly by ID so the edit screen does not depend
+  | on whether the product happens to be inside the first 200 products.
+  |--------------------------------------------------------------------------
+  */
+
+  const {
+    data:
+      selectedProductResponse,
+
+    isLoading:
+      isLoadingSelectedProduct,
+
+    isFetching:
+      isFetchingSelectedProduct,
+
+    error:
+      selectedProductError,
+
+    refetch:
+      refetchSelectedProduct,
+  } =
+    useGetProductByIdQuery(
+      selectedProductId,
+      {
+        skip:
+          shouldSkipQueries ||
+          !selectedProductId,
+
+        refetchOnMountOrArgChange:
+          true,
+      }
+    );
+
+  /*
+  |--------------------------------------------------------------------------
   | Update Mutation
   |--------------------------------------------------------------------------
   */
@@ -371,14 +441,66 @@ export default function EditVariantPricePage() {
       ]
     );
 
+  /*
+  |--------------------------------------------------------------------------
+  | Exact Product
+  |--------------------------------------------------------------------------
+  */
+
+  const selectedProduct =
+    selectedProductResponse
+      ?.data ||
+    null;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Products
+  |--------------------------------------------------------------------------
+  |
+  | Merge the exact selected product into the paginated list.
+  |
+  | This ensures VariantPriceForm receives the product even when it is not
+  | present in the first 200 records returned by GET /products.
+  |--------------------------------------------------------------------------
+  */
+
   const products =
     useMemo(
-      () =>
-        productResponse
-          ?.data ||
-        [],
+      () => {
+        const list =
+          productResponse
+            ?.data ||
+          [];
+
+        if (
+          !selectedProduct
+        ) {
+          return list;
+        }
+
+        const alreadyExists =
+          list.some(
+            (
+              product
+            ) =>
+              product.id ===
+              selectedProduct.id
+          );
+
+        if (
+          alreadyExists
+        ) {
+          return list;
+        }
+
+        return [
+          selectedProduct,
+          ...list,
+        ];
+      },
       [
         productResponse,
+        selectedProduct,
       ]
     );
 
@@ -425,11 +547,22 @@ export default function EditVariantPricePage() {
 
   const handleRetry =
     async () => {
-      const requests = [
-        refetchVariantPrice(),
-        refetchPriceLists(),
-        refetchProducts(),
-      ];
+      const requests:
+        Array<
+          Promise<unknown>
+        > = [
+          refetchVariantPrice(),
+          refetchPriceLists(),
+          refetchProducts(),
+        ];
+
+      if (
+        selectedProductId
+      ) {
+        requests.push(
+          refetchSelectedProduct()
+        );
+      }
 
       await Promise.allSettled(
         requests
@@ -447,18 +580,66 @@ export default function EditVariantPricePage() {
     (
       isLoadingVariantPrice ||
       isLoadingPriceLists ||
-      isLoadingProducts
+      isLoadingProducts ||
+      (
+        Boolean(
+          selectedProductId
+        ) &&
+        isLoadingSelectedProduct
+      )
     );
 
   const isLookupFetching =
     isFetchingVariantPrice ||
     isFetchingPriceLists ||
-    isFetchingProducts;
+    isFetchingProducts ||
+    isFetchingSelectedProduct;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Lookup Errors
+  |--------------------------------------------------------------------------
+  |
+  | The exact selected-product query is intentionally handled separately.
+  |
+  | A 404 for the exact product should produce the "Related product is
+  | unavailable" state rather than the generic "Unable to load variant price"
+  | state.
+  |--------------------------------------------------------------------------
+  */
+
+  const selectedProductNotFound =
+    Boolean(
+      selectedProductId
+    ) &&
+    Boolean(
+      selectedProductError
+    ) &&
+    typeof selectedProductError ===
+      "object" &&
+    selectedProductError !==
+      null &&
+    "status" in
+      selectedProductError &&
+    Number(
+      (
+        selectedProductError as {
+          status?:
+            number | string;
+        }
+      ).status
+    ) ===
+      404;
 
   const lookupError =
     variantPriceError ||
     priceListError ||
-    productError;
+    productError ||
+    (
+      selectedProductNotFound
+        ? null
+        : selectedProductError
+    );
 
   const lookupErrorMessage =
     lookupError
@@ -467,24 +648,16 @@ export default function EditVariantPricePage() {
         )
       : null;
 
-  const selectedProductId =
-    variantPrice
-      ?.variant
-      ?.product
-      ?.id ||
-    variantPrice
-      ?.variant
-      ?.productId ||
-    "";
+  /*
+  |--------------------------------------------------------------------------
+  | Relationship Validation
+  |--------------------------------------------------------------------------
+  */
 
   const selectedProductExists =
     !selectedProductId ||
-    products.some(
-      (
-        product
-      ) =>
-        product.id ===
-        selectedProductId
+    Boolean(
+      selectedProduct
     );
 
   const selectedPriceListExists =
@@ -532,8 +705,7 @@ export default function EditVariantPricePage() {
 
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight text-[#202223]">
-              Edit Variant
-              Price
+              Edit Variant Price
             </h1>
 
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#f1f2f3] px-2.5 py-1 text-xs font-semibold text-[#6d7175]">
@@ -581,8 +753,7 @@ export default function EditVariantPricePage() {
             className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4"
           >
             <p className="text-sm font-semibold text-amber-900">
-              Authentication
-              required
+              Authentication required
             </p>
 
             <p className="mt-1 text-sm leading-6 text-amber-800">
@@ -610,8 +781,7 @@ export default function EditVariantPricePage() {
             className="rounded-xl border border-red-200 bg-red-50 px-5 py-4"
           >
             <p className="text-sm font-semibold text-red-800">
-              Invalid variant
-              price
+              Invalid variant price
             </p>
 
             <p className="mt-1 text-sm leading-6 text-red-700">
@@ -651,10 +821,8 @@ export default function EditVariantPricePage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-red-800">
-                  Unable to
-                  load the
-                  variant
-                  price
+                  Unable to load the
+                  variant price
                 </p>
 
                 <p className="mt-1 text-sm leading-6 text-red-700">
@@ -761,14 +929,15 @@ export default function EditVariantPricePage() {
             <p className="mt-1 text-sm leading-6 text-amber-800">
               The product
               attached to this
-              price was not
-              returned by the
-              product list.
+              price could not
+              be loaded directly.
               Confirm that the
               product still
               exists and is
               accessible.
-            </p>
+           
+
+              </p>
           </div>
         )}
 
@@ -838,7 +1007,8 @@ export default function EditVariantPricePage() {
               isFetchingPriceLists
             }
             loadingProducts={
-              isFetchingProducts
+              isFetchingProducts ||
+              isFetchingSelectedProduct
             }
             submitting={
               isUpdating

@@ -284,6 +284,36 @@ const collectionService = require(
     }
   };
   
+  exports.refreshSmartCollection = async (
+    req,
+    res,
+    next
+  ) => {
+    try {
+      const result =
+        await collectionService
+          .refreshSmartCollection({
+            companyId:
+              req.user.companyId,
+            collectionId:
+              req.params.id,
+            userId:
+              req.user.id,
+          });
+
+      res.status(200).json({
+        success:
+          true,
+        message:
+          "Smart collection refreshed successfully.",
+        data:
+          result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   exports.deleteCollection = async (
     req,
     res,

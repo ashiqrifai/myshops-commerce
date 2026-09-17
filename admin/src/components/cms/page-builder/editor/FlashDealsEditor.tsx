@@ -18,6 +18,7 @@ import BrandPicker from "@/components/cms/pickers/BrandPicker";
 import CategoryPicker from "@/components/cms/pickers/CategoryPicker";
 import ProductPicker from "@/components/cms/pickers/ProductPicker";
 import MediaAssetPicker from "@/components/media/MediaAssetPicker";
+import CollectionPicker from "@/components/cms/pickers/CollectionPicker";
 
 import {
   useGetMediaAssetByIdQuery,
@@ -31,83 +32,108 @@ type FlashDealSourceType =
   | "MANUAL"
   | "PROMOTION"
   | "CATEGORY"
-  | "BRAND";
+  | "BRAND"
+  | "COLLECTION";
 
 type FlashDealsLayout =
   | "BANNER_TOP"
   | "SIDE_BANNER"
   | "BACKGROUND_BANNER";
 
-interface FlashDealsContent {
-  badge?: string;
-  title?: string;
-  subtitle?: string;
+  interface FlashDealsContent {
+    badge?: string;
+    title?: string;
+    subtitle?: string;
+  
+    collectionId?:
+      | string
+      | null;
+  
+    buttonLabel?: string;
+    buttonUrl?: string;
+  
+    openInNewTab?: boolean;
+  
+    /*
+     * Product carousel View All
+     */
+    viewAllLabel?: string;
+    viewAllUrl?: string;
+  
+    desktopAssetId?:
+      | string
+      | null;
+  
+    mobileAssetId?:
+      | string
+      | null;
+  
+    productIds?: string[];
+  
+    categoryId?:
+      | string
+      | null;
+  
+    brandId?:
+      | string
+      | null;
+  
+    campaignId?:
+      | string
+      | null;
+  
+    startAt?:
+      | string
+      | null;
+  
+    endAt?:
+      | string
+      | null;
+  }
 
-  buttonLabel?: string;
-  buttonUrl?: string;
-  openInNewTab?: boolean;
-
-  desktopAssetId?:
-    | string
-    | null;
-
-  mobileAssetId?:
-    | string
-    | null;
-
-  productIds?: string[];
-
-  categoryId?:
-    | string
-    | null;
-
-  brandId?:
-    | string
-    | null;
-
-  campaignId?:
-    | string
-    | null;
-
-  startAt?:
-    | string
-    | null;
-
-  endAt?:
-    | string
-    | null;
-}
-
-interface FlashDealsSettings {
-  sourceType?:
-    FlashDealSourceType;
-
-  layout?:
-    FlashDealsLayout;
-
-  itemsDesktop?: number;
-  itemsTablet?: number;
-  itemsMobile?: number;
-  itemsKiosk?: number;
-
-  maximumProducts?: number;
-  showCountdown?: boolean;
-  showNavigation?: boolean;
-
-  backgroundColor?: string;
-  textColor?: string;
-  overlayColor?: string;
-  overlayOpacity?: number;
-
-  cardStyle?:
-    | "ROUNDED"
-    | "SQUARE";
-
-  contentAlignment?:
-    | "LEFT"
-    | "CENTER"
-    | "RIGHT";
-}
+  interface FlashDealsSettings {
+    sourceType?:
+      FlashDealSourceType;
+  
+    layout?:
+      FlashDealsLayout;
+  
+    itemsDesktop?: number;
+    itemsTablet?: number;
+    itemsMobile?: number;
+    itemsKiosk?: number;
+  
+    maximumProducts?: number;
+  
+    showCountdown?: boolean;
+    showNavigation?: boolean;
+  
+    showBadge?: boolean;
+    showTitle?: boolean;
+    showSubtitle?: boolean;
+    showButton?: boolean;
+  
+    /*
+     * Controls the View All link
+     * displayed above the product
+     * carousel.
+     */
+    showViewAll?: boolean;
+  
+    backgroundColor?: string;
+    textColor?: string;
+    overlayColor?: string;
+    overlayOpacity?: number;
+  
+    cardStyle?:
+      | "ROUNDED"
+      | "SQUARE";
+  
+    contentAlignment?:
+      | "LEFT"
+      | "CENTER"
+      | "RIGHT";
+  }
 
 interface FlashDealsEditorProps {
   value: Record<
@@ -742,6 +768,74 @@ export default function FlashDealsEditor({
               }
             />
           </div>
+
+          <div className="md:col-span-2">
+            <div className="grid gap-4 md:grid-cols-2">
+              <BooleanCard
+                label="Show badge text"
+                description="Show or hide the small promotional text such as LIMITED TIME OFFER."
+                value={
+                  flashSettings.showBadge !==
+                  false
+                }
+                onChange={(
+                  showBadge
+                ) =>
+                  updateSettings({
+                    showBadge,
+                  })
+                }
+              />
+
+              <BooleanCard
+                label="Show title"
+                description="Show or hide the main Flash Deals heading."
+                value={
+                  flashSettings.showTitle !==
+                  false
+                }
+                onChange={(
+                  showTitle
+                ) =>
+                  updateSettings({
+                    showTitle,
+                  })
+                }
+              />
+
+              <BooleanCard
+                label="Show subtitle"
+                description="Show or hide the supporting promotional text."
+                value={
+                  flashSettings.showSubtitle !==
+                  false
+                }
+                onChange={(
+                  showSubtitle
+                ) =>
+                  updateSettings({
+                    showSubtitle,
+                  })
+                }
+              />
+
+              <BooleanCard
+                label="Show Shop Now button"
+                description="Show or hide the campaign call-to-action button."
+                value={
+                  flashSettings.showButton !==
+                  false
+                }
+                onChange={(
+                  showButton
+                ) =>
+                  updateSettings({
+                    showButton,
+                  })
+                }
+              />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -917,6 +1011,7 @@ export default function FlashDealsEditor({
                   productIds: [],
                   categoryId: null,
                   brandId: null,
+                  collectionId: null,
                   campaignId: null,
                 });
               }}
@@ -937,6 +1032,10 @@ export default function FlashDealsEditor({
               <option value="BRAND">
                 Brand
               </option>
+
+              <option value="COLLECTION">
+                Collection
+              </option>
             </select>
           </div>
 
@@ -954,6 +1053,8 @@ export default function FlashDealsEditor({
                     nextIds,
                   categoryId: null,
                   brandId: null,
+                  collectionId:
+                  null,
                   campaignId: null,
                 })
               }
@@ -973,6 +1074,8 @@ export default function FlashDealsEditor({
                 updateContent({
                   categoryId,
                   brandId: null,
+                  collectionId:
+                  null,
                   campaignId: null,
                   productIds: [],
                 })
@@ -996,11 +1099,44 @@ export default function FlashDealsEditor({
                   brandId,
                   categoryId: null,
                   campaignId: null,
+                  collectionId:
+                  null,
                   productIds: [],
                 })
               }
               title="Select deal brand"
               description="Products from this brand will populate the flash deal."
+            />
+          ) : null}
+
+          {sourceType ===
+          "COLLECTION" ? (
+            <CollectionPicker
+              selectedId={
+                content.collectionId ||
+                null
+              }
+              onChange={(
+                collectionId
+              ) =>
+                updateContent({
+                  collectionId,
+
+                  categoryId:
+                    null,
+
+                  brandId:
+                    null,
+
+                  campaignId:
+                    null,
+
+                  productIds:
+                    [],
+                })
+              }
+              title="Select deal collection"
+              description="All eligible products assigned to this collection will populate the Flash Deals carousel."
             />
           ) : null}
 
@@ -1025,6 +1161,8 @@ export default function FlashDealsEditor({
                       null,
                     categoryId: null,
                     brandId: null,
+                    collectionId:
+                    null,                
                     productIds: [],
                   })
                 }
@@ -1322,7 +1460,9 @@ export default function FlashDealsEditor({
                 flashSettings.maximumProducts ??
                 10
               }
-              onChange={(event) =>
+              onChange={(
+                event
+              ) =>
                 updateSettings({
                   maximumProducts:
                     Number(
@@ -1341,16 +1481,19 @@ export default function FlashDealsEditor({
               "Desktop items",
               5,
             ],
+
             [
               "itemsTablet",
               "Tablet items",
               3,
             ],
+
             [
               "itemsMobile",
               "Mobile items",
               2,
             ],
+
             [
               "itemsKiosk",
               "Kiosk items",
@@ -1362,9 +1505,15 @@ export default function FlashDealsEditor({
               label,
               fallback,
             ]) => (
-              <div key={key}>
+              <div
+                key={
+                  key
+                }
+              >
                 <FieldLabel>
-                  {label}
+                  {
+                    label
+                  }
                 </FieldLabel>
 
                 <input
@@ -1379,7 +1528,9 @@ export default function FlashDealsEditor({
                         fallback
                     )
                   }
-                  onChange={(event) =>
+                  onChange={(
+                    event
+                  ) =>
                     updateSettings({
                       [key]:
                         Number(
@@ -1394,6 +1545,102 @@ export default function FlashDealsEditor({
               </div>
             )
           )}
+
+          {/*
+          |--------------------------------------------------------------------------
+          | View All
+          |--------------------------------------------------------------------------
+          */}
+
+          <div className="md:col-span-2">
+            <BooleanCard
+              label="Show View All"
+              description="Display a View All link above the Flash Deals product carousel."
+              value={
+                flashSettings.showViewAll !==
+                false
+              }
+              onChange={(
+                showViewAll
+              ) =>
+                updateSettings({
+                  showViewAll,
+                })
+              }
+            />
+          </div>
+
+          {flashSettings.showViewAll !==
+          false ? (
+            <>
+              <div>
+                <FieldLabel>
+                  View All label
+                </FieldLabel>
+
+                <input
+                  type="text"
+                  value={
+                    content.viewAllLabel ||
+                    ""
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateContent({
+                      viewAllLabel:
+                        event.target
+                          .value,
+                    })
+                  }
+                  className="admin-input"
+                  placeholder="View All"
+                />
+
+                <p className="mt-1.5 text-xs leading-5 text-[#6d7175]">
+                  Customer-facing link
+                  text.
+                </p>
+              </div>
+
+              <div>
+                <FieldLabel>
+                  View All link
+                </FieldLabel>
+
+                <input
+                  type="text"
+                  value={
+                    content.viewAllUrl ||
+                    ""
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateContent({
+                      viewAllUrl:
+                        event.target
+                          .value,
+                    })
+                  }
+                  className="admin-input"
+                  placeholder="/collections/hot-deals"
+                />
+
+                <p className="mt-1.5 text-xs leading-5 text-[#6d7175]">
+                  Example:
+                  {" "}
+                  /collections/hot-deals
+                </p>
+              </div>
+            </>
+          ) : null}
+
+          {/*
+          |--------------------------------------------------------------------------
+          | Carousel Navigation
+          |--------------------------------------------------------------------------
+          */}
 
           <div className="md:col-span-2">
             <BooleanCard

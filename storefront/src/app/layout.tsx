@@ -7,23 +7,39 @@ import {
   Geist_Mono,
 } from "next/font/google";
 
+import {
+  Suspense,
+} from "react";
+
 import StoreProvider from "@/store/StoreProvider";
+
+import NavigationLoader from "@/components/storefront/NavigationLoader";
 
 import "./globals.css";
 
 const geistSans = Geist({
   variable:
     "--font-geist-sans",
-  subsets: ["latin"],
-  display: "swap",
+
+  subsets: [
+    "latin",
+  ],
+
+  display:
+    "swap",
 });
 
 const geistMono =
   Geist_Mono({
     variable:
       "--font-geist-mono",
-    subsets: ["latin"],
-    display: "swap",
+
+    subsets: [
+      "latin",
+    ],
+
+    display:
+      "swap",
   });
 
 const siteUrl =
@@ -33,10 +49,14 @@ const siteUrl =
 
 export const metadata: Metadata = {
   metadataBase:
-    new URL(siteUrl),
+    new URL(
+      siteUrl
+    ),
 
   title: {
-    default: "MyShops",
+    default:
+      "MyShops",
+
     template:
       "%s | MyShops",
   },
@@ -48,8 +68,11 @@ export const metadata: Metadata = {
     "MyShops",
 
   robots: {
-    index: true,
-    follow: true,
+    index:
+      true,
+
+    follow:
+      true,
   },
 };
 
@@ -66,7 +89,25 @@ export default function RootLayout({
     >
       <body>
         <StoreProvider>
+          {/*
+           * Current route/page remains
+           * rendered normally.
+           */}
           {children}
+
+          {/*
+           * Navigation loader sits on top
+           * of the current page.
+           *
+           * No white/grey background.
+           */}
+          <Suspense
+            fallback={
+              null
+            }
+          >
+            <NavigationLoader />
+          </Suspense>
         </StoreProvider>
       </body>
     </html>

@@ -22,11 +22,11 @@ const execFileAsync =
 
 const FFMPEG_PATH =
   process.env.FFMPEG_PATH ||
-  "ffmpeg";
+  "/usr/bin/ffmpeg";
 
 const FFPROBE_PATH =
   process.env.FFPROBE_PATH ||
-  "ffprobe";
+  "/usr/bin/ffprobe";
 
 const PREVIEW_MAX_WIDTH = 1280;
 const PREVIEW_VIDEO_CRF = 28;

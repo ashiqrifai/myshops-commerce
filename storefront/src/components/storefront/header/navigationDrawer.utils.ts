@@ -1,60 +1,35 @@
 import type {
-  StorefrontSection,
-} from "@/types/storefront";
+  PublicCategoryTreeItem,
+} from "@/lib/storefront/public-category-tree-api";
 
 import type {
   NavigationItem,
-  NavigationMenu,
 } from "./NavigationDrawer.types";
 
-export function isObject(
-  value: unknown
-): value is Record<string, unknown> {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    !Array.isArray(value)
-  );
-}
-
-function asNavigationMenu(
-  value: unknown
-): NavigationMenu | null {
-  return isObject(value)
-    ? (value as NavigationMenu)
-    : null;
-}
-
-export function getNavigationMenu(
-  section?:
-    | StorefrontSection
-    | null
-): NavigationMenu | null {
-  if (
-    !section ||
-    !isObject(section.content)
-  ) {
-    return null;
-  }
-
-  const content =
-    section.content as Record<
-      string,
-      unknown
-    >;
-
-  return (
-    asNavigationMenu(
-      content.menuResolved
-    ) ||
-    asNavigationMenu(
-      content.navigationResolved
-    ) ||
-    asNavigationMenu(
-      content.menu
-    ) ||
-    null
-  );
+export function categoryToNavigationItem(
+  category: PublicCategoryTreeItem
+): NavigationItem {
+  return {
+    id: category.id,
+    label: category.name,
+    name: category.name,
+    slug: category.slug,
+    itemType: "CATEGORY",
+    categoryId: category.id,
+    referenceId: category.slug,
+    url: `/category/${category.slug}`,
+    description:
+      category.shortDescription ||
+      category.description ||
+      null,
+    isActive: category.isActive !== false,
+    mobileVisible: category.showInMenu !== false,
+    desktopVisible: category.showInMenu !== false,
+    sortOrder: category.sortOrder ?? 0,
+    children: Array.isArray(category.children)
+      ? category.children.map(categoryToNavigationItem)
+      : [],
+  };
 }
 
 export function getItemLabel(
@@ -64,7 +39,7 @@ export function getItemLabel(
     item.label?.trim() ||
     item.name?.trim() ||
     item.title?.trim() ||
-    "Menu item"
+    "Category"
   );
 }
 
@@ -97,12 +72,13 @@ export function compareNavigationItems(
 export function getItemChildren(
   item: NavigationItem
 ) {
-  const children =
-    Array.isArray(item.children)
-      ? item.children
-      : Array.isArray(item.items)
-        ? item.items
-        : [];
+  const children = Array.isArray(
+    item.children
+  )
+    ? item.children
+    : Array.isArray(item.items)
+      ? item.items
+      : [];
 
   return children
     .filter(isVisibleItem)
@@ -152,19 +128,14 @@ export function getItemUrl(
   switch (itemType) {
     case "CATEGORY":
       return `/category/${target}`;
-
     case "BRAND":
       return `/brand/${target}`;
-
     case "COLLECTION":
       return `/collection/${target}`;
-
     case "PRODUCT":
       return `/product/${target}`;
-
     case "CMS_PAGE":
       return `/page/${target}`;
-
     default:
       return `/${target}`;
   }

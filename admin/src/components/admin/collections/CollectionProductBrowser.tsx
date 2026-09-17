@@ -1642,8 +1642,8 @@ function getProductImageUrl(
       ) =>
         variant.isPrimary &&
         (
-          variant.publicUrl ||
-          variant.url
+          variant.publicUrl
+          
         )
     );
 
@@ -1651,8 +1651,7 @@ function getProductImageUrl(
     primaryVariant
   ) {
     return (
-      primaryVariant.publicUrl ||
-      primaryVariant.url ||
+      primaryVariant.publicUrl ||      
       null
     );
   }
@@ -1673,8 +1672,7 @@ function getProductImageUrl(
           ).toUpperCase()
         ) &&
         (
-          variant.publicUrl ||
-          variant.url
+          variant.publicUrl         
         )
     );
 
@@ -1682,8 +1680,7 @@ function getProductImageUrl(
     thumbnailVariant
   ) {
     return (
-      thumbnailVariant.publicUrl ||
-      thumbnailVariant.url ||
+      thumbnailVariant.publicUrl ||      
       null
     );
   }

@@ -48,7 +48,7 @@ interface FlatFolder {
   label: string;
 }
 
-const MAXIMUM_FILES = 20;
+const MAXIMUM_FILES = 200;
 
 const classifications: Array<{
   value:

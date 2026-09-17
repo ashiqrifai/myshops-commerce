@@ -15,6 +15,11 @@ const db = require(
   const priceResolverService = require(
     "./priceResolver.service"
   );
+
+  const giftVoucherPromotionService =
+  require(
+    "../gift-voucher-promotions/giftVoucherPromotion.service"
+  );
   
   /*
   |--------------------------------------------------------------------------
@@ -380,20 +385,123 @@ const serializeMatrixPrice = (
   */
   
   const resolveItemAdjustments =
-    async ({
-      companyId,
-      resolvedPrice,
-      context,
-      transaction,
-    }) => {
-      void companyId;
-      void resolvedPrice;
-      void context;
-      void transaction;
-  
-      return [];
-    };
-  
+  async ({
+    companyId,
+    resolvedPrice,
+    context,
+    transaction,
+  }) => {
+    const adjustments =
+      [];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gift Voucher Discount
+    |--------------------------------------------------------------------------
+    */
+
+    const giftVoucher =
+      await giftVoucherPromotionService
+        .resolveApplicablePromotion({
+          companyId,
+
+          productId:
+            resolvedPrice.productId,
+
+          productVariantId:
+            resolvedPrice.productVariantId,
+
+          sellingPrice:
+            resolvedPrice.sellingPrice,
+
+          quantity:
+            resolvedPrice.quantity,
+
+          channelCode:
+            context.channelCode ||
+            "WEBSITE",
+
+          effectiveDate:
+            context.effectiveDate ||
+            new Date(),
+
+          transaction,
+        });
+
+    if (
+      giftVoucher &&
+      Number(
+        giftVoucher.discountAmount
+      ) > 0
+    ) {
+      adjustments.push({
+        code:
+          giftVoucher.code,
+
+        type:
+          "GIFT_VOUCHER_DISCOUNT",
+
+        description:
+          giftVoucher.name ||
+          "Gift voucher discount",
+
+        /*
+         * IMPORTANT:
+         * amount is LINE discount,
+         * not unit discount.
+         */
+        amount:
+          Number(
+            giftVoucher.discountAmount
+          ),
+
+        unitAmount:
+          Number(
+            giftVoucher.unitDiscount
+          ),
+
+        metadata: {
+          promotionId:
+            giftVoucher.id,
+
+          promotionCode:
+            giftVoucher.code,
+
+          promotionName:
+            giftVoucher.name,
+
+          discountType:
+            giftVoucher.discountType,
+
+          discountValue:
+            giftVoucher.discountValue,
+
+          fundingType:
+            giftVoucher.fundingType,
+
+          fundingSource:
+            giftVoucher.fundingSource,
+
+          internalValue:
+            giftVoucher.internalValue,
+
+          externalValue:
+            giftVoucher.externalValue,
+
+          validFrom:
+            giftVoucher.validFrom,
+
+          validUntil:
+            giftVoucher.validUntil,
+
+          currencyCode:
+            giftVoucher.currencyCode,
+        },
+      });
+    }
+
+    return adjustments;
+  };
   /*
   |--------------------------------------------------------------------------
   | Apply Adjustments
@@ -404,10 +512,32 @@ const serializeMatrixPrice = (
     resolvedPrice,
     adjustments,
   }) => {
+    const quantity =
+      Number(
+        resolvedPrice.quantity ||
+        1
+      );
+  
+    const regularPrice =
+      roundMoney(
+        resolvedPrice.regularPrice
+      );
+  
+    const baseSellingPrice =
+      roundMoney(
+        resolvedPrice.sellingPrice
+      );
+  
     const baseLineAmount =
       roundMoney(
         resolvedPrice.lineAmount
       );
+  
+    /*
+    |--------------------------------------------------------------------------
+    | Additional Adjustments
+    |--------------------------------------------------------------------------
+    */
   
     const adjustmentTotal =
       roundMoney(
@@ -419,11 +549,47 @@ const serializeMatrixPrice = (
             total +
             Number(
               adjustment.amount ||
-                0
+              0
             ),
           0
         )
       );
+  
+    /*
+    |--------------------------------------------------------------------------
+    | Gift Voucher Breakdown
+    |--------------------------------------------------------------------------
+    */
+  
+    const giftVoucherAdjustment =
+      adjustments.find(
+        (
+          adjustment
+        ) =>
+          adjustment.type ===
+          "GIFT_VOUCHER_DISCOUNT"
+      ) ||
+      null;
+  
+    const giftVoucherDiscountAmount =
+      giftVoucherAdjustment
+        ? roundMoney(
+            giftVoucherAdjustment.amount
+          )
+        : 0;
+  
+    const giftVoucherUnitDiscount =
+      giftVoucherAdjustment
+        ? roundMoney(
+            giftVoucherAdjustment.unitAmount
+          )
+        : 0;
+  
+    /*
+    |--------------------------------------------------------------------------
+    | Final Price
+    |--------------------------------------------------------------------------
+    */
   
     const finalLineAmount =
       roundMoney(
@@ -434,34 +600,173 @@ const serializeMatrixPrice = (
         )
       );
   
-    const quantity =
-      Number(
-        resolvedPrice.quantity ||
-          1
-      );
-  
     const finalUnitPrice =
       quantity > 0
         ? roundMoney(
             finalLineAmount /
-              quantity
+            quantity
+          )
+        : 0;
+  
+    /*
+    |--------------------------------------------------------------------------
+    | Existing Price Discount
+    |--------------------------------------------------------------------------
+    */
+  
+    const priceDiscountUnit =
+      roundMoney(
+        Math.max(
+          0,
+          regularPrice -
+            baseSellingPrice
+        )
+      );
+  
+    const priceDiscountAmount =
+      roundMoney(
+        priceDiscountUnit *
+        quantity
+      );
+  
+    /*
+    |--------------------------------------------------------------------------
+    | Total Discount
+    |--------------------------------------------------------------------------
+    */
+  
+    const totalDiscountAmount =
+      roundMoney(
+        priceDiscountAmount +
+        adjustmentTotal
+      );
+  
+    const regularLineAmount =
+      roundMoney(
+        regularPrice *
+        quantity
+      );
+  
+    const totalDiscountPercent =
+      regularLineAmount > 0
+        ? roundMoney(
+            (
+              totalDiscountAmount /
+              regularLineAmount
+            ) *
+              100
           )
         : 0;
   
     return {
       ...resolvedPrice,
   
-      baseSellingPrice:
-        roundMoney(
-          resolvedPrice
-            .sellingPrice
-        ),
+      baseSellingPrice,
   
       baseLineAmount,
+  
+      /*
+      |--------------------------------------------------------------------------
+      | Existing Regular Discount
+      |--------------------------------------------------------------------------
+      */
+  
+      priceDiscountUnit,
+  
+      priceDiscountAmount,
+  
+      /*
+      |--------------------------------------------------------------------------
+      | Adjustments
+      |--------------------------------------------------------------------------
+      */
   
       adjustments,
   
       adjustmentTotal,
+  
+      /*
+      |--------------------------------------------------------------------------
+      | Gift Voucher
+      |--------------------------------------------------------------------------
+      */
+  
+      giftVoucherDiscountAmount,
+  
+      giftVoucherUnitDiscount,
+  
+      giftVoucher:
+        giftVoucherAdjustment
+          ? {
+              promotionId:
+                giftVoucherAdjustment
+                  .metadata
+                  ?.promotionId ||
+                null,
+  
+              code:
+                giftVoucherAdjustment
+                  .metadata
+                  ?.promotionCode ||
+                null,
+  
+              name:
+                giftVoucherAdjustment
+                  .metadata
+                  ?.promotionName ||
+                null,
+  
+              fundingType:
+                giftVoucherAdjustment
+                  .metadata
+                  ?.fundingType ||
+                null,
+  
+              fundingSource:
+                giftVoucherAdjustment
+                  .metadata
+                  ?.fundingSource ||
+                null,
+  
+              internalValue:
+                Number(
+                  giftVoucherAdjustment
+                    .metadata
+                    ?.internalValue ||
+                  0
+                ),
+  
+              externalValue:
+                Number(
+                  giftVoucherAdjustment
+                    .metadata
+                    ?.externalValue ||
+                  0
+                ),
+  
+              validFrom:
+                giftVoucherAdjustment
+                  .metadata
+                  ?.validFrom ||
+                null,
+  
+              validUntil:
+                giftVoucherAdjustment
+                  .metadata
+                  ?.validUntil ||
+                null,
+            }
+          : null,
+  
+      /*
+      |--------------------------------------------------------------------------
+      | Combined Discount
+      |--------------------------------------------------------------------------
+      */
+  
+      totalDiscountAmount,
+  
+      totalDiscountPercent,
   
       finalUnitPrice,
   

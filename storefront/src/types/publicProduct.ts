@@ -1,3 +1,5 @@
+import type { PublicBundlePromotionsData } from "./bundlePromotion";
+
 import type {
   StorefrontMediaAsset,
   StorefrontProduct,
@@ -8,21 +10,118 @@ export interface PublicProductBreadcrumb {
   url: string;
 }
 
+export interface PublicProductGiftVoucher {
+  promotionId:
+    | string
+    | null;
+
+  code:
+    | string
+    | null;
+
+  name:
+    | string
+    | null;
+
+  discountType:
+    | string
+    | null;
+
+  discountValue:
+    | number
+    | null;
+
+  discountAmount:
+    number;
+
+  fundingType?:
+    | string
+    | null;
+
+  fundingSource?:
+    | string
+    | null;
+
+  internalValue?:
+    number;
+
+  externalValue?:
+    number;
+
+  validFrom:
+    | string
+    | null;
+
+  validUntil:
+    | string
+    | null;
+
+  currencyCode?:
+    | string
+    | null;
+}
+
 export interface PublicProductPrice {
   id: string;
+
   priceListId: string;
+
   priceListCode: string;
+
   priceListName: string;
+
   currencyCode: string;
+
   isTaxInclusive: boolean;
+
   regularPrice: number;
+
   sellingPrice: number;
+
   compareAtPrice:
     | number
     | null;
+
   minimumQuantity: number;
+
   maximumQuantity:
     | number
+    | null;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Discount Breakdown
+  |--------------------------------------------------------------------------
+  */
+
+  baseSellingPrice?:
+    | number
+    | null;
+
+  priceDiscountAmount?:
+    | number
+    | null;
+
+  giftVoucherDiscountAmount?:
+    | number
+    | null;
+
+  totalDiscountAmount?:
+    | number
+    | null;
+
+  totalDiscountPercent?:
+    | number
+    | null;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Gift Voucher Promotion
+  |--------------------------------------------------------------------------
+  */
+
+  giftVoucher?:
+    | PublicProductGiftVoucher
     | null;
 }
 
@@ -100,11 +199,38 @@ export interface PublicProductAvailability {
     | "AVAILABLE"
     | "OUT_OF_STOCK"
     | "UNAVAILABLE";
+
   quantity:
     | number
     | null;
+
   trackQuantity: boolean;
+
   message: string;
+
+  alwaysAvailableForSale?:
+    boolean;
+  
+  
+}
+
+export interface PublicProductDelivery {
+  source:
+    | "PRODUCT"
+    | "VARIANT";
+  expressDeliveryEnabled: boolean;
+  expressDeliveryHours:
+    | number
+    | null;
+  deliveryMinDays:
+    | number
+    | null;
+  deliveryMaxDays:
+    | number
+    | null;
+  deliveryNote:
+    | string
+    | null;
 }
 
 export interface PublicProductVariant {
@@ -145,6 +271,8 @@ export interface PublicProductVariant {
     | null;
   images:
     PublicProductImage[];
+  delivery:
+    PublicProductDelivery;
   availability:
     PublicProductAvailability;
 }
@@ -194,6 +322,12 @@ export interface PublicProductDetail {
     | null;
   taxPercent: number;
   isFeatured: boolean;
+
+  alwaysAvailableForSale?:
+  boolean;
+
+  delivery:
+    PublicProductDelivery;
   brand:
     | {
         id: string;
@@ -253,6 +387,8 @@ export interface PublicProductData {
     PublicProductBreadcrumb[];
   relatedProducts:
     StorefrontProduct[];
+  bundlePromotions?:
+    PublicBundlePromotionsData | null;
   meta: {
     channel:
       | "WEBSITE"

@@ -51,7 +51,14 @@ const {
         .withMessage(
           "channel must be WEBSITE or KIOSK."
         ),
-  
+
+      query("featured")
+        .optional()
+        .isBoolean()
+        .withMessage(
+          "featured must be true or false."
+        ),
+
       query("page")
         .optional()
         .isInt({

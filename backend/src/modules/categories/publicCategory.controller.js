@@ -3,6 +3,68 @@ const {
   } = require("sequelize");
   
   const db = require("../../models");
+
+
+  const resolveCompanyId =
+  async (req) => {
+    /*
+     * 1. Existing request context
+     */
+
+    if (
+      req.context?.companyId
+    ) {
+      return req.context.companyId;
+    }
+
+    /*
+     * 2. Explicit companyId query
+     *    Kept for backwards compatibility
+     */
+
+    if (
+      req.query?.companyId
+    ) {
+      return req.query.companyId;
+    }
+
+    /*
+     * 3. Public storefront company code
+     */
+
+    const companyCode =
+      String(
+        req.headers[
+          "x-company-code"
+        ] ||
+          ""
+      )
+        .trim()
+        .toUpperCase();
+
+    if (!companyCode) {
+      return null;
+    }
+
+    const company =
+      await db.Company.findOne(
+        {
+          where: {
+            code:
+              companyCode,
+          },
+
+          attributes: [
+            "id",
+          ],
+        }
+      );
+
+    return (
+      company?.id ||
+      null
+    );
+  };
   
   const {
     buildCategoryTree,
@@ -18,8 +80,9 @@ const {
     ) => {
       try {
         const companyId =
-          req.context?.companyId ||
-          req.query.companyId;
+        await resolveCompanyId(
+          req
+        );
   
         if (!companyId) {
           return res
@@ -128,8 +191,9 @@ const {
     ) => {
       try {
         const companyId =
-          req.context?.companyId ||
-          req.query.companyId;
+          await resolveCompanyId(
+            req
+          );
   
         if (!companyId) {
           return res

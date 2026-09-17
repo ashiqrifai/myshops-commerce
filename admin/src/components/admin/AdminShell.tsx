@@ -25,7 +25,14 @@ import {
   BadgeDollarSign,
   Grid3X3,
   FolderKanban,
-  FileUp
+  FileUp,
+  TicketPercent,
+  ShieldCheck,
+  Link2,
+  Truck,
+  Warehouse,
+  AlertTriangle,
+  CalendarClock,
 } from "lucide-react";
 
 import {
@@ -82,6 +89,11 @@ const navigation: NavigationItem[] = [
     icon: ShoppingBag,
   },
   {
+    name: "Payment Exceptions",
+    href: "/admin/payment-exceptions",
+    icon: AlertTriangle,
+  },
+  {
     name: "Catalog",
     icon: Package,
     children: [
@@ -120,6 +132,7 @@ const navigation: NavigationItem[] = [
   {
     name: "Pricing",
     icon: DollarSign,
+  
     children: [
       {
         name: "Price Lists",
@@ -134,9 +147,50 @@ const navigation: NavigationItem[] = [
       },
   
       {
+        name: "Coupons",
+        href: "/admin/coupons",
+        icon: TicketPercent,
+      },
+  
+      {
+        name: "Gift Voucher Promotions",
+        href: "/admin/gift-voucher-promotions",
+        icon: TicketPercent,
+      },
+      {
+        name: "Bundle Promotions",
+        href: "/admin/bundle-promotions",
+        icon: Package,
+      },
+  
+      {
         name: "Pricing Center",
         href: "/admin/pricing-center",
         icon: Grid3X3,
+      },
+    ],
+  },
+  {
+    name: "Fulfillment",
+    icon: Truck,
+  
+    children: [
+      {
+        name: "Suppliers",
+        href: "/admin/suppliers",
+        icon: Truck,
+      },
+  
+      {
+        name: "Inventory Locations",
+        href: "/admin/inventory-locations",
+        icon: Warehouse,
+      },
+  
+      {
+        name: "Inventory",
+        href: "/admin/inventory",
+        icon: Package,
       },
     ],
   },
@@ -148,16 +202,24 @@ const navigation: NavigationItem[] = [
   {
     name: "Content",
     icon: PanelTop,
+  
     children: [
       {
         name: "Pages",
         href: "/cms/pages",
         icon: FileText,
       },
+  
       {
         name: "Navigation",
         href: "/admin/cms/navigation",
         icon: Menu,
+      },
+  
+      {
+        name: "Instagram Gallery",
+        href: "/admin/instagram-posts",
+        icon: Images,
       },
     ],
   },
@@ -170,6 +232,21 @@ const navigation: NavigationItem[] = [
     name: "Kiosk",
     href: "/kiosk",
     icon: MonitorCog,
+  },
+  {
+    name: "Product Attachments",
+    href: "/admin/product-attachments",
+    icon: Link2,
+  },
+  {
+    name: "Pre-booking",
+    href: "/admin/pre-booking",
+    icon: CalendarClock,
+  },
+  {
+    name: "Protection",
+    href: "/admin/protection",
+    icon: ShieldCheck,
   },
   {
     name: "Settings",
@@ -198,34 +275,66 @@ const catalogRouteActive =
   pathname.startsWith("/admin/products") ||
   pathname.startsWith("/admin/categories") ||
   pathname.startsWith("/admin/brands") ||
-  pathname.startsWith("/admin/attributes");
+  pathname.startsWith("/admin/attributes") ||
+  pathname.startsWith("/admin/collections");
 
-const pricingRouteActive =
-  pathname.startsWith("/admin/price-lists");
-  const [
-    expandedSections,
-    setExpandedSections,
-  ] = useState<Record<string, boolean>>({
-    Catalog: catalogRouteActive,
-    Pricing: pricingRouteActive,
-    Content: contentRouteActive,
-  });
+  const pricingRouteActive =
+  pathname.startsWith("/admin/price-lists") ||
+  pathname.startsWith("/admin/variant-prices") ||
+  pathname.startsWith("/admin/coupons") ||
+  pathname.startsWith("/admin/gift-voucher-promotions") ||
+  pathname.startsWith("/admin/bundle-promotions") ||
+  pathname.startsWith("/admin/pricing-center");
 
-  useEffect(() => {
-    setExpandedSections((current) => ({
-      ...current,
-      Catalog:
-        current.Catalog || catalogRouteActive,
-      Pricing:
-        current.Pricing || pricingRouteActive,
-      Content:
-        current.Content || contentRouteActive,
-    }));
-  }, [
+  
+const fulfillmentRouteActive =
+  pathname.startsWith("/admin/suppliers") ||
+  pathname.startsWith("/admin/inventory-locations") ||
+  pathname.startsWith("/admin/inventory");
+
+const [
+  expandedSections,
+  setExpandedSections,
+] = useState<Record<string, boolean>>({
+  Catalog:
     catalogRouteActive,
+
+  Pricing:
     pricingRouteActive,
+
+  Content:
     contentRouteActive,
-  ]);
+
+  Fulfillment:
+    fulfillmentRouteActive,
+});
+
+useEffect(() => {
+  setExpandedSections((current) => ({
+    ...current,
+
+    Catalog:
+      current.Catalog ||
+      catalogRouteActive,
+
+    Pricing:
+      current.Pricing ||
+      pricingRouteActive,
+
+    Content:
+      current.Content ||
+      contentRouteActive,
+
+    Fulfillment:
+      current.Fulfillment ||
+      fulfillmentRouteActive,
+  }));
+}, [
+  catalogRouteActive,
+  pricingRouteActive,
+  contentRouteActive,
+  fulfillmentRouteActive,
+]);
 
   const [
     logout,

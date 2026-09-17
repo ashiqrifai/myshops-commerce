@@ -5,6 +5,7 @@ import {
   ArrowUp,
   CheckCircle2,
   Copy,
+  FileVideo,
   ImageIcon,
   LoaderCircle,
   Plus,
@@ -56,6 +57,9 @@ interface HeroCarouselSlide {
 
   desktopAssetId: string | null;
   mobileAssetId: string | null;
+
+  slideLinkUrl: string;
+  slideLinkNewTab: boolean;
 
   eyebrow: string;
   title: string;
@@ -117,6 +121,9 @@ const createEmptySlide =
     desktopAssetId: null,
     mobileAssetId: null,
 
+    slideLinkUrl: "",
+    slideLinkNewTab: false,
+
     eyebrow: "",
     title: "",
     description: "",
@@ -152,40 +159,104 @@ const resolveMediaUrl = (
   return `${API_BASE_URL}${url}`;
 };
 
-const getAssetPreviewUrl = (
+const getAssetImagePreviewUrl = (
   asset?: MediaAsset | null
 ): string | null => {
   if (!asset) {
     return null;
   }
 
-  const preferredTypes = [
-    "PREVIEW",
-    "THUMBNAIL",
-    "MEDIUM",
-    "SMALL",
-    "ORIGINAL",
-  ];
-
-  for (const variantType of preferredTypes) {
-    const variant =
-      asset.variants?.find(
-        (item) =>
+  /*
+   * For videos, prefer the generated JPG
+   * thumbnail/poster rather than the MP4
+   * PREVIEW variant.
+   */
+  const imageVariant =
+    asset.variants?.find(
+      (item) =>
+        item.isActive &&
+        Boolean(item.publicUrl) &&
+        String(
+          item.mimeType || ""
+        ).startsWith("image/") &&
+        (
           item.variantType ===
-            variantType &&
-          item.isActive &&
-          Boolean(item.publicUrl)
-      );
+            "THUMBNAIL" ||
+          item.variantType ===
+            "PREVIEW"
+        )
+    );
 
-    if (variant?.publicUrl) {
-      return resolveMediaUrl(
-        variant.publicUrl
-      );
-    }
+  if (imageVariant?.publicUrl) {
+    return resolveMediaUrl(
+      imageVariant.publicUrl
+    );
   }
 
+  if (asset.assetType === "IMAGE") {
+    const preferredTypes = [
+      "PREVIEW",
+      "THUMBNAIL",
+      "MEDIUM",
+      "SMALL",
+      "ORIGINAL",
+    ];
+
+    for (
+      const variantType of
+      preferredTypes
+    ) {
+      const variant =
+        asset.variants?.find(
+          (item) =>
+            item.variantType ===
+              variantType &&
+            item.isActive &&
+            Boolean(
+              item.publicUrl
+            )
+        );
+
+      if (variant?.publicUrl) {
+        return resolveMediaUrl(
+          variant.publicUrl
+        );
+      }
+    }
+
+    return resolveMediaUrl(
+      asset.publicUrl
+    );
+  }
+
+  return null;
+};
+
+const getAssetVideoPreviewUrl = (
+  asset?: MediaAsset | null
+): string | null => {
+  if (
+    !asset ||
+    asset.assetType !== "VIDEO"
+  ) {
+    return null;
+  }
+
+  const previewVariant =
+    asset.variants?.find(
+      (item) =>
+        item.variantType ===
+          "PREVIEW" &&
+        item.isActive &&
+        Boolean(item.publicUrl) &&
+        String(
+          item.mimeType || ""
+        ).startsWith("video/")
+    );
+
   return resolveMediaUrl(
-    asset.publicUrl
+    previewVariant?.publicUrl ||
+      asset.publicUrl
   );
 };
 
@@ -248,6 +319,15 @@ const normalizeSlide = (
       "string"
         ? source.mobileAssetId
         : null,
+
+    slideLinkUrl:
+      typeof source.slideLinkUrl ===
+      "string"
+        ? source.slideLinkUrl
+        : "",
+
+    slideLinkNewTab:
+      source.slideLinkNewTab === true,
 
     eyebrow:
       typeof source.eyebrow ===
@@ -334,8 +414,18 @@ function SlideMediaField({
 
   const asset = data?.data || null;
 
-  const previewUrl =
-    getAssetPreviewUrl(asset);
+  const imagePreviewUrl =
+    getAssetImagePreviewUrl(
+      asset
+    );
+
+  const videoPreviewUrl =
+    getAssetVideoPreviewUrl(
+      asset
+    );
+
+  const isVideo =
+    asset?.assetType === "VIDEO";
 
   const handleAssetSelection = (
     selectedAsset: MediaAsset
@@ -381,7 +471,7 @@ function SlideMediaField({
             </div>
 
             <p className="mt-3 text-sm font-semibold">
-              Choose image
+              Choose media
             </p>
 
             <p className="mt-1 text-xs text-[#6d7175]">
@@ -399,23 +489,54 @@ function SlideMediaField({
               />
 
               <p className="mt-2 text-xs text-[#6d7175]">
-                Loading image...
+                Loading media...
               </p>
             </div>
           </div>
-        ) : asset && previewUrl ? (
+        ) : asset &&
+          (
+            imagePreviewUrl ||
+            videoPreviewUrl
+          ) ? (
           <div className="overflow-hidden rounded-xl border border-[#e1e3e5] bg-white">
             <div className="flex min-h-[190px] items-center justify-center bg-[#f6f6f7] p-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={previewUrl}
-                alt={
-                  asset.altText ||
-                  asset.title ||
-                  asset.originalFileName
-                }
-                className="max-h-[230px] w-full object-contain"
-              />
+              {isVideo &&
+              videoPreviewUrl ? (
+                <video
+                  src={videoPreviewUrl}
+                  poster={
+                    imagePreviewUrl ||
+                    undefined
+                  }
+                  controls
+                  muted
+                  playsInline
+                  preload="metadata"
+                  className="max-h-[230px] w-full object-contain"
+                />
+              ) : imagePreviewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={
+                    imagePreviewUrl
+                  }
+                  alt={
+                    asset.altText ||
+                    asset.title ||
+                    asset.originalFileName
+                  }
+                  className="max-h-[230px] w-full object-contain"
+                />
+              ) : (
+                <div className="flex min-h-[190px] w-full flex-col items-center justify-center gap-2 text-[#6d7175]">
+                  <FileVideo
+                    size={32}
+                  />
+                  <span className="text-xs font-medium">
+                    Video selected
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="p-4">
@@ -425,6 +546,8 @@ function SlideMediaField({
               </p>
 
               <p className="mt-1 text-xs text-[#6d7175]">
+                {asset.assetType}
+                {" · "}
                 {asset.width &&
                 asset.height
                   ? `${asset.width} × ${asset.height}`
@@ -459,7 +582,7 @@ function SlideMediaField({
         ) : (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4">
             <p className="text-sm font-semibold text-red-800">
-              Selected image unavailable
+              Selected media unavailable
             </p>
 
             <p className="mt-1 text-xs text-red-700">
@@ -506,6 +629,7 @@ function SlideMediaField({
             classification
           }
           allowPdf={false}
+          allowVideo={true}
           onClose={() =>
             setPickerOpen(false)
           }
@@ -651,7 +775,7 @@ export default function HeroCarouselEditor({
           <p className="mt-1 text-sm leading-6 text-[#6d7175]">
             Create responsive homepage
             slides using desktop and mobile
-            images from the Digital Asset
+            images or videos from the Digital Asset
             Library.
           </p>
         </div>
@@ -681,7 +805,7 @@ export default function HeroCarouselEditor({
 
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#6d7175]">
             Add the first slide and select
-            desktop and mobile images from
+            desktop and mobile media from
             your media library.
           </p>
 
@@ -729,7 +853,7 @@ export default function HeroCarouselEditor({
                             <span>•</span>
 
                             <span>
-                              Desktop image
+                              Desktop media
                               selected
                             </span>
                           </>
@@ -810,21 +934,20 @@ export default function HeroCarouselEditor({
                   <section>
                     <div className="mb-4">
                       <h4 className="text-sm font-semibold">
-                        Slide images
+                        Slide media
                       </h4>
 
                       <p className="mt-1 text-xs text-[#6d7175]">
-                        Desktop image is
-                        required. Mobile image
-                        is recommended for
-                        portrait screens.
+                        Desktop media is required. Mobile media
+                        is recommended for portrait screens.
+                        Images and MP4 videos are supported.
                       </p>
                     </div>
 
                     <div className="grid gap-5 lg:grid-cols-2">
                       <SlideMediaField
-                        label="Desktop image"
-                        description="Recommended size: 1920 × 700 WebP."
+                        label="Desktop media"
+                        description="Recommended image size: 1920 × 700 WebP. MP4 video is also supported."
                         value={
                           slide.desktopAssetId
                         }
@@ -843,8 +966,8 @@ export default function HeroCarouselEditor({
                       />
 
                       <SlideMediaField
-                        label="Mobile image"
-                        description="Recommended size: 900 × 1200 WebP."
+                        label="Mobile media"
+                        description="Recommended image size: 900 × 1200 WebP. MP4 video is also supported."
                         value={
                           slide.mobileAssetId
                         }
@@ -861,6 +984,93 @@ export default function HeroCarouselEditor({
                           )
                         }
                       />
+                    </div>
+                  </section>
+
+                  <section className="border-t border-[#e1e3e5] pt-6">
+                    <div className="mb-4">
+                      <h4 className="text-sm font-semibold">
+                        Slide link
+                      </h4>
+
+                      <p className="mt-1 text-xs leading-5 text-[#6d7175]">
+                        Optional. Make the hero slide clickable without affecting the primary and secondary buttons.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium">
+                          Custom link
+                        </label>
+
+                        <input
+                          value={
+                            slide.slideLinkUrl
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            handleSlideChange(
+                              slideIndex,
+                              {
+                                slideLinkUrl:
+                                  event.target.value,
+                              }
+                            )
+                          }
+                          className="admin-input"
+                          placeholder="/category/mobiles or https://example.com"
+                        />
+
+                        <p className="mt-1.5 text-xs leading-5 text-[#6d7175]">
+                          Leave empty if the slide itself should not be clickable.
+                        </p>
+                      </div>
+
+                      <div className="flex min-h-[42px] items-center justify-between gap-5 rounded-xl border border-[#e1e3e5] bg-white px-4 py-2.5 md:min-w-[230px]">
+                        <div>
+                          <p className="text-sm font-medium">
+                            Open in new tab
+                          </p>
+
+                          <p className="mt-0.5 text-xs text-[#6d7175]">
+                            Applies to the slide link only.
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleSlideChange(
+                              slideIndex,
+                              {
+                                slideLinkNewTab:
+                                  !slide.slideLinkNewTab,
+                              }
+                            )
+                          }
+                          className={[
+                            "relative h-6 w-11 shrink-0 rounded-full transition",
+                            slide.slideLinkNewTab
+                              ? "bg-[#303030]"
+                              : "bg-[#c9cccf]",
+                          ].join(" ")}
+                          aria-pressed={
+                            slide.slideLinkNewTab
+                          }
+                          aria-label="Toggle slide link new tab"
+                        >
+                          <span
+                            className={[
+                              "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition",
+                              slide.slideLinkNewTab
+                                ? "left-[22px]"
+                                : "left-0.5",
+                            ].join(" ")}
+                          />
+                        </button>
+                      </div>
                     </div>
                   </section>
 

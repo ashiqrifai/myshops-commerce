@@ -6,6 +6,22 @@ const db = require(
   "../../models"
 );
 
+const publicAvailabilityService =
+  require(
+    "./publicAvailability.service"
+  );
+
+
+const giftVoucherPromotionService =
+  require(
+    "../gift-voucher-promotions/giftVoucherPromotion.service"
+  );
+
+const publicBundlePromotionService =
+  require(
+    "./publicBundlePromotion.service"
+  );
+
 const asPlain = (
   model
 ) => {
@@ -325,6 +341,190 @@ const getCurrentPrice = (
   };
 };
 
+
+const applyGiftVoucherToPrice = (
+  price,
+  giftVoucher
+) => {
+  if (!price) {
+    return null;
+  }
+
+  const regularPrice =
+    Number(
+      price.regularPrice ||
+      0
+    );
+
+  const baseSellingPrice =
+    Number(
+      price.sellingPrice ||
+      0
+    );
+
+  const priceDiscountAmount =
+    Math.max(
+      0,
+      regularPrice -
+        baseSellingPrice
+    );
+
+  const giftVoucherDiscountAmount =
+    giftVoucher
+      ? Number(
+          giftVoucher.unitDiscount ||
+          giftVoucher.discountAmount ||
+          0
+        )
+      : 0;
+
+  const finalSellingPrice =
+    Math.max(
+      0,
+      baseSellingPrice -
+        giftVoucherDiscountAmount
+    );
+
+  const totalDiscountAmount =
+    Math.max(
+      0,
+      regularPrice -
+        finalSellingPrice
+    );
+
+  const totalDiscountPercent =
+    regularPrice > 0
+      ? (
+          totalDiscountAmount /
+          regularPrice
+        ) *
+        100
+      : 0;
+
+  return {
+    ...price,
+
+    regularPrice:
+      Number(
+        regularPrice.toFixed(4)
+      ),
+
+    baseSellingPrice:
+      Number(
+        baseSellingPrice.toFixed(4)
+      ),
+
+    priceDiscountAmount:
+      Number(
+        priceDiscountAmount.toFixed(4)
+      ),
+
+    giftVoucherDiscountAmount:
+      Number(
+        giftVoucherDiscountAmount.toFixed(
+          4
+        )
+      ),
+
+    sellingPrice:
+      Number(
+        finalSellingPrice.toFixed(4)
+      ),
+
+    totalDiscountAmount:
+      Number(
+        totalDiscountAmount.toFixed(4)
+      ),
+
+    totalDiscountPercent:
+      Number(
+        totalDiscountPercent.toFixed(4)
+      ),
+
+    giftVoucher:
+      giftVoucher
+        ? {
+            promotionId:
+              giftVoucher.id ||
+              giftVoucher.promotionId ||
+              null,
+
+            code:
+              giftVoucher.code ||
+              giftVoucher.promotionCode ||
+              null,
+
+            name:
+              giftVoucher.name ||
+              giftVoucher.promotionName ||
+              null,
+
+            discountType:
+              giftVoucher.discountType ||
+              null,
+
+            discountValue:
+              giftVoucher.discountValue !==
+                undefined &&
+              giftVoucher.discountValue !==
+                null
+                ? Number(
+                    giftVoucher.discountValue
+                  )
+                : null,
+
+            discountAmount:
+              Number(
+                giftVoucherDiscountAmount.toFixed(
+                  4
+                )
+              ),
+
+            fundingType:
+              giftVoucher.fundingType ||
+              null,
+
+            fundingSource:
+              giftVoucher.fundingSource ||
+              null,
+
+            internalValue:
+              giftVoucher.internalValue !==
+                undefined &&
+              giftVoucher.internalValue !==
+                null
+                ? Number(
+                    giftVoucher.internalValue
+                  )
+                : 0,
+
+            externalValue:
+              giftVoucher.externalValue !==
+                undefined &&
+              giftVoucher.externalValue !==
+                null
+                ? Number(
+                    giftVoucher.externalValue
+                  )
+                : 0,
+
+            validFrom:
+              giftVoucher.validFrom ||
+              null,
+
+            validUntil:
+              giftVoucher.validUntil ||
+              null,
+
+            currencyCode:
+              giftVoucher.currencyCode ||
+              price.currencyCode ||
+              "AED",
+          }
+        : null,
+  };
+};
+
 const buildImage = (
   image,
   apiBaseUrl
@@ -473,11 +673,111 @@ const isVariantVisible = (
       entry.isVisible === true
   );
 
+const buildEffectiveDelivery = ({
+  product,
+  variant,
+}) => {
+  const productRow =
+    asPlain(
+      product
+    );
+
+  const variantRow =
+    asPlain(
+      variant
+    );
+
+  const useVariantOverride =
+    variantRow
+      .overrideDeliverySettings ===
+    true;
+
+  const source =
+    useVariantOverride
+      ? variantRow
+      : productRow;
+
+  const expressDeliveryEnabled =
+    source
+      .expressDeliveryEnabled ===
+    true;
+
+  const expressDeliveryHours =
+    source
+      .expressDeliveryHours !==
+      null &&
+    source
+      .expressDeliveryHours !==
+      undefined
+      ? Number(
+          source
+            .expressDeliveryHours
+        )
+      : null;
+
+  const deliveryMinDays =
+    source.deliveryMinDays !==
+      null &&
+    source.deliveryMinDays !==
+      undefined
+      ? Number(
+          source.deliveryMinDays
+        )
+      : null;
+
+  const deliveryMaxDays =
+    source.deliveryMaxDays !==
+      null &&
+    source.deliveryMaxDays !==
+      undefined
+      ? Number(
+          source.deliveryMaxDays
+        )
+      : null;
+
+  return {
+    source:
+      useVariantOverride
+        ? "VARIANT"
+        : "PRODUCT",
+
+    expressDeliveryEnabled,
+
+    expressDeliveryHours:
+      Number.isFinite(
+        expressDeliveryHours
+      )
+        ? expressDeliveryHours
+        : null,
+
+    deliveryMinDays:
+      Number.isFinite(
+        deliveryMinDays
+      )
+        ? deliveryMinDays
+        : null,
+
+    deliveryMaxDays:
+      Number.isFinite(
+        deliveryMaxDays
+      )
+        ? deliveryMaxDays
+        : null,
+
+    deliveryNote:
+      source.deliveryNote ||
+      null,
+  };
+};
+
 const buildVariant = ({
+  product,
   variant,
   channel,
   apiBaseUrl,
   now,
+  availabilityByVariant,
+  isDirectDelivery,
 }) => {
   const row =
     asPlain(variant);
@@ -565,13 +865,25 @@ const buildVariant = ({
         now
       ),
     images,
-    availability: {
-      status: "AVAILABLE",
-      quantity: null,
-      trackQuantity: false,
-      message:
-        "Available to order",
-    },
+
+    delivery:
+      buildEffectiveDelivery({
+        product,
+        variant,
+      }),
+
+    availability:
+      publicAvailabilityService
+        .getAvailabilityForVariant({
+          availabilityByVariant,
+
+          productVariantId:
+            row.id,
+
+          isDirectDelivery:
+            isDirectDelivery ===
+            true,
+        }),
   };
 };
 
@@ -792,8 +1104,26 @@ const groupByKey = (
   return grouped;
 };
 
+/*
+|--------------------------------------------------------------------------
+| Media Asset Include
+|--------------------------------------------------------------------------
+|
+| By default all active/public MediaAsset information is loaded exactly as
+| before.
+|
+| Some storefront contexts, especially PDP variant-specific images, only
+| need a small subset of generated DAM variants. In those cases
+| variantTypes can be supplied so PostgreSQL/Sequelize never loads the
+| unnecessary MediaAssetVariant rows.
+|--------------------------------------------------------------------------
+*/
+
 const loadMediaAssetInclude = ({
+
   companyId,
+  variantTypes = null,
+  formats = null,
 }) => ({
   model:
     db.MediaAsset,
@@ -822,9 +1152,33 @@ const loadMediaAssetInclude = ({
       required:
         false,
 
-      where: {
-        companyId,
-      },
+        where: {
+          companyId,
+        
+          ...(Array.isArray(
+            variantTypes
+          ) &&
+          variantTypes.length
+            ? {
+                variantType: {
+                  [Op.in]:
+                    variantTypes,
+                },
+              }
+            : {}),
+        
+          ...(Array.isArray(
+            formats
+          ) &&
+          formats.length
+            ? {
+                format: {
+                  [Op.in]:
+                    formats,
+                },
+              }
+            : {}),
+        },
     },
   ],
 });
@@ -1177,6 +1531,34 @@ const getRelatedProducts = async ({
       "variantId"
     );
 
+  const availabilityProducts =
+    productModels.map(
+      (productModel) => {
+        const product =
+          asPlain(
+            productModel
+          );
+
+        return {
+          ...product,
+
+          variants:
+            variantsByProduct.get(
+              product.id
+            ) || [],
+        };
+      }
+    );
+
+  const availabilityByVariant =
+    await publicAvailabilityService
+      .getVariantAvailabilityMap({
+        companyId,
+
+        products:
+          availabilityProducts,
+      });
+
   return productModels
     .map(asPlain)
     .filter(
@@ -1278,6 +1660,16 @@ const getRelatedProducts = async ({
           product.isFeatured ===
           true,
 
+
+
+    isDirectDelivery:
+      product.isDirectDelivery ===
+      true,
+
+    isDirectDelivery:
+      product.isDirectDelivery ===
+      true,
+
         taxPercent:
           Number(
             product.taxPercent ||
@@ -1347,6 +1739,20 @@ const getRelatedProducts = async ({
             channel,
             now
           ),
+
+
+        availability:
+          publicAvailabilityService
+            .getAvailabilityForVariant({
+              availabilityByVariant,
+
+              productVariantId:
+                selectedVariant.id,
+
+              isDirectDelivery:
+                product.isDirectDelivery ===
+                true,
+            }),
 
         productUrl:
           `/products/${product.slug}`,
@@ -1831,9 +2237,19 @@ exports.getPublicProduct = async ({
           },
 
           include: [
-            loadMediaAssetInclude({
+           loadMediaAssetInclude({
               companyId:
                 company.id,
+
+              variantTypes: [
+                "THUMBNAIL",
+                "MEDIUM",
+                "LARGE",
+              ],
+
+              formats: [
+                "avif",
+              ],
             }),
           ],
 
@@ -1936,7 +2352,18 @@ exports.getPublicProduct = async ({
       }
     );
 
-  const variants =
+  const availabilityByVariant =
+    await publicAvailabilityService
+      .getVariantAvailabilityMap({
+        companyId:
+          company.id,
+
+        products: [
+          product,
+        ],
+      });
+
+  let variants =
     product.variants
       .filter((variant) =>
         isVariantVisible(
@@ -1946,12 +2373,105 @@ exports.getPublicProduct = async ({
       )
       .map((variant) =>
         buildVariant({
+          product,
           variant,
           channel,
           apiBaseUrl,
           now,
+
+          availabilityByVariant,
+
+          isDirectDelivery:
+            product.isDirectDelivery ===
+            true,
         })
+      );
+
+  /*
+  |--------------------------------------------------------------------------
+  | Gift Voucher Pricing - Product Detail
+  |--------------------------------------------------------------------------
+  |
+  | Resolve Gift Voucher promotions for all visible variants in one batch.
+  | This avoids one database lookup per variant.
+  |--------------------------------------------------------------------------
+  */
+
+  const giftVoucherItems =
+    variants
+      .filter(
+        (variant) =>
+          variant.id &&
+          variant.price
+            ?.sellingPrice !==
+            null &&
+          variant.price
+            ?.sellingPrice !==
+            undefined
       )
+      .map(
+        (variant) => ({
+          productId:
+            product.id,
+
+          productVariantId:
+            variant.id,
+
+          sellingPrice:
+            Number(
+              variant.price
+                .sellingPrice
+            ),
+
+          quantity:
+            1,
+        })
+      );
+
+  const giftVoucherMap =
+    giftVoucherItems.length
+      ? await giftVoucherPromotionService
+          .resolveApplicablePromotionsBatch({
+            companyId:
+              company.id,
+
+            items:
+              giftVoucherItems,
+
+            channelCode:
+              channel,
+
+            effectiveDate:
+              now,
+          })
+      : new Map();
+
+  variants =
+    variants
+      .map((variant) => {
+        if (!variant.price) {
+          return variant;
+        }
+
+        const key =
+          `${product.id}:${variant.id}`;
+
+        const giftVoucher =
+          giftVoucherMap.get(
+            key
+          ) ||
+          null;
+
+        return {
+          ...variant,
+
+          price:
+            applyGiftVoucherToPrice(
+              variant.price,
+              giftVoucher
+            ),
+        };
+      })
       .sort(
         (first, second) =>
           Number(
@@ -2087,26 +2607,60 @@ exports.getPublicProduct = async ({
         })
       );
 
-  const relatedProducts =
-    await getRelatedProducts({
-      companyId:
-        company.id,
-
-      productId:
-        product.id,
-
-      categoryId:
-        product.primaryCategoryId,
-
-      brandId:
-        product.brandId,
-
-      channel,
-      apiBaseUrl,
-      now,
-    });
-
-  return {
+      const relatedProducts =
+      await getRelatedProducts({
+        companyId:
+          company.id,
+    
+        productId:
+          product.id,
+    
+        categoryId:
+          product.primaryCategoryId,
+    
+        brandId:
+          product.brandId,
+    
+        channel,
+        apiBaseUrl,
+        now,
+      });
+    
+    /*
+    |--------------------------------------------------------------------------
+    | Regular Sales Bundle Promotions
+    |--------------------------------------------------------------------------
+    |
+    | Resolve promotion eligibility for every visible PDP variant.
+    |
+    | This allows the storefront to switch bundle offers immediately when the
+    | customer changes colour/storage without another API request.
+    |--------------------------------------------------------------------------
+    */
+    
+    const bundlePromotionsByVariant =
+      await publicBundlePromotionService
+        .resolveForVariants({
+          companyId:
+            company.id,
+    
+          productId:
+            product.id,
+    
+          productVariantIds:
+            variants.map(
+              (variant) =>
+                variant.id
+            ),
+    
+          channelCode:
+            channel,
+    
+          effectiveDate:
+            now,
+        });
+    
+    return {
     company: {
       id:
         company.id,
@@ -2175,9 +2729,21 @@ exports.getPublicProduct = async ({
           0
         ),
 
-      isFeatured:
+        isFeatured:
         product.isFeatured ===
         true,
+      
+      alwaysAvailableForSale:
+        product
+          .alwaysAvailableForSale ===
+        true,
+      
+      delivery:
+        buildEffectiveDelivery({
+          product,
+          variant:
+            defaultVariant,
+        }),
 
       brand:
         product.brand
@@ -2268,22 +2834,87 @@ exports.getPublicProduct = async ({
       defaultVariantId:
         defaultVariant.id,
 
-      availability:
+      /*
+|--------------------------------------------------------------------------
+| Product-Level Sellability
+|--------------------------------------------------------------------------
+|
+| Individual variant availability remains based on real physical stock.
+|
+| For an Always Available product, however, the PDP itself remains
+| purchasable even when the selected/default variant has zero stock.
+|--------------------------------------------------------------------------
+*/
+
+availability:
+product
+  .alwaysAvailableForSale ===
+true &&
+defaultVariant
+  .availability
+  ?.status ===
+  "OUT_OF_STOCK"
+  ? {
+      fulfillmentType:
+        "INTERNAL",
+
+      inventoryTracked:
+        true,
+
+      trackQuantity:
+        true,
+
+      status:
+        "AVAILABLE",
+
+      quantity:
         defaultVariant
-          .availability,
+          .availability
+          ?.quantity ??
+        0,
+
+      message:
+        "Available to order",
+
+      alwaysAvailableForSale:
+        true,
+    }
+  : {
+      ...defaultVariant
+        .availability,
+
+      alwaysAvailableForSale:
+        product
+          .alwaysAvailableForSale ===
+        true,
+    },
 
       productUrl:
         `/products/${product.slug}`,
     },
 
     breadcrumbs:
-      buildBreadcrumbs(
-        product
-      ),
+  buildBreadcrumbs(
+    product
+  ),
 
-    relatedProducts,
+relatedProducts,
 
-    meta: {
+bundlePromotions: {
+  defaultVariantId:
+    defaultVariant.id,
+
+  selected:
+    bundlePromotionsByVariant[
+      defaultVariant.id
+    ] ||
+    null,
+
+  byVariant:
+    bundlePromotionsByVariant,
+},
+
+meta: {
       channel,
 
       generatedAt:

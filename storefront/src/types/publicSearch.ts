@@ -150,6 +150,8 @@ import type {
   
     page?:
       number;
+    
+    featured?: boolean;
   
     pageSize?:
       number;

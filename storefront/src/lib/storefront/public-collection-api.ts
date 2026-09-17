@@ -217,22 +217,27 @@ import type {
       !payload.success
     ) {
       const message =
-        payload &&
-        "error" in
-          payload
-          ? payload.error
-              ?.message
-          : payload
-              ?.message;
-  
-      const code =
-        payload &&
-        "error" in
-          payload
-          ? payload.error
-              ?.code ||
-            null
-          : null;
+  payload &&
+  "error" in payload
+    ? payload.error
+        ?.message ||
+      (
+        "message" in payload
+          ? payload.message
+          : undefined
+      )
+    : payload &&
+      "message" in payload
+      ? payload.message
+      : undefined;
+
+const code =
+  payload &&
+  "error" in payload
+    ? payload.error
+        ?.code ||
+      null
+    : null;
   
       throw new PublicCollectionApiError(
         message ||

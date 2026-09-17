@@ -232,6 +232,46 @@ export const collectionApi =
             ],
           }),
 
+        refreshSmartCollection:
+          builder.mutation<
+            {
+              success:
+                boolean;
+              message:
+                string;
+              data:
+                unknown;
+            },
+            string
+          >({
+            query:
+              (id) => ({
+                url:
+                  `/collections/${id}/refresh-smart`,
+                method:
+                  "POST",
+              }),
+
+            invalidatesTags:
+              (
+                _result,
+                _error,
+                id
+              ) => [
+                {
+                  type:
+                    "Collections" as const,
+                  id,
+                },
+                {
+                  type:
+                    "Collections" as const,
+                  id:
+                    "LIST",
+                },
+              ],
+          }),
+
         updateCollection:
           builder.mutation<
             CollectionResponse,
@@ -538,6 +578,7 @@ export const {
   useGetCollectionsQuery,
   useGetCollectionByIdQuery,
   useCreateCollectionMutation,
+  useRefreshSmartCollectionMutation,
   useUpdateCollectionMutation,
   useChangeCollectionStatusMutation,
   useDeleteCollectionMutation,

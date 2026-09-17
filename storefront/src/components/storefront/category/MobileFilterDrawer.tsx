@@ -44,7 +44,7 @@ export default function MobileFilterDrawer({
         onClick={() =>
           setOpen(true)
         }
-        className="flex h-11 flex-1 items-center justify-center gap-2 rounded-storefront-button border border-storefront bg-white text-sm font-bold text-storefront-text lg:hidden"
+        className="flex h-11 flex-1 items-center justify-center gap-2 rounded-storefront-button border border-storefront-border-light bg-white text-sm font-bold text-storefront-text lg:hidden"
       >
         <SlidersHorizontal
           size={17}

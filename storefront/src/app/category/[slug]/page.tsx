@@ -11,6 +11,8 @@ import StorefrontFooter from "@/components/storefront/StorefrontFooter";
 import StorefrontHeader from "@/components/storefront/StorefrontHeader";
 import StorefrontShell from "@/components/storefront/StorefrontShell";
 
+import StorefrontPageViewTracker from "@/components/storefront/tracking/StorefrontPageViewTracker";
+
 import {
   getPublicCategory,
 } from "@/lib/storefront/public-category-api";
@@ -28,6 +30,12 @@ import type {
   PublicCategoryAttributeRange,
 } from "@/types/publicCategory";
 
+/*
+|--------------------------------------------------------------------------
+| Route Types
+|--------------------------------------------------------------------------
+*/
+
 interface CategoryRouteProps {
   params: Promise<{
     slug: string;
@@ -40,6 +48,12 @@ interface CategoryRouteProps {
     >
   >;
 }
+
+/*
+|--------------------------------------------------------------------------
+| Query Helpers
+|--------------------------------------------------------------------------
+*/
 
 const getSingle = (
   value:
@@ -58,11 +72,13 @@ const parseCsv = (
     | undefined
 ) =>
   String(
-    getSingle(value) || ""
+    getSingle(value) ||
+      ""
   )
     .split(",")
-    .map((item) =>
-      item.trim()
+    .map(
+      item =>
+        item.trim()
     )
     .filter(Boolean);
 
@@ -103,18 +119,27 @@ const parseAttributeRanges = (
     PublicCategoryAttributeRange
   > = {};
 
-  Object.entries(query).forEach(
-    ([key, value]) => {
-      const match = key.match(
-        /^attribute(Min|Max)\[([^\]]+)\]$/
-      );
+  Object.entries(
+    query
+  ).forEach(
+    (
+      [
+        key,
+        value,
+      ]
+    ) => {
+      const match =
+        key.match(
+          /^attribute(Min|Max)\[([^\]]+)\]$/
+        );
 
       if (!match) {
         return;
       }
 
       const boundary =
-        match[1].toLowerCase() as
+        match[1]
+          .toLowerCase() as
           | "min"
           | "max";
 
@@ -122,7 +147,9 @@ const parseAttributeRanges = (
         match[2];
 
       const numericValue =
-        parseNumber(value);
+        parseNumber(
+          value
+        );
 
       if (
         numericValue ===
@@ -131,10 +158,15 @@ const parseAttributeRanges = (
         return;
       }
 
-      ranges[attributeId] = {
-        ...(ranges[
-          attributeId
-        ] || {}),
+      ranges[
+        attributeId
+      ] = {
+        ...(
+          ranges[
+            attributeId
+          ] ||
+          {}
+        ),
 
         [boundary]:
           numericValue,
@@ -145,16 +177,34 @@ const parseAttributeRanges = (
   return ranges;
 };
 
+/*
+|--------------------------------------------------------------------------
+| Metadata
+|--------------------------------------------------------------------------
+*/
+
 export async function generateMetadata({
   params,
 }: CategoryRouteProps): Promise<Metadata> {
   try {
-    const { slug } =
+    const {
+      slug,
+    } =
       await params;
 
+    /*
+     * public-category-api already has a Next.js
+     * revalidation cache, so this metadata request
+     * can be served from that cache.
+     */
     const categoryData =
       await getPublicCategory({
         slug,
+
+        query: {
+          channel:
+            "WEBSITE",
+        },
       });
 
     const category =
@@ -183,30 +233,41 @@ export async function generateMetadata({
 
       alternates: {
         canonical:
-          category.canonicalUrl ||
+          category
+            .canonicalUrl ||
           `/category/${category.slug}`,
       },
 
       robots: {
         index:
-          category.robotsIndex,
+          category
+            .robotsIndex,
+
         follow:
-          category.robotsFollow,
+          category
+            .robotsFollow,
       },
 
       openGraph: {
-        type: "website",
+        type:
+          "website",
+
         title,
+
         description,
+
         url:
           `/category/${category.slug}`,
-        images: image
-          ? [
-              {
-                url: image,
-              },
-            ]
-          : undefined,
+
+        images:
+          image
+            ? [
+                {
+                  url:
+                    image,
+                },
+              ]
+            : undefined,
       },
     };
   } catch {
@@ -217,13 +278,24 @@ export async function generateMetadata({
   }
 }
 
+/*
+|--------------------------------------------------------------------------
+| Category Page
+|--------------------------------------------------------------------------
+*/
+
 export default async function CategoryRoute({
   params,
   searchParams,
 }: CategoryRouteProps) {
   try {
+    /*
+     * Resolve Next.js route data together.
+     */
     const [
-      { slug },
+      {
+        slug,
+      },
       query,
     ] =
       await Promise.all([
@@ -231,108 +303,164 @@ export default async function CategoryRoute({
         searchParams,
       ]);
 
+    /*
+     * Build category query once.
+     */
+    const categoryQuery = {
+      page:
+        parseNumber(
+          query.page
+        ),
+
+      pageSize:
+        parseNumber(
+          query.pageSize
+        ),
+
+      search:
+        getSingle(
+          query.search
+        ),
+
+      brandIds:
+        parseCsv(
+          query.brandIds
+        ),
+
+      attributeOptionIds:
+        parseCsv(
+          query
+            .attributeOptionIds
+        ),
+
+      attributeRanges:
+        parseAttributeRanges(
+          query
+        ),
+
+      minPrice:
+        parseNumber(
+          query.minPrice
+        ),
+
+      maxPrice:
+        parseNumber(
+          query.maxPrice
+        ),
+
+      sort:
+        getSingle(
+          query.sort
+        ),
+
+      channel:
+        "WEBSITE" as const,
+    };
+
+    /*
+     * IMPORTANT:
+     *
+     * Both requests run concurrently.
+     *
+     * Do NOT change this to sequential awaits.
+     */
     const [
       storefront,
       categoryData,
     ] =
       await Promise.all([
         getStorefrontPage({
-          slug: "/",
-          channel: "WEBSITE",
+          slug:
+            "/",
+
+          channel:
+            "WEBSITE",
         }),
 
         getPublicCategory({
           slug,
 
-          query: {
-            page:
-              parseNumber(
-                query.page
-              ),
-
-            pageSize:
-              parseNumber(
-                query.pageSize
-              ),
-
-            search:
-              getSingle(
-                query.search
-              ),
-
-            brandIds:
-              parseCsv(
-                query.brandIds
-              ),
-
-            attributeOptionIds:
-              parseCsv(
-                query.attributeOptionIds
-              ),
-
-            attributeRanges:
-              parseAttributeRanges(
-                query
-              ),
-
-            minPrice:
-              parseNumber(
-                query.minPrice
-              ),
-
-            maxPrice:
-              parseNumber(
-                query.maxPrice
-              ),
-
-            sort:
-              getSingle(
-                query.sort
-              ),
-
-            channel:
-              "WEBSITE",
-          },
+          query:
+            categoryQuery,
         }),
       ]);
 
     const globalSections =
       splitGlobalStorefrontSections(
-        storefront.page.sections
+        storefront
+          .page
+          .sections
       );
 
     return (
       <StorefrontShell
-        storefront={storefront}
+        storefront={
+          storefront
+        }
       >
         <StorefrontHeader
-          storefront={storefront}
+          storefront={
+            storefront
+          }
           announcementSection={
-            globalSections.announcementSection
+            globalSections
+              .announcementSection
           }
           headerSection={
-            globalSections.headerSection
+            globalSections
+              .headerSection
           }
           navigationSection={
-            globalSections.navigationSection
+            globalSections
+              .navigationSection
           }
+        />
+
+        <StorefrontPageViewTracker
+          activityType="VIEW_CATEGORY"
+          categoryId={
+            categoryData
+              .category
+              .id
+          }
+          source="CATEGORY_PAGE"
+          metadata={{
+            categoryName:
+              categoryData
+                .category
+                .name,
+
+            categorySlug:
+              categoryData
+                .category
+                .slug,
+          }}
         />
 
         <CategoryPage
-          data={categoryData}
-          currentQuery={query}
+          data={
+            categoryData
+          }
+          currentQuery={
+            query
+          }
         />
 
         <StorefrontFooter
-          storefront={storefront}
+          storefront={
+            storefront
+          }
         />
       </StorefrontShell>
     );
-  } catch (error) {
+  } catch (
+    error
+  ) {
     if (
       error instanceof
         StorefrontApiError &&
-      error.status === 404
+      error.status ===
+        404
     ) {
       notFound();
     }

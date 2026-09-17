@@ -305,6 +305,7 @@ export interface StorefrontNavigationItem {
   isFeatured: boolean;
   isActive: boolean;
 
+
   settings?: Record<
     string,
     unknown
@@ -347,6 +348,25 @@ export interface StorefrontResolvedNavigation {
     | null;
 }
 
+export interface StorefrontProductAvailability {
+  fulfillmentType:
+    | "INTERNAL"
+    | "DIRECT_DELIVERY";
+
+  inventoryTracked: boolean;
+
+  trackQuantity: boolean;
+
+  status:
+    | "AVAILABLE"
+    | "OUT_OF_STOCK";
+
+  quantity:
+    | number
+    | null;
+
+  message: string;
+}
 
 export interface StorefrontProductBrand {
   id: string;
@@ -383,6 +403,28 @@ export interface StorefrontProductVariant {
   isDefault: boolean;
 }
 
+export interface StorefrontGiftVoucher {
+  promotionId: string;
+  code: string;
+  name: string;
+
+  discountType:
+    | "FIXED_AMOUNT"
+    | "PERCENTAGE"
+    | string;
+
+  discountValue: number;
+  discountAmount: number;
+
+  validFrom:
+    | string
+    | null;
+
+  validUntil:
+    | string
+    | null;
+}
+
 export interface StorefrontProductPrice {
   id: string;
 
@@ -391,9 +433,21 @@ export interface StorefrontProductPrice {
   currencyCode: string;
   isTaxInclusive: boolean;
 
+  /*
+  |--------------------------------------------------------------------------
+  | Final Customer Price
+  |--------------------------------------------------------------------------
+  */
+
   sellingPrice:
     | number
     | null;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Original / Regular Price
+  |--------------------------------------------------------------------------
+  */
 
   regularPrice:
     | number
@@ -402,7 +456,44 @@ export interface StorefrontProductPrice {
   compareAtPrice:
     | number
     | null;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Discount Breakdown
+  |--------------------------------------------------------------------------
+  */
+
+  baseSellingPrice?:
+    | number
+    | null;
+
+  priceDiscountAmount?:
+    | number
+    | null;
+
+  giftVoucherDiscountAmount?:
+    | number
+    | null;
+
+  totalDiscountAmount?:
+    | number
+    | null;
+
+  totalDiscountPercent?:
+    | number
+    | null;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Gift Voucher Promotion
+  |--------------------------------------------------------------------------
+  */
+
+  giftVoucher?:
+    | StorefrontGiftVoucher
+    | null;
 }
+
 
 export interface StorefrontProduct {
   id: string;
@@ -418,6 +509,11 @@ export interface StorefrontProduct {
     | null;
 
   isFeatured: boolean;
+
+  isDirectDelivery?: boolean;
+
+  availability?:
+    StorefrontProductAvailability;
 
   taxPercent: number;
 
@@ -442,7 +538,18 @@ export interface StorefrontProduct {
     | null;
 
   productUrl: string;
+
+  variantSummary?:
+      StorefrontVariantSummary;
 }
+
+export type FeaturedProductGridViewAllType =
+  | "FEATURED"
+  | "CATEGORY"
+  | "BRAND"
+  | "COLLECTION"
+  | "CUSTOM"
+  | "NONE";
 
 export interface FeaturedProductGridContent {
   title?: string;
@@ -460,6 +567,29 @@ export interface FeaturedProductGridContent {
   brandId?:
     | string
     | null;
+
+  showViewAll?:
+    boolean;
+
+  viewAllLabel?:
+    string;
+
+  viewAllType?:
+    FeaturedProductGridViewAllType;
+
+  viewAllTargetId?:
+    | string
+    | null;
+
+  viewAllUrl?:
+    string;
+
+  viewAllResolvedUrl?:
+    | string
+    | null;
+
+  viewAllNewTab?:
+    boolean;
 }
 
 export interface FeaturedProductGridSettings {
@@ -518,4 +648,39 @@ export interface BrandCarouselSettings {
   itemsTablet?: number;
   itemsMobile?: number;
   itemsKiosk?: number;
+}
+
+export interface StorefrontVariantSummaryOption {
+  id: string;
+  label: string;
+
+  swatchValue:
+    | string
+    | null;
+}
+
+export interface StorefrontVariantSummarySelector {
+  id: string;
+  code: string;
+  name: string;
+
+  optionCount:
+    number;
+
+  options:
+    StorefrontVariantSummaryOption[];
+}
+
+export interface StorefrontVariantSummary {
+  hasVariants:
+    boolean;
+
+  variantCount:
+    number;
+
+  selectorCount:
+    number;
+
+  selectors:
+    StorefrontVariantSummarySelector[];
 }

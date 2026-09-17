@@ -1,0 +1,12 @@
+const express=require("express");
+const checkoutController=require("./publicPreBookingCheckout.controller");
+const checkoutValidation=require("./publicPreBookingCheckout.validation");
+const orderController=require("./publicPreBookingOrder.controller");
+const orderValidation=require("./publicPreBookingOrder.validation");
+const optionalAuthenticateCustomer=require("../../middleware/optionalAuthenticateCustomer");
+const router=express.Router();
+router.post("/",checkoutValidation.createCheckoutSessionValidation,checkoutController.createCheckoutSession);
+router.post("/:publicToken/order",optionalAuthenticateCustomer,orderValidation.createOrderValidation,orderController.createOrder);
+router.post("/orders/:orderId/finalize",orderValidation.finalizeOrderValidation,orderController.finalizePaidOrder);
+router.get("/:publicToken",checkoutValidation.getCheckoutSessionValidation,checkoutController.getCheckoutSession);
+module.exports=router;

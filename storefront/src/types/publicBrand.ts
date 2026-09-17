@@ -220,3 +220,34 @@ import type {
       "WEBSITE" |
       "KIOSK";
   }
+
+  export interface PublicBrandListData {
+    company: {
+      id: string;
+      name: string;
+      code: string;
+      currency: string;
+    };
+  
+    brands: PublicBrand[];
+  
+    meta: {
+      channel:
+        | "WEBSITE"
+        | "KIOSK";
+  
+      total:
+        number;
+  
+      generatedAt:
+        string;
+    };
+  }
+  
+  export interface PublicBrandListApiResponse {
+    success:
+      boolean;
+  
+    data:
+      PublicBrandListData;
+  }

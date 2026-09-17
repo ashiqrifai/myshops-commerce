@@ -134,9 +134,9 @@ export default function CategoryPagination({
                 className={[
                   "flex h-10 min-w-10 items-center justify-center rounded-storefront-button border px-3 text-sm font-bold",
                   page ===
-                  pagination.page
-                    ? "border-storefront-primary bg-storefront-primary text-white"
-                    : "border-storefront bg-white text-storefront-text",
+                pagination.page
+                  ? "border-storefront-primary bg-storefront-primary text-white"
+                  : "border-storefront-border-light bg-white text-storefront-text hover:border-[#D8DDE3]",
                 ].join(" ")}
               >
                 {page}
@@ -152,7 +152,7 @@ export default function CategoryPagination({
             currentQuery,
             pagination.page + 1
           )}
-          className="flex h-10 items-center gap-1 rounded-storefront-button border border-storefront bg-white px-3 text-sm font-bold text-storefront-text"
+          className="flex h-10 items-center gap-1 rounded-storefront-button border border-storefront-border-light bg-white px-3 text-sm font-bold text-storefront-text transition hover:border-[#D8DDE3]"
         >
           Next
           <ChevronRight

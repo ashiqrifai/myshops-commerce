@@ -8,6 +8,18 @@ const {
     require(
       "../../models"
     );
+
+const publicAvailabilityService =
+  require(
+    "./publicAvailability.service"
+  );
+
+const giftVoucherPromotionService =
+  require(
+    "../gift-voucher-promotions/giftVoucherPromotion.service"
+  );
+
+
   
   const AppError =
     require(
@@ -765,9 +777,165 @@ const {
     };
   };
   
+
+/*
+|--------------------------------------------------------------------------
+| Apply Gift Voucher Discount To Public Price
+|--------------------------------------------------------------------------
+*/
+
+const applyGiftVoucherToPrice = (
+  price,
+  giftVoucher
+) => {
+  if (
+    !price
+  ) {
+    return null;
+  }
+
+  const regularPrice =
+    Number(
+      price.regularPrice ||
+      0
+    );
+
+  const baseSellingPrice =
+    Number(
+      price.sellingPrice ||
+      0
+    );
+
+  const priceDiscountAmount =
+    Math.max(
+      0,
+      regularPrice -
+        baseSellingPrice
+    );
+
+  const giftVoucherDiscountAmount =
+    giftVoucher
+      ? Number(
+          giftVoucher.unitDiscount ||
+          0
+        )
+      : 0;
+
+  const sellingPrice =
+    Math.max(
+      0,
+      baseSellingPrice -
+        giftVoucherDiscountAmount
+    );
+
+  const totalDiscountAmount =
+    Math.max(
+      0,
+      regularPrice -
+        sellingPrice
+    );
+
+  const totalDiscountPercent =
+    regularPrice > 0
+      ? (
+          totalDiscountAmount /
+          regularPrice
+        ) *
+        100
+      : 0;
+
+  return {
+    ...price,
+
+    regularPrice:
+      Number(
+        regularPrice.toFixed(
+          4
+        )
+      ),
+
+    baseSellingPrice:
+      Number(
+        baseSellingPrice.toFixed(
+          4
+        )
+      ),
+
+    priceDiscountAmount:
+      Number(
+        priceDiscountAmount.toFixed(
+          4
+        )
+      ),
+
+    giftVoucherDiscountAmount:
+      Number(
+        giftVoucherDiscountAmount.toFixed(
+          4
+        )
+      ),
+
+    sellingPrice:
+      Number(
+        sellingPrice.toFixed(
+          4
+        )
+      ),
+
+    totalDiscountAmount:
+      Number(
+        totalDiscountAmount.toFixed(
+          4
+        )
+      ),
+
+    totalDiscountPercent:
+      Number(
+        totalDiscountPercent.toFixed(
+          4
+        )
+      ),
+
+    giftVoucher:
+      giftVoucher
+        ? {
+            promotionId:
+              giftVoucher.id,
+
+            code:
+              giftVoucher.code,
+
+            name:
+              giftVoucher.name,
+
+            discountType:
+              giftVoucher.discountType,
+
+            discountValue:
+              giftVoucher.discountValue,
+
+            discountAmount:
+              Number(
+                giftVoucherDiscountAmount.toFixed(
+                  4
+                )
+              ),
+
+            validFrom:
+              giftVoucher.validFrom,
+
+            validUntil:
+              giftVoucher.validUntil,
+          }
+        : null,
+  };
+};
+
+
   const publicProduct = (
     productModel,
-    apiBaseUrl
+    apiBaseUrl,
+    availabilityByVariant
   ) => {
     const product =
       toPlain(
@@ -815,6 +983,52 @@ const {
         product.isFeatured ===
         true,
   
+
+
+    delivery: {
+      expressDeliveryEnabled:
+        product.expressDeliveryEnabled ===
+        true,
+
+      expressDeliveryHours:
+        product.expressDeliveryHours !==
+          null &&
+        product.expressDeliveryHours !==
+          undefined
+          ? Number(
+              product.expressDeliveryHours
+            )
+          : null,
+
+      deliveryMinDays:
+        product.deliveryMinDays !==
+          null &&
+        product.deliveryMinDays !==
+          undefined
+          ? Number(
+              product.deliveryMinDays
+            )
+          : null,
+
+      deliveryMaxDays:
+        product.deliveryMaxDays !==
+          null &&
+        product.deliveryMaxDays !==
+          undefined
+          ? Number(
+              product.deliveryMaxDays
+            )
+          : null,
+
+      deliveryNote:
+        product.deliveryNote ||
+        null,
+    },
+
+    isDirectDelivery:
+      product.isDirectDelivery ===
+      true,
+
       taxPercent:
         Number(
           product.taxPercent ||
@@ -886,6 +1100,15 @@ const {
           variant
         ),
   
+
+        availability:
+        publicAvailabilityService
+          .getAvailabilityForProduct({
+            product,
+      
+            availabilityByVariant,
+          }),
+
       productUrl:
         `/products/${product.slug}`,
     };
@@ -1115,6 +1338,7 @@ const {
           ) =>
             category.id
         );
+      
   
       if (
         brandIds.length ||
@@ -1387,14 +1611,24 @@ const {
       return 0;
     }
   
+    /*
+    |--------------------------------------------------------------------------
+    | Normalize Search
+    |--------------------------------------------------------------------------
+    */
+  
     const normalized =
-      search.toLowerCase();
+      String(search)
+        .trim()
+        .toLowerCase();
   
     const name =
       String(
         product.name ||
           ""
-      ).toLowerCase();
+      )
+        .trim()
+        .toLowerCase();
   
     const sku =
       String(
@@ -1402,71 +1636,412 @@ const {
           product.defaultVariant
             ?.sku ||
           ""
-      ).toLowerCase();
+      )
+        .trim()
+        .toLowerCase();
+  
+    const barcode =
+      String(
+        product.defaultVariant
+          ?.barcode ||
+          ""
+      )
+        .trim()
+        .toLowerCase();
   
     const brand =
       String(
         product.brand?.name ||
           ""
-      ).toLowerCase();
+      )
+        .trim()
+        .toLowerCase();
   
     const category =
       String(
         product.primaryCategory
           ?.name ||
           ""
-      ).toLowerCase();
+      )
+        .trim()
+        .toLowerCase();
   
     let score =
       0;
+  
+    /*
+    |--------------------------------------------------------------------------
+    | Accessory Intent
+    |--------------------------------------------------------------------------
+    |
+    | If the CUSTOMER explicitly searches for an accessory, accessories should
+    | rank first.
+    |
+    | Examples:
+    |
+    | iphone case
+    | iphone cover
+    | samsung charger
+    | usb cable
+    | screen protector
+    |
+    |--------------------------------------------------------------------------
+    */
+  
+    const accessoryKeywords = [
+      "accessory",
+      "accessories",
+  
+      "case",
+      "cover",
+      "bumper",
+  
+      "protector",
+      "screen protector",
+      "tempered glass",
+      "glass",
+  
+      "charger",
+      "charging",
+      "adapter",
+      "adaptor",
+  
+      "cable",
+      "usb",
+      "type c",
+      "type-c",
+  
+      "power bank",
+      "powerbank",
+  
+      "magsafe",
+  
+      "holder",
+      "mount",
+      "stand",
+  
+      "sleeve",
+      "pouch",
+      "bag",
+  
+      "strap",
+      "band",
+  
+      "earphone",
+      "earphones",
+  
+      "headphone",
+      "headphones",
+    ];
+  
+    const hasAccessoryIntent =
+      accessoryKeywords.some(
+        (
+          keyword
+        ) =>
+          normalized.includes(
+            keyword
+          )
+      );
+  
+    /*
+    |--------------------------------------------------------------------------
+    | Determine Product Type
+    |--------------------------------------------------------------------------
+    */
+  
+    const accessoryCategoryKeywords = [
+      "accessories",
+      "accessory",
+    ];
+  
+    const productLooksLikeAccessory =
+      accessoryCategoryKeywords.some(
+        (
+          keyword
+        ) =>
+          category.includes(
+            keyword
+          )
+      ) ||
+      accessoryKeywords.some(
+        (
+          keyword
+        ) =>
+          name.includes(
+            keyword
+          )
+      );
+  
+    /*
+    |--------------------------------------------------------------------------
+    | Device Categories
+    |--------------------------------------------------------------------------
+    |
+    | These should rank above accessories when the customer is performing
+    | a general product/device search.
+    |--------------------------------------------------------------------------
+    */
+  
+    const deviceCategoryKeywords = [
+      "mobile",
+      "mobiles",
+      "phone",
+      "phones",
+      "smartphone",
+  
+      "laptop",
+      "laptops",
+  
+      "tablet",
+      "tablets",
+  
+      "wearable",
+      "wearables",
+  
+      "smartwatch",
+      "watch",
+  
+      "television",
+      "tv",
+  
+      "gaming",
+  
+      "camera",
+      "photo",
+      "video",
+  
+      "audio",
+  
+      "small appliances",
+      "large appliances",
+      "appliances",
+  
+      "personal care",
+    ];
+  
+    const productLooksLikeMainProduct =
+      !productLooksLikeAccessory &&
+      deviceCategoryKeywords.some(
+        (
+          keyword
+        ) =>
+          category.includes(
+            keyword
+          )
+      );
+  
+    /*
+    |--------------------------------------------------------------------------
+    | Exact SKU / Barcode
+    |--------------------------------------------------------------------------
+    |
+    | Exact SKU or barcode should always be extremely strong.
+    |--------------------------------------------------------------------------
+    */
+  
+    if (
+      sku &&
+      sku === normalized
+    ) {
+      score +=
+        500;
+    } else if (
+      sku &&
+      sku.includes(
+        normalized
+      )
+    ) {
+      score +=
+        100;
+    }
+  
+    if (
+      barcode &&
+      barcode === normalized
+    ) {
+      score +=
+        500;
+    } else if (
+      barcode &&
+      barcode.includes(
+        normalized
+      )
+    ) {
+      score +=
+        100;
+    }
+  
+    /*
+    |--------------------------------------------------------------------------
+    | Product Name
+    |--------------------------------------------------------------------------
+    */
   
     if (
       name === normalized
     ) {
       score +=
-        100;
+        220;
     } else if (
       name.startsWith(
-        normalized
+        `${normalized} `
       )
     ) {
       score +=
-        70;
+        150;
     } else if (
       name.includes(
         normalized
       )
     ) {
       score +=
-        50;
+        120;
     }
   
+    /*
+    |--------------------------------------------------------------------------
+    | Word Match
+    |--------------------------------------------------------------------------
+    |
+    | Give products containing all search words an additional boost.
+    |--------------------------------------------------------------------------
+    */
+  
+    const searchWords =
+      normalized
+        .split(/\s+/)
+        .filter(Boolean);
+  
+    const matchingWords =
+      searchWords.filter(
+        (
+          word
+        ) =>
+          name.includes(
+            word
+          )
+      ).length;
+  
     if (
-      sku.includes(
+      searchWords.length >
+        0 &&
+      matchingWords ===
+        searchWords.length
+    ) {
+      score +=
+        40;
+    }
+  
+    /*
+    |--------------------------------------------------------------------------
+    | Brand
+    |--------------------------------------------------------------------------
+    */
+  
+    if (
+      brand === normalized
+    ) {
+      score +=
+        80;
+    } else if (
+      brand.includes(
         normalized
+      ) ||
+      normalized.includes(
+        brand
       )
     ) {
       score +=
         40;
     }
   
-    if (
-      brand.includes(
-        normalized
-      )
-    ) {
-      score +=
-        25;
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | Category
+    |--------------------------------------------------------------------------
+    */
   
     if (
+      category ===
+      normalized
+    ) {
+      score +=
+        60;
+    } else if (
       category.includes(
         normalized
       )
     ) {
       score +=
-        20;
+        30;
     }
+  
+    /*
+    |--------------------------------------------------------------------------
+    | Main Product / Device Priority
+    |--------------------------------------------------------------------------
+    |
+    | Generic searches:
+    |
+    | iphone
+    | samsung
+    | macbook
+    | ipad
+    |
+    | should show the actual devices BEFORE compatible accessories.
+    |--------------------------------------------------------------------------
+    */
+  
+    if (
+      !hasAccessoryIntent
+    ) {
+      if (
+        productLooksLikeMainProduct
+      ) {
+        score +=
+          150;
+      }
+  
+      if (
+        productLooksLikeAccessory
+      ) {
+        score -=
+          140;
+      }
+    }
+  
+    /*
+    |--------------------------------------------------------------------------
+    | Explicit Accessory Searches
+    |--------------------------------------------------------------------------
+    |
+    | If customer searches:
+    |
+    | iphone case
+    | samsung charger
+    | ipad cover
+    |
+    | reverse the behaviour and promote accessories.
+    |--------------------------------------------------------------------------
+    */
+  
+    if (
+      hasAccessoryIntent &&
+      productLooksLikeAccessory
+    ) {
+      score +=
+        180;
+    }
+  
+    /*
+    |--------------------------------------------------------------------------
+    | Featured
+    |--------------------------------------------------------------------------
+    |
+    | Featured is only a small tie-breaker.
+    |--------------------------------------------------------------------------
+    */
   
     if (
       product.isFeatured
@@ -1651,6 +2226,27 @@ const {
           query.q ||
             ""
         ).trim();
+      
+        const quickSearch =
+        String(
+          query.quick ||
+            ""
+        )
+          .trim()
+          .toLowerCase() ===
+        "true";
+      
+      const quickLimit =
+        Math.min(
+          Math.max(
+            Number(
+              query.pageSize ||
+                5
+            ),
+            1
+          ),
+          10
+        );
   
       const brandIds =
         csv(
@@ -1663,6 +2259,15 @@ const {
           query.categoryIds ||
             query.categories
         );
+
+        const featuredOnly =
+        String(
+          query.featured ||
+            ""
+        )
+          .trim()
+          .toLowerCase() ===
+        "true";
   
       const matchingProductIds =
         await findMatchingProductIds({
@@ -1689,44 +2294,455 @@ const {
               priceListModel
             )
           : null;
-  
-      const where = {
+      
+      /*
+|--------------------------------------------------------------------------
+| Header Quick Search
+|--------------------------------------------------------------------------
+|
+| The header only needs a few suggestions.
+|
+| IMPORTANT:
+| Do not hydrate every matching product and then slice to 5.
+| Limit the candidate IDs first, then hydrate only those products.
+|
+| Normal search-page behaviour below remains unchanged.
+|--------------------------------------------------------------------------
+*/
+
+if (
+  quickSearch &&
+  search &&
+  Array.isArray(
+    matchingProductIds
+  )
+) {
+  if (
+    !matchingProductIds.length
+  ) {
+    return {
+      company: {
+        id:
+          company.id,
+
+        name:
+          company.name,
+
+        code:
+          company.code,
+
+        currency:
+          company.currency,
+      },
+
+      query:
+        search,
+
+      products:
+        [],
+
+      filters:
+        [],
+
+      sortOptions:
+        [],
+
+      pagination: {
+        page:
+          1,
+
+        pageSize:
+          quickLimit,
+
+        totalItems:
+          0,
+
+        totalPages:
+          0,
+
+        hasPreviousPage:
+          false,
+
+        hasNextPage:
+          false,
+      },
+
+      appliedFilters: {
+        q:
+          search,
+      },
+
+      resolvedPriceList:
+        priceList
+          ? {
+              id:
+                priceList.id,
+
+              code:
+                priceList.code,
+
+              name:
+                priceList.name,
+
+              currencyCode:
+                priceList.currencyCode,
+
+              isTaxInclusive:
+                priceList.isTaxInclusive,
+            }
+          : null,
+
+      meta: {
+        channel:
+          normalizedChannel,
+
+        quickSearch:
+          true,
+
+        generatedAt:
+          new Date()
+            .toISOString(),
+      },
+    };
+  }
+
+  /*
+   * Keep a small candidate pool.
+   *
+   * We request more than the final limit because some products can later
+   * disappear because of channel publication or stock availability.
+   */
+
+  const candidateLimit =
+    Math.min(
+      Math.max(
+        quickLimit *
+          3,
+        quickLimit
+      ),
+      30
+    );
+
+  const quickCandidateIds =
+    matchingProductIds.slice(
+      0,
+      candidateLimit
+    );
+
+  const quickProductModels =
+    await db.Product.findAll({
+      where: {
         companyId:
           company.id,
-  
+
+        id: {
+          [Op.in]:
+            quickCandidateIds,
+        },
+
         status:
           "ACTIVE",
-  
+
         isSearchable:
           true,
+      },
+
+      include:
+        productIncludes({
+          companyId:
+            company.id,
+
+          channel:
+            normalizedChannel,
+
+          priceListId:
+            priceList?.id ||
+            null,
+
+          now,
+        }),
+
+      order: [
+        [
+          "createdAt",
+          "DESC",
+        ],
+      ],
+
+      distinct:
+        true,
+    });
+
+  const quickAvailabilityByVariant =
+    await publicAvailabilityService
+      .getVariantAvailabilityMap({
+        companyId:
+          company.id,
+
+        products:
+          quickProductModels,
+      });
+
+  let quickProducts =
+    publicAvailabilityService
+      .filterAvailablePublicProducts(
+        quickProductModels.map(
+          (
+            model
+          ) =>
+            publicProduct(
+              model,
+              apiBaseUrl,
+              quickAvailabilityByVariant
+            )
+        )
+      );
+
+  /*
+   * Preserve the same search relevance sorting used by the full search.
+   */
+
+  quickProducts =
+    sortProducts(
+      quickProducts,
+      "RELEVANCE",
+      search
+    );
+
+  /*
+   * Apply Gift Voucher pricing only to the products that can actually
+   * appear in the quick-search dropdown.
+   */
+
+  quickProducts =
+    quickProducts.slice(
+      0,
+      quickLimit
+    );
+
+  const quickGiftVoucherItems =
+    quickProducts
+      .filter(
+        (
+          product
+        ) =>
+          product.defaultVariant
+            ?.id &&
+          product.price
+            ?.sellingPrice !==
+            null &&
+          product.price
+            ?.sellingPrice !==
+            undefined
+      )
+      .map(
+        (
+          product
+        ) => ({
+          productId:
+            product.id,
+
+          productVariantId:
+            product
+              .defaultVariant
+              .id,
+
+          sellingPrice:
+            product.price
+              .sellingPrice,
+
+          quantity:
+            1,
+        })
+      );
+
+  const quickGiftVoucherMap =
+    await giftVoucherPromotionService
+      .resolveApplicablePromotionsBatch({
+        companyId:
+          company.id,
+
+        items:
+          quickGiftVoucherItems,
+
+        channelCode:
+          normalizedChannel,
+
+        effectiveDate:
+          now,
+      });
+
+  quickProducts =
+    quickProducts.map(
+      (
+        product
+      ) => {
+        if (
+          !product
+            .defaultVariant
+            ?.id ||
+          !product.price
+        ) {
+          return product;
+        }
+
+        const key =
+          `${product.id}:${product.defaultVariant.id}`;
+
+        const giftVoucher =
+          quickGiftVoucherMap.get(
+            key
+          ) ||
+          null;
+
+        return {
+          ...product,
+
+          price:
+            applyGiftVoucherToPrice(
+              product.price,
+              giftVoucher
+            ),
+        };
+      }
+    );
+
+  return {
+    company: {
+      id:
+        company.id,
+
+      name:
+        company.name,
+
+      code:
+        company.code,
+
+      currency:
+        company.currency,
+    },
+
+    query:
+      search,
+
+    products:
+      quickProducts,
+
+    filters:
+      [],
+
+    sortOptions:
+      [],
+
+    pagination: {
+      page:
+        1,
+
+      pageSize:
+        quickLimit,
+
+      /*
+       * Header autocomplete does not require an exact total.
+       * Avoid doing additional heavy work merely for a dropdown.
+       */
+      totalItems:
+        quickProducts.length,
+
+      totalPages:
+        quickProducts.length
+          ? 1
+          : 0,
+
+      hasPreviousPage:
+        false,
+
+      hasNextPage:
+        false,
+    },
+
+    appliedFilters: {
+      q:
+        search,
+    },
+
+    resolvedPriceList:
+      priceList
+        ? {
+            id:
+              priceList.id,
+
+            code:
+              priceList.code,
+
+            name:
+              priceList.name,
+
+            currencyCode:
+              priceList.currencyCode,
+
+            isTaxInclusive:
+              priceList.isTaxInclusive,
+          }
+        : null,
+
+    meta: {
+      channel:
+        normalizedChannel,
+
+      quickSearch:
+        true,
+
+      generatedAt:
+        new Date()
+          .toISOString(),
+    },
+  };
+}
   
-        ...(matchingProductIds
-          ? {
-              id: {
-                [Op.in]:
-                  matchingProductIds,
-              },
-            }
-          : {}),
-  
-        ...(brandIds.length
-          ? {
-              brandId: {
-                [Op.in]:
-                  brandIds,
-              },
-            }
-          : {}),
-  
-        ...(categoryIds.length
-          ? {
-              primaryCategoryId: {
-                [Op.in]:
-                  categoryIds,
-              },
-            }
-          : {}),
-      };
+          const where = {
+            companyId:
+              company.id,
+          
+            status:
+              "ACTIVE",
+          
+            isSearchable:
+              true,
+          
+            ...(featuredOnly
+              ? {
+                  isFeatured:
+                    true,
+                }
+              : {}),
+          
+            ...(matchingProductIds
+              ? {
+                  id: {
+                    [Op.in]:
+                      matchingProductIds,
+                  },
+                }
+              : {}),
+          
+            ...(brandIds.length
+              ? {
+                  brandId: {
+                    [Op.in]:
+                      brandIds,
+                  },
+                }
+              : {}),
+          
+            ...(categoryIds.length
+              ? {
+                  primaryCategoryId: {
+                    [Op.in]:
+                      categoryIds,
+                  },
+                }
+              : {}),
+          };
   
       const productModels =
         matchingProductIds &&
@@ -1787,17 +2803,122 @@ const {
                 true,
             });
   
-      let products =
-        productModels.map(
-          (
-            model
-          ) =>
-            publicProduct(
-              model,
-              apiBaseUrl
-            )
-        );
+      const availabilityByVariant =
+        await publicAvailabilityService
+          .getVariantAvailabilityMap({
+            companyId:
+              company.id,
+
+            products:
+              productModels,
+          });
+
+          let products =
+          publicAvailabilityService
+            .filterAvailablePublicProducts(
+              productModels.map(
+                (
+                  model
+                ) =>
+                  publicProduct(
+                    model,
+                    apiBaseUrl,
+                    availabilityByVariant
+                  )
+              )
+            );
   
+
+      /*
+      |--------------------------------------------------------------------------
+      | Gift Voucher Pricing
+      |--------------------------------------------------------------------------
+      |
+      | Resolve all applicable Gift Voucher promotions in ONE batch and apply
+      | them before price filtering, dynamic filters, sorting and pagination.
+      |--------------------------------------------------------------------------
+      */
+
+      const giftVoucherItems =
+        products
+          .filter(
+            (
+              product
+            ) =>
+              product.defaultVariant?.id &&
+              product.price?.sellingPrice !==
+                null &&
+              product.price?.sellingPrice !==
+                undefined
+          )
+          .map(
+            (
+              product
+            ) => ({
+              productId:
+                product.id,
+
+              productVariantId:
+                product.defaultVariant.id,
+
+              sellingPrice:
+                product.price.sellingPrice,
+
+              quantity:
+                1,
+            })
+          );
+
+      const giftVoucherMap =
+        await giftVoucherPromotionService
+          .resolveApplicablePromotionsBatch({
+            companyId:
+              company.id,
+
+            items:
+              giftVoucherItems,
+
+            channelCode:
+              normalizedChannel,
+
+            effectiveDate:
+              now,
+          });
+
+      products =
+        products.map(
+          (
+            product
+          ) => {
+            if (
+              !product.defaultVariant?.id ||
+              !product.price
+            ) {
+              return product;
+            }
+
+            const key =
+              `${product.id}:${product.defaultVariant.id}`;
+
+            const giftVoucher =
+              giftVoucherMap.get(
+                key
+              ) ||
+              null;
+
+            return {
+              ...product,
+
+              price:
+                applyGiftVoucherToPrice(
+                  product.price,
+                  giftVoucher
+                ),
+            };
+          }
+        );
+
+
       const minPrice =
         query.minPrice !==
         undefined
@@ -1999,6 +3120,9 @@ const {
           q:
             search ||
             null,
+          
+          featured:
+            featuredOnly,
   
           brandIds,
           categoryIds,

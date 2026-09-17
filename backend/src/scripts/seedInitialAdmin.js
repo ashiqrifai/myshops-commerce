@@ -88,6 +88,83 @@ const permissions = [
     code: "pricing.delete",
     name: "Delete price lists",
   },
+
+  {
+    module: "suppliers",
+    code: "suppliers.read",
+    name: "View suppliers",
+  },
+  {
+    module: "suppliers",
+    code: "suppliers.create",
+    name: "Create suppliers",
+  },
+  {
+    module: "suppliers",
+    code: "suppliers.update",
+    name: "Update suppliers",
+  },
+  {
+    module: "suppliers",
+    code: "suppliers.delete",
+    name: "Delete suppliers",
+  },
+  {
+    module: "inventory-locations",
+    code: "inventory-locations.read",
+    name: "View inventory locations",
+  },
+  {
+    module: "inventory-locations",
+    code: "inventory-locations.create",
+    name: "Create inventory locations",
+  },
+  {
+    module: "inventory-locations",
+    code: "inventory-locations.update",
+    name: "Update inventory locations",
+  },
+  {
+    module: "inventory-locations",
+    code: "inventory-locations.delete",
+    name: "Delete inventory locations",
+  },
+  {
+    module: "inventory",
+    code: "inventory.read",
+    name: "View inventory",
+  },
+  {
+    module: "inventory",
+    code: "inventory.update",
+    name: "Update inventory",
+  },
+  {
+    code: "instagram-posts.read",
+    module: "instagram-posts",
+    name: "Read Instagram posts",
+  },
+  
+  {
+    code: "instagram-posts.create",
+    module: "instagram-posts",
+    name: "Create Instagram posts",
+  },
+  
+  {
+    code: "instagram-posts.update",
+    module: "instagram-posts",
+    name: "Update Instagram posts",
+  },
+  
+  {
+    code: "instagram-posts.delete",
+    module: "instagram-posts",
+    name: "Delete Instagram posts",
+  },
+  
+
+
 ];
 
 const run = async () => {

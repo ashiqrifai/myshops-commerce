@@ -2,6 +2,10 @@ import type {
   Metadata,
 } from "next";
 
+import {
+  Suspense,
+} from "react";
+
 import CustomerLoginForm from "@/components/account/CustomerLoginForm";
 import StorefrontFooter from "@/components/storefront/StorefrontFooter";
 import StorefrontHeader from "@/components/storefront/StorefrontHeader";
@@ -104,7 +108,17 @@ export default async function CustomerLoginPage() {
             </p>
 
             <div className="mt-8">
-              <CustomerLoginForm />
+              <Suspense
+                fallback={
+                  <div className="rounded-xl border border-storefront bg-storefront-secondary/40 p-5">
+                    <p className="text-sm text-storefront-muted">
+                      Loading sign in...
+                    </p>
+                  </div>
+                }
+              >
+                <CustomerLoginForm />
+              </Suspense>
             </div>
           </section>
         </div>

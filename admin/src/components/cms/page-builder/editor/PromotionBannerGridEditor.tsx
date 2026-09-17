@@ -49,6 +49,13 @@ interface PromotionBannerItem {
   linkUrl?: string;
   openInNewTab?: boolean;
 
+  buttonLabel?: string;
+  buttonUrl?: string;
+  buttonPosition?:
+    | "LEFT"
+    | "CENTER"
+    | "RIGHT";
+
   desktopSpan?: number;
   tabletSpan?: number;
   mobileSpan?: number;
@@ -144,6 +151,10 @@ const createBanner = (
   altText: "",
   linkUrl: "",
   openInNewTab: false,
+
+  buttonLabel: "",
+  buttonUrl: "",
+  buttonPosition: "LEFT",
 
   desktopSpan: 4,
   tabletSpan: 3,
@@ -1336,6 +1347,81 @@ export default function PromotionBannerGridEditor({
                         className="admin-input"
                         placeholder="/gaming"
                       />
+                    </div>
+
+                    <div>
+                      <FieldLabel>
+                        CTA label
+                      </FieldLabel>
+
+                      <input
+                        value={
+                          item.buttonLabel || ""
+                        }
+                        onChange={(event) =>
+                          updateItem(index, {
+                            buttonLabel:
+                              event.target.value,
+                          })
+                        }
+                        className="admin-input"
+                        placeholder="Shop Now"
+                      />
+                    </div>
+
+                    <div>
+                      <FieldLabel>
+                        CTA URL
+                      </FieldLabel>
+
+                      <input
+                        value={
+                          item.buttonUrl || ""
+                        }
+                        onChange={(event) =>
+                          updateItem(index, {
+                            buttonUrl:
+                              event.target.value,
+                          })
+                        }
+                        className="admin-input"
+                        placeholder="/category/large-appliances"
+                      />
+                    </div>
+
+                    <div>
+                      <FieldLabel>
+                        CTA position
+                      </FieldLabel>
+
+                      <select
+                        value={
+                          item.buttonPosition ||
+                          "LEFT"
+                        }
+                        onChange={(event) =>
+                          updateItem(index, {
+                            buttonPosition:
+                              event.target.value as
+                                | "LEFT"
+                                | "CENTER"
+                                | "RIGHT",
+                          })
+                        }
+                        className="admin-input"
+                      >
+                        <option value="LEFT">
+                          Left
+                        </option>
+
+                        <option value="CENTER">
+                          Center
+                        </option>
+
+                        <option value="RIGHT">
+                          Right
+                        </option>
+                      </select>
                     </div>
 
                     <label className="flex items-center gap-3 rounded-lg border border-[#e1e3e5] px-4 py-3">

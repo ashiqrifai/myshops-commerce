@@ -225,6 +225,160 @@ const collectionFieldValidation = [
       "Collection type must be MANUAL or SMART."
     ),
 
+  body("smartRules")
+    .optional({
+      nullable: true,
+    })
+    .custom(
+      (
+        value,
+        {
+          req,
+        }
+      ) => {
+        if (
+          value ===
+          null ||
+          value ===
+          undefined
+        ) {
+          return true;
+        }
+
+        if (
+          typeof value !==
+            "object" ||
+          Array.isArray(
+            value
+          )
+        ) {
+          throw new Error(
+            "smartRules must be an object."
+          );
+        }
+
+        const match =
+          String(
+            value.match ||
+            "ALL"
+          )
+            .trim()
+            .toUpperCase();
+
+        if (
+          ![
+            "ALL",
+            "ANY",
+          ].includes(
+            match
+          )
+        ) {
+          throw new Error(
+            "smartRules.match must be ALL or ANY."
+          );
+        }
+
+        if (
+          !Array.isArray(
+            value.rules
+          )
+        ) {
+          throw new Error(
+            "smartRules.rules must be an array."
+          );
+        }
+
+        const allowedFields =
+          new Set([
+            "EXPRESS_DELIVERY_ENABLED",
+            "STATUS",
+            "IS_FEATURED",
+            "IS_SEARCHABLE",
+            "PRODUCT_TYPE",
+            "BRAND_ID",
+            "CATEGORY_ID",
+          ]);
+
+        const allowedOperators =
+          new Set([
+            "IS",
+            "IS_NOT",
+          ]);
+
+        for (
+          const rule of
+          value.rules
+        ) {
+          if (
+            !rule ||
+            typeof rule !==
+              "object" ||
+            Array.isArray(
+              rule
+            )
+          ) {
+            throw new Error(
+              "Every smart collection rule must be an object."
+            );
+          }
+
+          const field =
+            String(
+              rule.field ||
+              ""
+            )
+              .trim()
+              .toUpperCase();
+
+          const operator =
+            String(
+              rule.operator ||
+              "IS"
+            )
+              .trim()
+              .toUpperCase();
+
+          if (
+            !allowedFields.has(
+              field
+            )
+          ) {
+            throw new Error(
+              `Unsupported smart collection field: ${field || "(blank)"}.`
+            );
+          }
+
+          if (
+            !allowedOperators.has(
+              operator
+            )
+          ) {
+            throw new Error(
+              `Unsupported smart collection operator: ${operator}.`
+            );
+          }
+        }
+
+        if (
+          String(
+            req.body.collectionType ||
+            ""
+          )
+            .trim()
+            .toUpperCase() ===
+            "SMART" &&
+          value.rules.length ===
+            0
+        ) {
+          throw new Error(
+            "A SMART collection must contain at least one rule."
+          );
+        }
+
+        return true;
+      }
+    ),
+
   body("sortOrder")
     .optional()
     .isInt({

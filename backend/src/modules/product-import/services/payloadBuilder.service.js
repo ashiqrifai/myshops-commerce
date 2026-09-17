@@ -471,6 +471,30 @@ const {
       )
       .filter(Boolean);
   };
+  const resolveDirectDeliverySupplier = ({
+    firstRow,
+    lookups,
+  }) => {
+    const supplierCode =
+      cleanUpper(
+        firstRow.directDeliverySupplierCode
+      );
+
+    if (!supplierCode) {
+      return null;
+    }
+
+    return (
+      lookups.maps
+        .supplierByCode
+        ?.get(
+          supplierCode
+        ) ||
+      null
+    );
+  };
+
+
   
   /*
   |--------------------------------------------------------------------------
@@ -966,6 +990,12 @@ const buildProductImages = ({
         firstRow,
         lookups,
       });
+
+    const directDeliverySupplier =
+      resolveDirectDeliverySupplier({
+        firstRow,
+        lookups,
+      });
   
     const categories =
       resolveCategories({
@@ -994,7 +1024,13 @@ const buildProductImages = ({
       cleanUpper(
         firstRow.parentSku
       );
-  
+
+    const isDirectDelivery =
+      normalizeBooleanWithDefault(
+        firstRow.isDirectDelivery,
+        false
+      );
+
     const payload = {
       name,
   
@@ -1020,6 +1056,79 @@ const buildProductImages = ({
   
       parentSku,
   
+
+      erpId:
+        normalizeNullable(
+          firstRow.erpId
+        ),
+
+      isDirectDelivery,
+
+      directDeliverySupplierId:
+        isDirectDelivery
+          ? directDeliverySupplier?.id ||
+            null
+          : null,
+
+      directDeliveryLeadTimeDays:
+        isDirectDelivery &&
+        hasValue(
+          firstRow.directDeliveryLeadTimeDays
+        )
+          ? normalizeInteger(
+              firstRow.directDeliveryLeadTimeDays,
+              0
+            )
+          : null,
+
+      directDeliveryNote:
+        isDirectDelivery
+          ? normalizeNullable(
+              firstRow.directDeliveryNote
+            )
+          : null,
+
+      expressDeliveryEnabled:
+        normalizeBooleanWithDefault(
+          firstRow.expressDeliveryEnabled,
+          false
+        ),
+
+      expressDeliveryHours:
+        hasValue(
+          firstRow.expressDeliveryHours
+        )
+          ? normalizeInteger(
+              firstRow.expressDeliveryHours,
+              4
+            )
+          : 4,
+
+      deliveryMinDays:
+        hasValue(
+          firstRow.deliveryMinDays
+        )
+          ? normalizeInteger(
+              firstRow.deliveryMinDays,
+              0
+            )
+          : null,
+
+      deliveryMaxDays:
+        hasValue(
+          firstRow.deliveryMaxDays
+        )
+          ? normalizeInteger(
+              firstRow.deliveryMaxDays,
+              0
+            )
+          : null,
+
+      deliveryNote:
+        normalizeNullable(
+          firstRow.deliveryNote
+        ),
+
       brandId:
         brand?.id ||
         null,
@@ -1143,6 +1252,9 @@ const buildProductImages = ({
       resolved: {
         brand,
   
+
+        directDeliverySupplier,
+
         primaryCategory,
   
         categories,
@@ -1178,6 +1290,20 @@ const buildProductImages = ({
               resolved.brand.name,
           }
         : null,
+    directDeliverySupplier:
+      resolved.directDeliverySupplier
+        ? {
+            id:
+              resolved.directDeliverySupplier.id,
+
+            code:
+              resolved.directDeliverySupplier.code,
+
+            name:
+              resolved.directDeliverySupplier.name,
+          }
+        : null,
+
   
     primaryCategory:
       resolved.primaryCategory
@@ -1788,6 +1914,75 @@ const buildVariant =
         row.dimensionUnit
       ) || null,
 
+    overrideDeliverySettings:
+      normalizeBooleanWithDefault(
+        row.variantOverrideDeliverySettings,
+        false
+      ),
+
+    expressDeliveryEnabled:
+      normalizeBooleanWithDefault(
+        row.variantOverrideDeliverySettings,
+        false
+      )
+        ? normalizeBooleanWithDefault(
+            row.variantExpressDeliveryEnabled,
+            false
+          )
+        : null,
+
+    expressDeliveryHours:
+      normalizeBooleanWithDefault(
+        row.variantOverrideDeliverySettings,
+        false
+      ) &&
+      hasValue(
+        row.variantExpressDeliveryHours
+      )
+        ? normalizeInteger(
+            row.variantExpressDeliveryHours,
+            4
+          )
+        : null,
+
+    deliveryMinDays:
+      normalizeBooleanWithDefault(
+        row.variantOverrideDeliverySettings,
+        false
+      ) &&
+      hasValue(
+        row.variantDeliveryMinDays
+      )
+        ? normalizeInteger(
+            row.variantDeliveryMinDays,
+            0
+          )
+        : null,
+
+    deliveryMaxDays:
+      normalizeBooleanWithDefault(
+        row.variantOverrideDeliverySettings,
+        false
+      ) &&
+      hasValue(
+        row.variantDeliveryMaxDays
+      )
+        ? normalizeInteger(
+            row.variantDeliveryMaxDays,
+            0
+          )
+        : null,
+
+    deliveryNote:
+      normalizeBooleanWithDefault(
+        row.variantOverrideDeliverySettings,
+        false
+      )
+        ? normalizeNullable(
+            row.variantDeliveryNote
+          )
+        : null,
+
     sortOrder:
       normalizeInteger(
         row.variantSortOrder,
@@ -2037,6 +2232,345 @@ const buildCollectionAssignments = (
       ),
   });
   
+  const hasImportHeader = (
+    headers,
+    header
+  ) =>
+    (headers || []).some(
+      (
+        value
+      ) =>
+        clean(
+          value
+        ).toLowerCase() ===
+        clean(
+          header
+        ).toLowerCase()
+    );
+
+  const hasImportPrefix = (
+    headers,
+    prefix
+  ) =>
+    (headers || []).some(
+      (
+        value
+      ) =>
+        clean(
+          value
+        )
+          .toLowerCase()
+          .startsWith(
+            String(
+              prefix || ""
+            ).toLowerCase()
+          )
+    );
+
+  const buildPartialUpdatePayload = ({
+    createPayload,
+    headers,
+  }) => {
+    const update = {};
+
+    const copy = (
+      header,
+      field = header
+    ) => {
+      if (
+        hasImportHeader(
+          headers,
+          header
+        )
+      ) {
+        update[field] =
+          createPayload[field];
+      }
+    };
+
+    [
+      "name",
+      "slug",
+      "productType",
+      "status",
+      "erpId",
+      "shortDescription",
+      "description",
+      "features",
+      "whatsInTheBox",
+      "warrantyText",
+      "taxCode",
+      "taxPercent",
+      "sortOrder",
+      "isFeatured",
+      "isSearchable",
+      "metaTitle",
+      "metaDescription",
+      "metaKeywords",
+      "canonicalUrl",
+      "isDirectDelivery",
+      "directDeliveryLeadTimeDays",
+      "directDeliveryNote",
+      "expressDeliveryEnabled",
+      "expressDeliveryHours",
+      "deliveryMinDays",
+      "deliveryMaxDays",
+      "deliveryNote",
+    ].forEach(
+      (
+        field
+      ) =>
+        copy(
+          field
+        )
+    );
+
+    if (
+      hasImportHeader(
+        headers,
+        "directDeliverySupplierCode"
+      )
+    ) {
+      update.directDeliverySupplierId =
+        createPayload.directDeliverySupplierId;
+    }
+
+    if (
+      hasImportHeader(
+        headers,
+        "brandCode"
+      )
+    ) {
+      update.brandId =
+        createPayload.brandId;
+    }
+
+    if (
+      hasImportHeader(
+        headers,
+        "primaryCategorySlug"
+      ) ||
+      hasImportHeader(
+        headers,
+        "categorySlugs"
+      )
+    ) {
+      update.primaryCategoryId =
+        createPayload.primaryCategoryId;
+      update.categoryIds =
+        createPayload.categoryIds;
+      update.categories =
+        createPayload.categories;
+    }
+
+    if (
+      hasImportHeader(
+        headers,
+        "collectionSlugs"
+      )
+    ) {
+      update.collectionIds =
+        createPayload.collectionIds;
+      update.collections =
+        createPayload.collections;
+    }
+
+    if (
+      hasImportPrefix(
+        headers,
+        COLUMN_PREFIX.SPECIFICATION
+      )
+    ) {
+      update.attributeValues =
+        createPayload.attributeValues;
+    }
+
+    if (
+      [
+        "websiteVisible",
+        "websitePublishStatus",
+        "websiteTitle",
+        "websiteDescription",
+        "kioskVisible",
+        "kioskPublishStatus",
+        "kioskTitle",
+        "kioskDescription",
+      ].some(
+        (
+          header
+        ) =>
+          hasImportHeader(
+            headers,
+            header
+          )
+      )
+    ) {
+      update.channels =
+        createPayload.channels;
+    }
+
+    if (
+      [
+        "mediaImportMode",
+        "primaryMediaAssetId",
+        "primaryImageTitle",
+        "primaryImageAltText",
+        "galleryMediaAssetIds",
+      ].some(
+        (
+          header
+        ) =>
+          hasImportHeader(
+            headers,
+            header
+          )
+      )
+    ) {
+      update.mediaImportMode =
+        createPayload.mediaImportMode;
+      update.images =
+        createPayload.images;
+    }
+
+    const hasVariantData =
+      [
+        "variantSku",
+        "barcode",
+        "variantName",
+        "variantStatus",
+        "variantSortOrder",
+        "isDefault",
+        "weight",
+        "weightUnit",
+        "length",
+        "width",
+        "height",
+        "dimensionUnit",
+        "variantOverrideDeliverySettings",
+        "variantExpressDeliveryEnabled",
+        "variantExpressDeliveryHours",
+        "variantDeliveryMinDays",
+        "variantDeliveryMaxDays",
+        "variantDeliveryNote",
+      ].some(
+        (
+          header
+        ) =>
+          hasImportHeader(
+            headers,
+            header
+          )
+      ) ||
+      hasImportPrefix(
+        headers,
+        COLUMN_PREFIX.VARIANT_ATTRIBUTE
+      ) ||
+      hasImportPrefix(
+        headers,
+        COLUMN_PREFIX.REGULAR_PRICE
+      ) ||
+      hasImportPrefix(
+        headers,
+        COLUMN_PREFIX.SELLING_PRICE
+      ) ||
+      hasImportPrefix(
+        headers,
+        COLUMN_PREFIX.COMPARE_AT_PRICE
+      ) ||
+      hasImportPrefix(
+        headers,
+        COLUMN_PREFIX.COST_PRICE
+      );
+
+    if (
+      hasVariantData
+    ) {
+      update.variants =
+        (createPayload.variants ||
+          []).map(
+          (
+            variant
+          ) => {
+            const partial = {
+              sku:
+                variant.sku,
+            };
+
+            const variantCopy = (
+              header,
+              field
+            ) => {
+              if (
+                hasImportHeader(
+                  headers,
+                  header
+                )
+              ) {
+                partial[field] =
+                  variant[field];
+              }
+            };
+
+            variantCopy("barcode","barcode");
+            variantCopy("variantName","name");
+            variantCopy("variantStatus","status");
+            variantCopy("variantSortOrder","sortOrder");
+            variantCopy("isDefault","isDefault");
+            variantCopy("weight","weight");
+            variantCopy("weightUnit","weightUnit");
+            variantCopy("length","length");
+            variantCopy("width","width");
+            variantCopy("height","height");
+            variantCopy("dimensionUnit","dimensionUnit");
+            variantCopy("variantOverrideDeliverySettings","overrideDeliverySettings");
+            variantCopy("variantExpressDeliveryEnabled","expressDeliveryEnabled");
+            variantCopy("variantExpressDeliveryHours","expressDeliveryHours");
+            variantCopy("variantDeliveryMinDays","deliveryMinDays");
+            variantCopy("variantDeliveryMaxDays","deliveryMaxDays");
+            variantCopy("variantDeliveryNote","deliveryNote");
+
+            if (
+              hasImportPrefix(
+                headers,
+                COLUMN_PREFIX.VARIANT_ATTRIBUTE
+              )
+            ) {
+              partial.variantKey =
+                variant.variantKey;
+              partial.attributeValues =
+                variant.attributeValues;
+            }
+
+            if (
+              hasImportPrefix(
+                headers,
+                COLUMN_PREFIX.REGULAR_PRICE
+              ) ||
+              hasImportPrefix(
+                headers,
+                COLUMN_PREFIX.SELLING_PRICE
+              ) ||
+              hasImportPrefix(
+                headers,
+                COLUMN_PREFIX.COMPARE_AT_PRICE
+              ) ||
+              hasImportPrefix(
+                headers,
+                COLUMN_PREFIX.COST_PRICE
+              )
+            ) {
+              partial.prices =
+                variant.prices;
+            }
+
+            return partial;
+          }
+        );
+    }
+
+    return update;
+  };
+
   /*
   |--------------------------------------------------------------------------
   | Product Import Payload
@@ -2151,9 +2685,12 @@ const buildCollectionAssignments = (
         variants,
       };
   
-    const updatePayload = {
-      ...createPayload,
-    };
+    const updatePayload =
+      buildPartialUpdatePayload({
+        createPayload,
+        headers:
+          headers || [],
+      });
   
     const action =
       validationResult?.action ||
@@ -2877,6 +3414,8 @@ module.exports = {
   
     resolveBrand,
   
+
+    resolveDirectDeliverySupplier,
     resolvePrimaryCategory,
   
     resolveCategories,

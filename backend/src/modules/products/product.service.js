@@ -237,6 +237,47 @@ const ensureBrandAndCategories = async ({
   }
 };
 
+
+const ensureDirectDeliverySupplier = async ({
+  companyId,
+  isDirectDelivery,
+  supplierId,
+  transaction,
+}) => {
+  if (!isDirectDelivery) {
+    return;
+  }
+
+  if (!supplierId) {
+    throw new AppError(
+      "A supplier is required for a direct-delivery product.",
+      400,
+      "PRODUCT_DIRECT_DELIVERY_SUPPLIER_REQUIRED"
+    );
+  }
+
+  const supplier =
+    await db.Supplier.findOne({
+      where: {
+        id: supplierId,
+        companyId,
+        isActive: true,
+      },
+      attributes: [
+        "id",
+      ],
+      transaction,
+    });
+
+  if (!supplier) {
+    throw new AppError(
+      "The selected direct-delivery supplier was not found or is inactive.",
+      400,
+      "PRODUCT_DIRECT_DELIVERY_SUPPLIER_INVALID"
+    );
+  }
+};
+
 const replaceCategories = async ({
   companyId,
   product,
@@ -837,6 +878,38 @@ const replaceVariants = async ({
             payload.height ?? null,
           dimensionUnit:
             payload.dimensionUnit || null,
+
+          overrideDeliverySettings:
+            payload.overrideDeliverySettings === true,
+
+          expressDeliveryEnabled:
+            payload.overrideDeliverySettings === true
+              ? payload.expressDeliveryEnabled === true
+              : null,
+
+          expressDeliveryHours:
+            payload.overrideDeliverySettings === true &&
+            payload.expressDeliveryHours != null
+              ? Number(payload.expressDeliveryHours)
+              : null,
+
+          deliveryMinDays:
+            payload.overrideDeliverySettings === true &&
+            payload.deliveryMinDays != null
+              ? Number(payload.deliveryMinDays)
+              : null,
+
+          deliveryMaxDays:
+            payload.overrideDeliverySettings === true &&
+            payload.deliveryMaxDays != null
+              ? Number(payload.deliveryMaxDays)
+              : null,
+
+          deliveryNote:
+            payload.overrideDeliverySettings === true
+              ? normalizeNullable(payload.deliveryNote)
+              : null,
+
           sortOrder:
             Number(payload.sortOrder ?? index),
           updatedBy: userId,
@@ -868,6 +941,38 @@ const replaceVariants = async ({
             payload.height ?? null,
           dimensionUnit:
             payload.dimensionUnit || null,
+
+          overrideDeliverySettings:
+            payload.overrideDeliverySettings === true,
+
+          expressDeliveryEnabled:
+            payload.overrideDeliverySettings === true
+              ? payload.expressDeliveryEnabled === true
+              : null,
+
+          expressDeliveryHours:
+            payload.overrideDeliverySettings === true &&
+            payload.expressDeliveryHours != null
+              ? Number(payload.expressDeliveryHours)
+              : null,
+
+          deliveryMinDays:
+            payload.overrideDeliverySettings === true &&
+            payload.deliveryMinDays != null
+              ? Number(payload.deliveryMinDays)
+              : null,
+
+          deliveryMaxDays:
+            payload.overrideDeliverySettings === true &&
+            payload.deliveryMaxDays != null
+              ? Number(payload.deliveryMaxDays)
+              : null,
+
+          deliveryNote:
+            payload.overrideDeliverySettings === true
+              ? normalizeNullable(payload.deliveryNote)
+              : null,
+
           sortOrder:
             Number(payload.sortOrder ?? index),
           createdBy: userId,
@@ -1009,17 +1114,22 @@ const getProductById = async ({
   transaction,
 }) => {
   /*
-   * Load only the Product belongsTo
-   * relationships in the main query.
-   *
-   * Do not load all hasMany relationships
-   * together because that creates a large
-   * Cartesian join between:
-   *
-   * categories × images × channels ×
-   * attributes × variants × prices ×
-   * variant attributes × variant images.
-   */
+  |--------------------------------------------------------------------------
+  | Product Master
+  |--------------------------------------------------------------------------
+  |
+  | IMPORTANT:
+  |
+  | Do not use PRODUCT_INCLUDE here.
+  |
+  | PRODUCT_INCLUDE contains multiple hasMany relationships. Joining all of
+  | them into one Product query creates a very large Cartesian result set.
+  |
+  | Load the product and its single-record relations first, then load
+  | collections separately.
+  |--------------------------------------------------------------------------
+  */
+
   const product =
     await db.Product.findOne({
       where: {
@@ -1029,15 +1139,25 @@ const getProductById = async ({
 
       include: [
         {
-          model: db.Brand,
-          as: "brand",
-          required: false,
+          model:
+            db.Brand,
+
+          as:
+            "brand",
+
+          required:
+            false,
         },
 
         {
-          model: db.Category,
-          as: "primaryCategory",
-          required: false,
+          model:
+            db.Category,
+
+          as:
+            "primaryCategory",
+
+          required:
+            false,
         },
       ],
 
@@ -1053,326 +1173,73 @@ const getProductById = async ({
   }
 
   /*
-   * Load all product-level collections
-   * separately.
-   */
+  |--------------------------------------------------------------------------
+  | Product-Level Collections
+  |--------------------------------------------------------------------------
+  |
+  | These are deliberately separate queries.
+  |--------------------------------------------------------------------------
+  */
+
   const [
     categoryAssignments,
-    productImages,
-    productChannels,
-    productAttributeValues,
-    productVariants,
-  ] = await Promise.all([
-    /*
-     * Product category assignments.
-     */
-    db.ProductCategory.findAll({
-      where: {
-        companyId,
-        productId: product.id,
-      },
-
-      include: [
-        {
-          model: db.Category,
-          as: "category",
-          required: false,
-        },
-      ],
-
-      order: [
-        [
-          "displayOrder",
-          "ASC",
-        ],
-        [
-          "createdAt",
-          "ASC",
-        ],
-      ],
-
-      transaction,
-    }),
-
-    /*
-     * Product-level media only.
-     *
-     * variantId NULL means the image belongs
-     * to the common product gallery.
-     */
-    db.ProductImage.findAll({
-      where: {
-        companyId,
-        productId: product.id,
-        variantId: null,
-      },
-
-      include: [
-        {
-          model: db.MediaAsset,
-          as: "mediaAsset",
-          required: false,
-        },
-      ],
-
-      order: [
-        [
-          "displayOrder",
-          "ASC",
-        ],
-        [
-          "createdAt",
-          "ASC",
-        ],
-      ],
-
-      transaction,
-    }),
-
-    /*
-     * Product channel configuration.
-     */
-    db.ProductChannel.findAll({
-      where: {
-        companyId,
-        productId: product.id,
-      },
-
-      order: [
-        [
-          "channelCode",
-          "ASC",
-        ],
-      ],
-
-      transaction,
-    }),
-
-    /*
-     * Product-level specification values.
-     */
-    db.ProductAttributeValue.findAll({
-      where: {
-        companyId,
-        productId: product.id,
-      },
-
-      include: [
-        {
-          model: db.Attribute,
-          as: "attribute",
-          required: false,
-        },
-
-        {
-          model: db.AttributeOption,
-          as: "option",
-          required: false,
-        },
-      ],
-
-      order: [
-        [
-          "createdAt",
-          "ASC",
-        ],
-      ],
-
-      transaction,
-    }),
-
-    /*
-     * Load variants without nested hasMany
-     * associations.
-     */
-    db.ProductVariant.findAll({
-      where: {
-        companyId,
-        productId: product.id,
-      },
-
-      order: [
-        [
-          "sortOrder",
-          "ASC",
-        ],
-        [
-          "createdAt",
-          "ASC",
-        ],
-      ],
-
-      transaction,
-    }),
-  ]);
-
-  const variantIds =
-    productVariants.map(
-      (variant) =>
-        variant.id
-    );
-
-  let variantAttributeValues =
-    [];
-
-  let variantChannels =
-    [];
-
-  let variantPrices =
-    [];
-
-  let variantImages =
-    [];
-
-  /*
-   * Only query variant child tables when
-   * the product actually has variants.
-   */
-  if (variantIds.length) {
-    [
-      variantAttributeValues,
-      variantChannels,
-      variantPrices,
-      variantImages,
-    ] = await Promise.all([
+    images,
+    channels,
+    attributeValues,
+    variants,
+  ] =
+    await Promise.all([
       /*
-       * Variant-defining attribute values.
-       */
-      db.ProductVariantAttributeValue
-        .findAll({
-          where: {
-            companyId,
+      |--------------------------------------------------------------------------
+      | Categories
+      |--------------------------------------------------------------------------
+      */
 
-            productVariantId: {
-              [Op.in]:
-                variantIds,
-            },
+      db.ProductCategory.findAll({
+        where: {
+          companyId,
+          productId,
+        },
+
+        include: [
+          {
+            model:
+              db.Category,
+
+            as:
+              "category",
+
+            required:
+              false,
           },
+        ],
 
-          include: [
-            {
-              model:
-                db.Attribute,
-
-              as:
-                "attribute",
-
-              required:
-                false,
-            },
-
-            {
-              model:
-                db.AttributeOption,
-
-              as:
-                "option",
-
-              required:
-                false,
-            },
+        order: [
+          [
+            "displayOrder",
+            "ASC",
           ],
+        ],
 
-          order: [
-            [
-              "productVariantId",
-              "ASC",
-            ],
-            [
-              "sortOrder",
-              "ASC",
-            ],
-            [
-              "createdAt",
-              "ASC",
-            ],
-          ],
-
-          transaction,
-        }),
+        transaction,
+      }),
 
       /*
-       * Variant channel visibility.
-       */
-      db.ProductVariantChannel
-        .findAll({
-          where: {
-            companyId,
+      |--------------------------------------------------------------------------
+      | Product Images
+      |--------------------------------------------------------------------------
+      |
+      | variantId = null is important.
+      | Variant images are loaded separately below.
+      |--------------------------------------------------------------------------
+      */
 
-            productVariantId: {
-              [Op.in]:
-                variantIds,
-            },
-          },
-
-          order: [
-            [
-              "productVariantId",
-              "ASC",
-            ],
-            [
-              "channelCode",
-              "ASC",
-            ],
-          ],
-
-          transaction,
-        }),
-
-      /*
-       * Variant prices and their price lists.
-       */
-      db.ProductVariantPrice
-        .findAll({
-          where: {
-            companyId,
-
-            productVariantId: {
-              [Op.in]:
-                variantIds,
-            },
-          },
-
-          include: [
-            {
-              model:
-                db.PriceList,
-
-              as:
-                "priceList",
-
-              required:
-                false,
-            },
-          ],
-
-          order: [
-            [
-              "productVariantId",
-              "ASC",
-            ],
-            [
-              "createdAt",
-              "ASC",
-            ],
-          ],
-
-          transaction,
-        }),
-
-      /*
-       * Variant-specific images.
-       */
       db.ProductImage.findAll({
         where: {
           companyId,
-          productId:
-            product.id,
-
-          variantId: {
-            [Op.in]:
-              variantIds,
-          },
+          productId,
+          variantId:
+            null,
         },
 
         include: [
@@ -1390,13 +1257,99 @@ const getProductById = async ({
 
         order: [
           [
-            "variantId",
-            "ASC",
-          ],
-          [
             "displayOrder",
             "ASC",
           ],
+        ],
+
+        transaction,
+      }),
+
+      /*
+      |--------------------------------------------------------------------------
+      | Product Channels
+      |--------------------------------------------------------------------------
+      */
+
+      db.ProductChannel.findAll({
+        where: {
+          companyId,
+          productId,
+        },
+
+        order: [
+          [
+            "channelCode",
+            "ASC",
+          ],
+        ],
+
+        transaction,
+      }),
+
+      /*
+      |--------------------------------------------------------------------------
+      | Product Attribute Values
+      |--------------------------------------------------------------------------
+      */
+
+      db.ProductAttributeValue.findAll({
+        where: {
+          companyId,
+          productId,
+        },
+
+        include: [
+          {
+            model:
+              db.Attribute,
+
+            as:
+              "attribute",
+
+            required:
+              false,
+          },
+
+          {
+            model:
+              db.AttributeOption,
+
+            as:
+              "option",
+
+            required:
+              false,
+          },
+        ],
+
+        transaction,
+      }),
+
+      /*
+      |--------------------------------------------------------------------------
+      | Variants
+      |--------------------------------------------------------------------------
+      |
+      | Load ONLY the variant master here.
+      |
+      | Variant attributes, channels, prices and images are loaded separately
+      | afterward so they cannot multiply one another in SQL.
+      |--------------------------------------------------------------------------
+      */
+
+      db.ProductVariant.findAll({
+        where: {
+          companyId,
+          productId,
+        },
+
+        order: [
+          [
+            "sortOrder",
+            "ASC",
+          ],
+
           [
             "createdAt",
             "ASC",
@@ -1406,73 +1359,239 @@ const getProductById = async ({
         transaction,
       }),
     ]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Variant IDs
+  |--------------------------------------------------------------------------
+  */
+
+  const variantIds =
+    variants.map(
+      (variant) =>
+        variant.id
+    );
+
+  /*
+  |--------------------------------------------------------------------------
+  | Variant Collections
+  |--------------------------------------------------------------------------
+  */
+
+  let variantAttributeValues =
+    [];
+
+  let variantChannels =
+    [];
+
+  let variantPrices =
+    [];
+
+  let variantImages =
+    [];
+
+  if (
+    variantIds.length >
+    0
+  ) {
+    [
+      variantAttributeValues,
+      variantChannels,
+      variantPrices,
+      variantImages,
+    ] =
+      await Promise.all([
+        /*
+        |--------------------------------------------------------------------------
+        | Variant Attribute Values
+        |--------------------------------------------------------------------------
+        */
+
+        db.ProductVariantAttributeValue.findAll(
+          {
+            where: {
+              companyId,
+
+              productVariantId: {
+                [Op.in]:
+                  variantIds,
+              },
+            },
+
+            include: [
+              {
+                model:
+                  db.Attribute,
+
+                as:
+                  "attribute",
+
+                required:
+                  false,
+              },
+
+              {
+                model:
+                  db.AttributeOption,
+
+                as:
+                  "option",
+
+                required:
+                  false,
+              },
+            ],
+
+            transaction,
+          }
+        ),
+
+        /*
+        |--------------------------------------------------------------------------
+        | Variant Channels
+        |--------------------------------------------------------------------------
+        */
+
+        db.ProductVariantChannel.findAll(
+          {
+            where: {
+              companyId,
+
+              productVariantId: {
+                [Op.in]:
+                  variantIds,
+              },
+            },
+
+            transaction,
+          }
+        ),
+
+        /*
+        |--------------------------------------------------------------------------
+        | Variant Prices
+        |--------------------------------------------------------------------------
+        */
+
+        db.ProductVariantPrice.findAll(
+          {
+            where: {
+              companyId,
+
+              productVariantId: {
+                [Op.in]:
+                  variantIds,
+              },
+            },
+
+            include: [
+              {
+                model:
+                  db.PriceList,
+
+                as:
+                  "priceList",
+
+                required:
+                  false,
+              },
+            ],
+
+            transaction,
+          }
+        ),
+
+        /*
+        |--------------------------------------------------------------------------
+        | Variant Images
+        |--------------------------------------------------------------------------
+        */
+
+        db.ProductImage.findAll({
+          where: {
+            companyId,
+
+            productId,
+
+            variantId: {
+              [Op.in]:
+                variantIds,
+            },
+          },
+
+          include: [
+            {
+              model:
+                db.MediaAsset,
+
+              as:
+                "mediaAsset",
+
+              required:
+                false,
+            },
+          ],
+
+          order: [
+            [
+              "displayOrder",
+              "ASC",
+            ],
+          ],
+
+          transaction,
+        }),
+      ]);
   }
 
   /*
-   * Convert Sequelize models into plain
-   * JSON-safe objects before combining them.
-   */
-  const toPlain = (
-    value
-  ) => {
-    if (!value) {
-      return value;
-    }
+  |--------------------------------------------------------------------------
+  | Group Variant Collections
+  |--------------------------------------------------------------------------
+  */
 
-    return typeof value.get ===
-      "function"
-      ? value.get({
-          plain: true,
-        })
-      : value;
-  };
+  const groupByVariantId =
+    (
+      rows,
+      fieldName
+    ) => {
+      const map =
+        new Map();
 
-  /*
-   * Group child records by variant ID.
-   */
-  const groupByVariantId = (
-    records,
-    foreignKey
-  ) => {
-    const grouped =
-      new Map();
-
-    for (
-      const record of
-      records
-    ) {
-      const plainRecord =
-        toPlain(record);
-
-      const variantId =
-        plainRecord[
-          foreignKey
-        ];
-
-      if (!variantId) {
-        continue;
-      }
-
-      if (
-        !grouped.has(
-          variantId
-        )
+      for (
+        const row of
+        rows
       ) {
-        grouped.set(
-          variantId,
-          []
-        );
+        const key =
+          String(
+            row[
+              fieldName
+            ] ||
+              ""
+          );
+
+        if (!key) {
+          continue;
+        }
+
+        if (
+          !map.has(
+            key
+          )
+        ) {
+          map.set(
+            key,
+            []
+          );
+        }
+
+        map
+          .get(key)
+          .push(row);
       }
 
-      grouped
-        .get(variantId)
-        .push(
-          plainRecord
-        );
-    }
-
-    return grouped;
-  };
+      return map;
+    };
 
   const attributesByVariant =
     groupByVariantId(
@@ -1499,67 +1618,84 @@ const getProductById = async ({
     );
 
   /*
-   * Build the same response structure that
-   * Sequelize previously produced through
-   * PRODUCT_INCLUDE, but without the massive
-   * joined result.
-   */
-  const plainProduct =
-    toPlain(product);
+  |--------------------------------------------------------------------------
+  | Attach Variant Collections
+  |--------------------------------------------------------------------------
+  */
 
-  plainProduct.categoryAssignments =
-    categoryAssignments.map(
-      toPlain
+  for (
+    const variant of
+    variants
+  ) {
+    const variantId =
+      String(
+        variant.id
+      );
+
+    variant.setDataValue(
+      "attributeValues",
+      attributesByVariant.get(
+        variantId
+      ) || []
     );
 
-  plainProduct.images =
-    productImages.map(
-      toPlain
+    variant.setDataValue(
+      "channels",
+      channelsByVariant.get(
+        variantId
+      ) || []
     );
 
-  plainProduct.channels =
-    productChannels.map(
-      toPlain
+    variant.setDataValue(
+      "prices",
+      pricesByVariant.get(
+        variantId
+      ) || []
     );
 
-  plainProduct.attributeValues =
-    productAttributeValues.map(
-      toPlain
+    variant.setDataValue(
+      "images",
+      imagesByVariant.get(
+        variantId
+      ) || []
     );
+  }
 
-  plainProduct.variants =
-    productVariants.map(
-      (variant) => {
-        const plainVariant =
-          toPlain(variant);
+  /*
+  |--------------------------------------------------------------------------
+  | Attach Product Collections
+  |--------------------------------------------------------------------------
+  |
+  | Keep the exact property names expected by the existing admin frontend.
+  |--------------------------------------------------------------------------
+  */
 
-        return {
-          ...plainVariant,
+  product.setDataValue(
+    "categoryAssignments",
+    categoryAssignments
+  );
 
-          attributeValues:
-            attributesByVariant.get(
-              plainVariant.id
-            ) || [],
+  product.setDataValue(
+    "images",
+    images
+  );
 
-          channels:
-            channelsByVariant.get(
-              plainVariant.id
-            ) || [],
+  product.setDataValue(
+    "channels",
+    channels
+  );
 
-          prices:
-            pricesByVariant.get(
-              plainVariant.id
-            ) || [],
+  product.setDataValue(
+    "attributeValues",
+    attributeValues
+  );
 
-          images:
-            imagesByVariant.get(
-              plainVariant.id
-            ) || [],
-        };
-      }
-    );
+  product.setDataValue(
+    "variants",
+    variants
+  );
 
-  return plainProduct;
+  return product;
 };
 
 const listProducts = async ({
@@ -1734,6 +1870,20 @@ const createProduct = async ({
       transaction,
     });
 
+    const isDirectDelivery =
+      payload.isDirectDelivery === true;
+
+    await ensureDirectDeliverySupplier({
+      companyId,
+      isDirectDelivery,
+      supplierId:
+        isDirectDelivery
+          ? payload.directDeliverySupplierId ||
+            null
+          : null,
+      transaction,
+    });
+
     const product = await db.Product.create(
       {
         companyId,
@@ -1746,6 +1896,70 @@ const createProduct = async ({
           payload.productType || "SIMPLE",
         status: payload.status || "DRAFT",
         parentSku,
+
+        erpId:
+          normalizeNullable(
+            payload.erpId
+          ),
+
+        isDirectDelivery,
+
+        directDeliverySupplierId:
+          isDirectDelivery
+            ? payload.directDeliverySupplierId ||
+              null
+            : null,
+
+        directDeliveryLeadTimeDays:
+          isDirectDelivery &&
+          payload.directDeliveryLeadTimeDays !==
+            undefined &&
+          payload.directDeliveryLeadTimeDays !==
+            null
+            ? Number(
+                payload.directDeliveryLeadTimeDays
+              )
+            : null,
+
+        directDeliveryNote:
+          isDirectDelivery
+            ? normalizeNullable(
+                payload.directDeliveryNote
+              )
+            : null,
+
+        expressDeliveryEnabled:
+          payload.expressDeliveryEnabled === true,
+
+        expressDeliveryHours:
+          payload.expressDeliveryEnabled === true
+            ? Number(
+                payload.expressDeliveryHours ||
+                  4
+              )
+            : null,
+
+        deliveryMinDays:
+          payload.deliveryMinDays !== undefined &&
+          payload.deliveryMinDays !== null
+            ? Number(
+                payload.deliveryMinDays
+              )
+            : null,
+
+        deliveryMaxDays:
+          payload.deliveryMaxDays !== undefined &&
+          payload.deliveryMaxDays !== null
+            ? Number(
+                payload.deliveryMaxDays
+              )
+            : null,
+
+        deliveryNote:
+          normalizeNullable(
+            payload.deliveryNote
+          ),
+
         shortDescription:
           normalizeNullable(
             payload.shortDescription
@@ -1768,12 +1982,20 @@ const createProduct = async ({
           Number(payload.taxPercent || 0),
         sortOrder:
           Number(payload.sortOrder || 0),
-        isFeatured:
+          isFeatured:
           payload.isFeatured === true,
+        
         isSearchable:
           payload.isSearchable !== false,
+        
+        alwaysAvailableForSale:
+          payload.alwaysAvailableForSale ===
+          true,
+        
         metaTitle:
-          normalizeNullable(payload.metaTitle),
+          normalizeNullable(
+            payload.metaTitle
+          ),
         metaDescription:
           normalizeNullable(
             payload.metaDescription
@@ -1948,6 +2170,36 @@ const updateProduct = async ({
       transaction,
     });
 
+    const effectiveIsDirectDelivery =
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "isDirectDelivery"
+      )
+        ? payload.isDirectDelivery === true
+        : product.isDirectDelivery === true;
+
+    const effectiveDirectDeliverySupplierId =
+      effectiveIsDirectDelivery
+        ? (
+            Object.prototype.hasOwnProperty.call(
+              payload,
+              "directDeliverySupplierId"
+            )
+              ? payload.directDeliverySupplierId
+              : product.directDeliverySupplierId
+          ) ||
+          null
+        : null;
+
+    await ensureDirectDeliverySupplier({
+      companyId,
+      isDirectDelivery:
+        effectiveIsDirectDelivery,
+      supplierId:
+        effectiveDirectDeliverySupplierId,
+      transaction,
+    });
+
     const updateValues = {
       name,
       slug,
@@ -1964,6 +2216,9 @@ const updateProduct = async ({
       "sortOrder",
       "isFeatured",
       "isSearchable",
+      "alwaysAvailableForSale",
+      "isDirectDelivery",
+      "expressDeliveryEnabled",
     ];
 
     for (const field of directFields) {
@@ -1973,11 +2228,158 @@ const updateProduct = async ({
           field
         )
       ) {
-        updateValues[field] = payload[field];
+        updateValues[field] =
+          payload[field];
+      }
+    }
+
+    /*
+     * Keep supplier-fulfillment fields consistent.
+     *
+     * Turning direct delivery OFF clears all supplier
+     * fulfillment values. Turning it ON stores the
+     * validated supplier and any optional lead-time/note.
+     */
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "isDirectDelivery"
+      ) ||
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "directDeliverySupplierId"
+      ) ||
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "directDeliveryLeadTimeDays"
+      ) ||
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "directDeliveryNote"
+      )
+    ) {
+      updateValues.isDirectDelivery =
+        effectiveIsDirectDelivery;
+
+      updateValues.directDeliverySupplierId =
+        effectiveIsDirectDelivery
+          ? effectiveDirectDeliverySupplierId
+          : null;
+
+      updateValues.directDeliveryLeadTimeDays =
+        effectiveIsDirectDelivery &&
+        payload.directDeliveryLeadTimeDays !==
+          undefined &&
+        payload.directDeliveryLeadTimeDays !==
+          null
+          ? Number(
+              payload.directDeliveryLeadTimeDays
+            )
+          : effectiveIsDirectDelivery
+            ? product.directDeliveryLeadTimeDays
+            : null;
+
+      updateValues.directDeliveryNote =
+        effectiveIsDirectDelivery
+          ? (
+              Object.prototype.hasOwnProperty.call(
+                payload,
+                "directDeliveryNote"
+              )
+                ? normalizeNullable(
+                    payload.directDeliveryNote
+                  )
+                : product.directDeliveryNote
+            )
+          : null;
+    }
+
+    /*
+     * Customer-facing delivery promise.
+     */
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "expressDeliveryHours"
+      )
+    ) {
+      updateValues.expressDeliveryHours =
+        payload.expressDeliveryHours != null
+          ? Number(
+              payload.expressDeliveryHours
+            )
+          : null;
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "deliveryMinDays"
+      )
+    ) {
+      updateValues.deliveryMinDays =
+        payload.deliveryMinDays != null
+          ? Number(
+              payload.deliveryMinDays
+            )
+          : null;
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "deliveryMaxDays"
+      )
+    ) {
+      updateValues.deliveryMaxDays =
+        payload.deliveryMaxDays != null
+          ? Number(
+              payload.deliveryMaxDays
+            )
+          : null;
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "deliveryNote"
+      )
+    ) {
+      updateValues.deliveryNote =
+        normalizeNullable(
+          payload.deliveryNote
+        );
+    }
+
+    /*
+     * If express delivery is explicitly disabled, clear the hour promise.
+     * If enabled without hours, use 4 hours.
+     */
+    if (
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "expressDeliveryEnabled"
+      )
+    ) {
+      if (
+        payload.expressDeliveryEnabled ===
+        true
+      ) {
+        updateValues.expressDeliveryHours =
+          payload.expressDeliveryHours != null
+            ? Number(
+                payload.expressDeliveryHours
+              )
+            : product.expressDeliveryHours ||
+              4;
+      } else {
+        updateValues.expressDeliveryHours =
+          null;
       }
     }
 
     const nullableFields = [
+      "erpId",
       "shortDescription",
       "description",
       "warrantyText",

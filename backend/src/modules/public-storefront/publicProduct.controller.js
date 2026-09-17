@@ -3,6 +3,11 @@ const publicProductService =
     "./publicProduct.service"
   );
 
+  const getPublicApiBaseUrl =
+  require(
+    "../../utils/getPublicApiBaseUrl"
+  );
+
 exports.getPublicProduct =
   async (
     req,
@@ -16,10 +21,11 @@ exports.getPublicProduct =
         ] ||
         req.query.companyCode;
 
-      const apiBaseUrl =
-        `${req.protocol}://${req.get(
-          "host"
-        )}`;
+        const apiBaseUrl =
+        getPublicApiBaseUrl(
+          req
+        );
+
 
       const result =
         await publicProductService

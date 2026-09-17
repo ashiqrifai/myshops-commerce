@@ -1,5 +1,16 @@
+"use client";
+
 import Link from "next/link";
-import { ImageIcon } from "lucide-react";
+
+import {
+  ChevronLeft,
+  ChevronRight,
+  ImageIcon,
+} from "lucide-react";
+
+import {
+  useRef,
+} from "react";
 
 import type {
   PublicCategory,
@@ -22,35 +33,142 @@ const getImageUrl = (
     )?.publicUrl ||
   category.thumbnailAsset
     ?.publicUrl ||
-  category.image?.publicUrl ||
+  category.image
+    ?.publicUrl ||
   null;
 
 export default function SubcategoryGrid({
   categories,
 }: {
-  categories: PublicCategory[];
+  categories:
+    PublicCategory[];
 }) {
-  if (!categories.length) {
+  const carouselRef =
+    useRef<HTMLDivElement | null>(
+      null
+    );
+
+  if (
+    !categories.length
+  ) {
     return null;
   }
 
+  const scrollCarousel = (
+    direction:
+      | "LEFT"
+      | "RIGHT"
+  ) => {
+    const element =
+      carouselRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    /*
+     * Smaller cards mean we can
+     * comfortably move around
+     * 5-6 cards at a time.
+     */
+    const scrollAmount =
+      Math.min(
+        element.clientWidth *
+          0.75,
+        680
+      );
+
+    element.scrollBy({
+      left:
+        direction ===
+        "LEFT"
+          ? -scrollAmount
+          : scrollAmount,
+
+      behavior:
+        "smooth",
+    });
+  };
+
   return (
     <section className="mt-8">
-      <div className="mb-4 flex items-end justify-between">
+      {/*
+      |--------------------------------------------------------------------------
+      | Header
+      |--------------------------------------------------------------------------
+      */}
+
+      <div className="mb-3 flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-storefront-primary">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-storefront-primary">
             Explore more
           </p>
 
-          <h2 className="mt-1 text-2xl font-black text-storefront-text">
+          <h2 className="mt-1 text-[22px] font-bold leading-tight text-storefront-text">
             Subcategories
           </h2>
         </div>
+
+        {categories.length >
+        1 ? (
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                scrollCarousel(
+                  "LEFT"
+                )
+              }
+              aria-label="Previous subcategories"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-storefront-border-light bg-storefront-surface text-storefront-text transition hover:bg-storefront-secondary"
+            >
+              <ChevronLeft
+                size={17}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={() =>
+                scrollCarousel(
+                  "RIGHT"
+                )
+              }
+              aria-label="Next subcategories"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-storefront-border-light bg-storefront-surface text-storefront-text transition hover:bg-storefront-secondary"
+            >
+              <ChevronRight
+                size={17}
+              />
+            </button>
+          </div>
+        ) : null}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+      {/*
+      |--------------------------------------------------------------------------
+      | Subcategory Carousel
+      |--------------------------------------------------------------------------
+      */}
+
+      <div
+        ref={
+          carouselRef
+        }
+        className={[
+          "flex gap-2.5 overflow-x-auto pb-2",
+          "scroll-smooth",
+          "[scrollbar-width:none]",
+          "[-ms-overflow-style:none]",
+          "[&::-webkit-scrollbar]:hidden",
+        ].join(
+          " "
+        )}
+      >
         {categories.map(
-          (category) => {
+          (
+            category
+          ) => {
             const imageUrl =
               getImageUrl(
                 category
@@ -58,31 +176,96 @@ export default function SubcategoryGrid({
 
             return (
               <Link
-                key={category.id}
+                key={
+                  category.id
+                }
                 href={`/category/${category.slug}`}
-                className="group overflow-hidden rounded-2xl border border-storefront bg-storefront-surface p-3 transition hover:-translate-y-1 hover:shadow-lg"
+                prefetch={
+                  false
+                }
+                className={[
+                  "group shrink-0",
+
+                  /*
+                   * Compact card width
+                   */
+                  "w-[120px]",
+                  "sm:w-[128px]",
+                  "lg:w-[136px]",
+
+                  "overflow-hidden",
+                  "rounded-xl",
+
+                  "border",
+                  "border-storefront-border-light",
+
+                  "bg-storefront-surface",
+
+                  "transition",
+                  "duration-200",
+
+                  "hover:-translate-y-0.5",
+                  "hover:border-[#D8DDE3]",
+                  "hover:shadow-sm",
+                ].join(
+                  " "
+                )}
               >
-                <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-storefront-secondary">
+                {/*
+                |--------------------------------------------------------------------------
+                | Image
+                |--------------------------------------------------------------------------
+                */}
+
+                <div
+                  className={[
+                    "flex",
+                    "h-[76px]",
+                    "items-center",
+                    "justify-center",
+                    "overflow-hidden",
+                    "bg-white",
+
+                    "sm:h-[80px]",
+                    "lg:h-[84px]",
+                  ].join(
+                    " "
+                  )}
+                >
                   {imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={imageUrl}
+                      src={
+                        imageUrl
+                      }
                       alt={
                         category.name
                       }
-                      className="h-full w-full object-contain p-3 transition duration-300 group-hover:scale-105"
+                      className="h-full w-full object-contain p-2.5 transition duration-200 group-hover:scale-105"
                     />
                   ) : (
                     <ImageIcon
-                      size={28}
+                      size={
+                        22
+                      }
                       className="text-storefront-muted"
                     />
                   )}
                 </div>
 
-                <p className="mt-3 line-clamp-2 text-center text-sm font-bold text-storefront-text">
-                  {category.name}
-                </p>
+                {/*
+                |--------------------------------------------------------------------------
+                | Label
+                |--------------------------------------------------------------------------
+                */}
+
+                <div className="flex min-h-[44px] items-center justify-center px-2 py-2">
+                  <p className="line-clamp-2 text-center text-[11px] font-bold leading-[14px] text-storefront-text sm:text-xs">
+                    {
+                      category.name
+                    }
+                  </p>
+                </div>
               </Link>
             );
           }

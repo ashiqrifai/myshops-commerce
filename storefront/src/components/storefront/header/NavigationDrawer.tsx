@@ -8,9 +8,9 @@ import {
   useState,
 } from "react";
 
-import type {
-  StorefrontSection,
-} from "@/types/storefront";
+import {
+  getPublicCategoryTree,
+} from "@/lib/storefront/public-category-tree-api";
 
 import DrawerBackButton from "./DrawerBackButton";
 import DrawerFooter from "./DrawerFooter";
@@ -24,21 +24,16 @@ import type {
 } from "./NavigationDrawer.types";
 
 import {
+  categoryToNavigationItem,
   compareNavigationItems,
   getItemChildren,
   getItemLabel,
-  getNavigationMenu,
   isVisibleItem,
 } from "./navigationDrawer.utils";
 
 interface NavigationDrawerProps {
   open: boolean;
   onClose: () => void;
-
-  navigationSection?:
-    | StorefrontSection
-    | null;
-
   accountUrl?: string;
   accountLabel?: string;
 }
@@ -46,52 +41,93 @@ interface NavigationDrawerProps {
 export default function NavigationDrawer({
   open,
   onClose,
-  navigationSection,
   accountUrl = "/account",
   accountLabel = "Hello, sign in",
 }: NavigationDrawerProps) {
   const closeButtonRef =
-    useRef<HTMLButtonElement | null>(
-      null
+    useRef<HTMLButtonElement | null>(null);
+
+  const [categoryItems, setCategoryItems] =
+    useState<NavigationItem[]>([]);
+
+  const [categoryLoading, setCategoryLoading] =
+    useState(false);
+
+  const [categoryLoaded, setCategoryLoaded] =
+    useState(false);
+
+  const [categoryError, setCategoryError] =
+    useState<string | null>(null);
+
+  const [levels, setLevels] =
+    useState<DrawerLevel[]>([]);
+
+  const loadCategories =
+    useCallback(async () => {
+      setCategoryLoading(true);
+      setCategoryError(null);
+
+      try {
+        const categories =
+          await getPublicCategoryTree();
+
+        const items = categories
+          .map(categoryToNavigationItem)
+          .filter(isVisibleItem)
+          .sort(compareNavigationItems);
+
+        setCategoryItems(items);
+        setCategoryLoaded(true);
+      } catch (error) {
+        console.error(
+          "[Category drawer error]",
+          error
+        );
+
+        setCategoryItems([]);
+        setCategoryError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load categories."
+        );
+      } finally {
+        setCategoryLoading(false);
+      }
+    }, []);
+
+    useEffect(
+      () => {
+        if (
+          !open ||
+          categoryLoaded ||
+          categoryLoading ||
+          categoryError
+        ) {
+          return;
+        }
+    
+        void loadCategories();
+      },
+      [
+        open,
+        categoryLoaded,
+        categoryLoading,
+        categoryError,
+        loadCategories,
+      ]
     );
 
-  const [
-    levels,
-    setLevels,
-  ] = useState<DrawerLevel[]>([]);
-
-  const navigationMenu =
-    useMemo(
-      () =>
-        getNavigationMenu(
-          navigationSection
-        ),
-      [navigationSection]
-    );
-
-  const rootItems =
-    useMemo(() => {
-      const items =
-        Array.isArray(
-          navigationMenu?.items
-        )
-          ? navigationMenu.items
-          : Array.isArray(
-                navigationMenu?.children
-              )
-            ? navigationMenu.children
-            : [];
-
-      return items
+  const rootItems = useMemo(
+    () =>
+      categoryItems
         .filter(isVisibleItem)
-        .sort(compareNavigationItems);
-    }, [navigationMenu]);
+        .sort(compareNavigationItems),
+    [categoryItems]
+  );
 
   const currentLevel =
     levels.length > 0
-      ? levels[
-          levels.length - 1
-        ]
+      ? levels[levels.length - 1]
       : null;
 
   const handleClose =
@@ -111,13 +147,12 @@ export default function NavigationDrawer({
     document.body.style.overflow =
       "hidden";
 
-    const handleKeyDown = (
-      event: KeyboardEvent
-    ) => {
-      if (event.key === "Escape") {
-        handleClose();
-      }
-    };
+    const handleKeyDown =
+      (event: KeyboardEvent) => {
+        if (event.key === "Escape") {
+          handleClose();
+        }
+      };
 
     window.addEventListener(
       "keydown",
@@ -138,31 +173,28 @@ export default function NavigationDrawer({
         handleKeyDown
       );
 
-      window.clearTimeout(
-        focusTimer
-      );
+      window.clearTimeout(focusTimer);
     };
   }, [open, handleClose]);
 
-  const handleOpenChildren = (
-    item: NavigationItem
-  ) => {
-    const children =
-      getItemChildren(item);
+  const handleOpenChildren =
+    (item: NavigationItem) => {
+      const children =
+        getItemChildren(item);
 
-    if (!children.length) {
-      return;
-    }
+      if (!children.length) {
+        return;
+      }
 
-    setLevels((current) => [
-      ...current,
-      {
-        id: item.id,
-        title: getItemLabel(item),
-        items: children,
-      },
-    ]);
-  };
+      setLevels((current) => [
+        ...current,
+        {
+          id: item.id,
+          title: getItemLabel(item),
+          items: children,
+        },
+      ]);
+    };
 
   const handleBack = () => {
     setLevels((current) =>
@@ -182,7 +214,7 @@ export default function NavigationDrawer({
     >
       <button
         type="button"
-        aria-label="Close all menu"
+        aria-label="Close categories menu"
         onClick={handleClose}
         tabIndex={open ? 0 : -1}
         className={[
@@ -197,7 +229,7 @@ export default function NavigationDrawer({
         id="storefront-all-menu"
         role="dialog"
         aria-modal="true"
-        aria-label="All departments menu"
+        aria-label="Shop categories"
         className={[
           "absolute inset-y-0 left-0 flex w-[88vw] max-w-[390px] flex-col bg-white shadow-2xl transition-transform duration-300 ease-out",
           open
@@ -207,14 +239,10 @@ export default function NavigationDrawer({
       >
         <DrawerHeader
           accountUrl={accountUrl}
-          accountLabel={
-            accountLabel
-          }
+          accountLabel={accountLabel}
           open={open}
           onClose={handleClose}
-          closeButtonRef={
-            closeButtonRef
-          }
+          closeButtonRef={closeButtonRef}
         />
 
         {currentLevel ? (
@@ -225,18 +253,44 @@ export default function NavigationDrawer({
         ) : null}
 
         <div className="flex-1 overflow-y-auto overscroll-contain">
-          {currentLevel ? (
+          {categoryLoading ? (
+            <div className="flex min-h-[220px] flex-col items-center justify-center px-6 text-center">
+              <div className="size-6 animate-spin rounded-full border-2 border-storefront-primary border-t-transparent" />
+
+              <p className="mt-3 text-sm font-medium text-slate-500">
+                Loading categories…
+              </p>
+            </div>
+          ) : categoryError ? (
+            <div className="px-6 py-10 text-center">
+              <p className="font-semibold text-slate-800">
+                Unable to load categories.
+              </p>
+
+              <p className="mt-2 text-sm leading-5 text-slate-500">
+                {categoryError}
+              </p>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void loadCategories()
+                }
+                className="mt-5 rounded-lg bg-storefront-primary px-4 py-2 text-sm font-bold text-white"
+              >
+                Try again
+              </button>
+            </div>
+          ) : currentLevel ? (
             <>
               <div className="border-b border-slate-200 px-6 py-5">
-                <h2 className="text-xl font-extrabold text-slate-950">
+                <h2 className="text-xl font-bold text-slate-950">
                   {currentLevel.title}
                 </h2>
               </div>
 
               <nav
-                aria-label={
-                  currentLevel.title
-                }
+                aria-label={currentLevel.title}
                 className="py-2"
               >
                 {currentLevel.items.map(
@@ -248,9 +302,7 @@ export default function NavigationDrawer({
                       onOpenChildren={
                         handleOpenChildren
                       }
-                      onNavigate={
-                        handleClose
-                      }
+                      onNavigate={handleClose}
                     />
                   )
                 )}
@@ -258,6 +310,16 @@ export default function NavigationDrawer({
             </>
           ) : rootItems.length ? (
             <>
+              <div className="border-b border-slate-200 px-6 py-4">
+                <h2 className="text-lg font-bold text-slate-950">
+                  Shop Categories
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Browse all MyShops categories
+                </p>
+              </div>
+
               {rootItems.map(
                 (section) => (
                   <DrawerSection
@@ -267,35 +329,26 @@ export default function NavigationDrawer({
                     onOpenChildren={
                       handleOpenChildren
                     }
-                    onNavigate={
-                      handleClose
-                    }
+                    onNavigate={handleClose}
                   />
                 )
               )}
 
               <DrawerFooter
                 open={open}
-                accountUrl={
-                  accountUrl
-                }
-                onNavigate={
-                  handleClose
-                }
+                accountUrl={accountUrl}
+                onNavigate={handleClose}
               />
             </>
           ) : (
             <div className="px-6 py-10 text-center">
               <p className="font-semibold text-slate-800">
-                No menu items are
-                available.
+                No categories are available.
               </p>
 
               <p className="mt-2 text-sm leading-5 text-slate-500">
-                Add top-level groups
-                and child links through
-                the CMS Navigation
-                module.
+                Enable &quot;Show in Menu&quot; for the
+                categories you want displayed here.
               </p>
             </div>
           )}

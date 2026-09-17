@@ -138,6 +138,13 @@ export interface Product {
   sortOrder: number;
   isFeatured: boolean;
   isSearchable: boolean;
+  alwaysAvailableForSale: boolean;
+
+  isDirectDelivery: boolean;
+  directDeliverySupplierId?: string | null;
+  directDeliveryLeadTimeDays?: number | null;
+  directDeliveryNote?: string | null;
+
   metaTitle?: string | null;
   metaDescription?: string | null;
   metaKeywords?: string | null;
@@ -172,6 +179,13 @@ export interface ProductFormValues {
   sortOrder: number;
   isFeatured: boolean;
   isSearchable: boolean;
+  alwaysAvailableForSale: boolean;
+
+  isDirectDelivery: boolean;
+  directDeliverySupplierId: string | null;
+  directDeliveryLeadTimeDays: number | null;
+  directDeliveryNote: string | null;
+
   metaTitle: string | null;
   metaDescription: string | null;
   metaKeywords: string | null;

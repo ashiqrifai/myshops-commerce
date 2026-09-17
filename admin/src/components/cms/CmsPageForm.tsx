@@ -11,6 +11,8 @@ import {
   LoaderCircle,
   MonitorSmartphone,
   Save,
+  Send,
+  Undo2,
 } from "lucide-react";
 
 import Link from "next/link";
@@ -24,11 +26,19 @@ import type {
 
 interface CmsPageFormProps {
   page?: CmsPage;
+
   isSaving: boolean;
+
+  isChangingStatus?: boolean;
+
   submitLabel: string;
+
   onSubmit: (
     values: CmsPageFormValues
   ) => Promise<void>;
+
+  onStatusChange?: () =>
+    Promise<void> | void;
 }
 
 const pageTypes: Array<{
@@ -103,8 +113,10 @@ const toDateTimeLocal = (
 export default function CmsPageForm({
   page,
   isSaving,
+  isChangingStatus = false,
   submitLabel,
   onSubmit,
+  onStatusChange,
 }: CmsPageFormProps) {
   const [name, setName] = useState(
     page?.name || ""
@@ -277,24 +289,72 @@ export default function CmsPageForm({
           </p>
         </div>
 
-        <button
-          type="submit"
-          disabled={isSaving}
-          className="flex h-10 items-center justify-center gap-2 rounded-lg bg-[#303030] px-5 text-sm font-semibold text-white shadow-sm hover:bg-[#1a1a1a] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isSaving ? (
-            <LoaderCircle
-              size={17}
-              className="animate-spin"
-            />
-          ) : (
-            <Save size={17} />
-          )}
+        <div className="flex flex-wrap items-center gap-2">
+          {page ? (
+            <span
+              className={[
+                "inline-flex h-9 items-center rounded-full px-3 text-xs font-semibold",
+                page.status === "PUBLISHED"
+                  ? "bg-[#e3f1df] text-[#276749]"
+                  : page.status === "UNPUBLISHED"
+                    ? "bg-[#fff4d6] text-[#7a5a00]"
+                    : page.status === "ARCHIVED"
+                      ? "bg-[#f1f2f3] text-[#5c5f62]"
+                      : "bg-[#e4e5e7] text-[#5c5f62]",
+              ].join(" ")}
+            >
+              {page.status === "PUBLISHED"
+                ? "Published"
+                : page.status === "UNPUBLISHED"
+                  ? "Unpublished"
+                  : page.status === "ARCHIVED"
+                    ? "Archived"
+                    : "Draft"}
+            </span>
+          ) : null}
 
-          {isSaving
-            ? "Saving..."
-            : submitLabel}
-        </button>
+          <button
+            type="submit"
+            disabled={isSaving || isChangingStatus}
+            className="flex h-10 items-center justify-center gap-2 rounded-lg bg-[#303030] px-5 text-sm font-semibold text-white shadow-sm hover:bg-[#1a1a1a] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSaving ? (
+              <LoaderCircle size={17} className="animate-spin" />
+            ) : (
+              <Save size={17} />
+            )}
+
+            {isSaving ? "Saving..." : submitLabel}
+          </button>
+
+          {page && onStatusChange && page.status !== "ARCHIVED" ? (
+            <button
+              type="button"
+              onClick={() => void onStatusChange()}
+              disabled={isSaving || isChangingStatus}
+              className={[
+                "flex h-10 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50",
+                page.status === "PUBLISHED"
+                  ? "border border-[#babfc3] bg-white text-[#202223] hover:bg-[#f6f6f7]"
+                  : "bg-[#008060] text-white hover:bg-[#006e52]",
+              ].join(" ")}
+            >
+              {isChangingStatus ? (
+                <LoaderCircle size={17} className="animate-spin" />
+              ) : page.status === "PUBLISHED" ? (
+                <Undo2 size={17} />
+              ) : (
+                <Send size={17} />
+              )}
+
+              {isChangingStatus
+                ? "Updating..."
+                : page.status === "PUBLISHED"
+                  ? "Unpublish"
+                  : "Publish"}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_330px]">

@@ -37,7 +37,7 @@ export default function CategoryPage({
 
       <section className="mt-9">
         <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-          <aside className="hidden self-start rounded-2xl border border-storefront bg-storefront-surface p-5 lg:sticky lg:top-24 lg:block">
+        <aside className="hidden self-start rounded-2xl border border-storefront-border-light bg-storefront-surface p-5 lg:sticky lg:top-24 lg:block">
             <CategoryFilters
               filters={data.filters}
             />
@@ -76,7 +76,7 @@ export default function CategoryPage({
       </section>
 
       {data.category.description ? (
-        <section className="mt-10 rounded-2xl border border-storefront bg-storefront-surface p-6 sm:p-8">
+        <section className="mt-10 rounded-2xl border border-storefront-border-light bg-storefront-surface p-6 sm:p-8">
           <h2 className="text-xl font-black text-storefront-text">
             About{" "}
             {data.category.name}

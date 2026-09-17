@@ -76,12 +76,10 @@ const getAttributeLabel = (
         value.attributeId ===
         attributeId
     );
-
-  return (
-    match?.attribute?.name ||
-    match?.attribute?.label ||
-    attributeId
-  );
+    return (
+      match?.attribute?.name ||
+      attributeId
+    );
 };
 
 const getAttributeValue = (
@@ -250,9 +248,7 @@ export default function VariantMatrix({
               map.set(
                 value.attributeId,
                 value.attribute
-                  ?.name ||
-                  value.attribute
-                    ?.label ||
+                  ?.name ||                 
                   value.displayValue ||
                   "Attribute"
               );

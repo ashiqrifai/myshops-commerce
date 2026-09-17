@@ -1,7 +1,12 @@
+"use client";
+
 import Link from "next/link";
 
-import type {
+import {
   CSSProperties,
+  useEffect,
+  useMemo,
+  useState,
 } from "react";
 
 import type {
@@ -28,30 +33,142 @@ interface AnnouncementBarProps {
     | null;
 }
 
-interface AnnouncementItem {
+type TransitionType =
+  | "FADE"
+  | "SLIDE_LEFT"
+  | "SLIDE_RIGHT"
+  | "SLIDE_UP"
+  | "SLIDE_DOWN";
+
+interface ResolvedMediaAsset {
   id?: string;
-  text?: string;
-  linkText?: string;
-  linkUrl?: string;
-  isActive?: boolean;
+  publicUrl?: string | null;
+  altText?: string | null;
+  title?: string | null;
+  originalFileName?: string | null;
 }
+
+interface AnnouncementSlide {
+  id:
+    string;
+
+  text:
+    string;
+
+  linkText:
+    string;
+
+  linkUrl:
+    string;
+
+  desktopAssetId:
+    string | null;
+
+  mobileAssetId:
+    string | null;
+
+  desktopAssetIdResolved:
+    ResolvedMediaAsset | null;
+
+  mobileAssetIdResolved:
+    ResolvedMediaAsset | null;
+
+  backgroundColor:
+    string;
+
+  textColor:
+    string;
+
+  isActive:
+    boolean;
+}
+
+const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:5080/api/v1"
+).replace(/\/api\/v1\/?$/, "");
+
+const resolveMediaUrl = (
+  url?: string | null
+): string | null => {
+  if (!url) {
+    return null;
+  }
+
+  if (
+    url.startsWith("http://") ||
+    url.startsWith("https://")
+  ) {
+    return url;
+  }
+
+  return `${API_BASE_URL}${url}`;
+};
+
+const resolvedAsset = (
+  value: unknown
+): ResolvedMediaAsset | null => {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return null;
+  }
+
+  const record =
+    value as Record<string, unknown>;
+
+  return {
+    id:
+      typeof record.id === "string"
+        ? record.id
+        : undefined,
+
+    publicUrl:
+      typeof record.publicUrl === "string"
+        ? record.publicUrl
+        : null,
+
+    altText:
+      typeof record.altText === "string"
+        ? record.altText
+        : null,
+
+    title:
+      typeof record.title === "string"
+        ? record.title
+        : null,
+
+    originalFileName:
+      typeof record.originalFileName === "string"
+        ? record.originalFileName
+        : null,
+  };
+};
 
 const AnnouncementLink = ({
   text,
   url,
 }: {
-  text: string;
-  url: string;
+  text:
+    string;
+  url:
+    string;
 }) => {
   const className =
     "font-black underline-offset-2 transition hover:underline";
 
   if (
-    isExternalUrl(url)
+    isExternalUrl(
+      url
+    )
   ) {
     return (
       <a
-        href={url}
+        href={
+          url
+        }
         className={
           className
         }
@@ -77,7 +194,9 @@ const AnnouncementLink = ({
 
   return (
     <Link
-      href={url}
+      href={
+        url
+      }
       className={
         className
       }
@@ -87,13 +206,47 @@ const AnnouncementLink = ({
   );
 };
 
+const transitionClasses = (
+  transition:
+    TransitionType
+) => {
+  switch (
+    transition
+  ) {
+    case "SLIDE_RIGHT":
+      return "animate-[announcementSlideRight_450ms_ease-out]";
+
+    case "SLIDE_UP":
+      return "animate-[announcementSlideUp_450ms_ease-out]";
+
+    case "SLIDE_DOWN":
+      return "animate-[announcementSlideDown_450ms_ease-out]";
+
+    case "SLIDE_LEFT":
+      return "animate-[announcementSlideLeft_450ms_ease-out]";
+
+    case "FADE":
+    default:
+      return "animate-[announcementFade_450ms_ease-out]";
+  }
+};
+
 export default function AnnouncementBar({
   storefront,
   section,
 }: AnnouncementBarProps) {
+  const [
+    activeIndex,
+    setActiveIndex,
+  ] =
+    useState(
+      0
+    );
+
   const websiteSettings =
     storefront.settings
-      .website || {};
+      .website ||
+    {};
 
   const sectionSettings =
     getSectionSettings(
@@ -113,30 +266,47 @@ export default function AnnouncementBar({
         false
     );
 
-  if (!enabled) {
-    return null;
-  }
-
-  const backgroundColor =
-    getString(
-      sectionSettings.backgroundColor,
-      "var(--storefront-primary)"
-    );
-
-  const textColor =
-    getString(
-      sectionSettings.textColor,
-      "#FFFFFF"
-    );
-
   const height =
     Math.max(
       getNumber(
         sectionSettings.height,
-        34
+        36
       ),
       30
     );
+
+  const mobileHeight =
+    Math.max(
+      getNumber(
+        sectionSettings.mobileHeight,
+        height
+      ),
+      30
+    );
+
+  const autoplay =
+    getBoolean(
+      sectionSettings.autoplay,
+      true
+    );
+
+  const autoplayDelayMs =
+    Math.max(
+      getNumber(
+        sectionSettings.autoplayDelayMs,
+        4000
+      ),
+      1500
+    );
+
+  const transition =
+    getString(
+      sectionSettings.transition,
+      "FADE"
+    )
+      .trim()
+      .toUpperCase() as
+      TransitionType;
 
   const hideOnMobile =
     getBoolean(
@@ -144,173 +314,405 @@ export default function AnnouncementBar({
       false
     );
 
-  const rawItems =
+  const defaultBackgroundColor =
+    getString(
+      sectionSettings.backgroundColor,
+      "var(--storefront-primary)"
+    );
+
+  const defaultTextColor =
+    getString(
+      sectionSettings.textColor,
+      "#FFFFFF"
+    );
+
+  const rawSlides =
     Array.isArray(
-      sectionContent.items
+      sectionContent.slides
     )
-      ? sectionContent.items
-      : [];
+      ? sectionContent.slides
+      : Array.isArray(
+          sectionContent.items
+        )
+        ? sectionContent.items
+        : [];
 
-  const cmsItems:
-    AnnouncementItem[] =
-    rawItems
-      .map((item) => {
-        const record =
-          asRecord(item);
-
-        return {
-          id:
-            getString(
-              record.id
-            ),
-
-          text:
-            getString(
-              record.text
-            ),
-
-          linkText:
-            getString(
-              record.linkText
-            ),
-
-          linkUrl:
-            getString(
-              record.linkUrl
-            ),
-
-          isActive:
-            getBoolean(
-              record.isActive,
-              true
-            ),
-        };
-      })
-      .filter(
-        (item) =>
-          item.isActive !==
-            false &&
-          Boolean(
-            item.text ||
-              item.linkText
-          )
-      );
-
-  const fallbackText =
-    websiteSettings
-      .announcementText ||
-    "";
-
-  const fallbackLinkText =
-    websiteSettings
-      .announcementLinkText ||
-    "";
-
-  const fallbackLinkUrl =
-    websiteSettings
-      .announcementLinkUrl ||
-    "";
-
-  const defaultItems:
-    AnnouncementItem[] = [
-      {
-        id:
-          "delivery",
-        text:
-          fallbackText ||
-          "Free Delivery in Dubai, Abu Dhabi & Sharjah",
-        isActive: true,
-      },
-      {
-        id:
-          "discount",
-        text:
-          "Use code SAVE10 for 10% off mobiles",
-        isActive: true,
-      },
-      {
-        id:
-          "uae",
-        text:
-          "🇦🇪 OUR PRIDE OUR UAE",
-        isActive: true,
-      },
-      {
-        id:
-          "fast-delivery",
-        text:
-          "2-Hour Delivery",
-        linkText:
-          fallbackLinkText,
-        linkUrl:
-          fallbackLinkUrl,
-        isActive: true,
-      },
-    ];
-
-  const effectiveItems =
-    cmsItems.length >= 2
-      ? cmsItems
-      : defaultItems;
-
-  return (
-    <div
-      className={[
-        "w-full",
-        hideOnMobile
-          ? "hidden sm:block"
-          : "",
-      ].join(
-        " "
-      )}
-      style={
-        {
-          backgroundColor,
-          color:
-            textColor,
-          minHeight:
-            `${height}px`,
-        } as CSSProperties
-      }
-    >
-      <div className="mx-auto flex min-h-[inherit] max-w-[1440px] items-center overflow-x-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex min-w-max flex-1 items-center justify-between gap-10 whitespace-nowrap text-xs font-semibold sm:min-w-full sm:text-sm">
-          {effectiveItems.map(
+  const slides =
+    useMemo(
+      () =>
+        rawSlides
+          .map(
             (
               item,
               index
-            ) => (
-              <div
-                key={
-                  item.id ||
-                  `${item.text}-${index}`
-                }
-                className="flex shrink-0 items-center justify-center gap-1.5"
-              >
-                {item.text ? (
-                  <span>
-                    {
-                      item.text
-                    }
-                  </span>
-                ) : null}
+            ) => {
+              const record =
+                asRecord(
+                  item
+                );
 
-                {item.linkText &&
-                item.linkUrl ? (
-                  <AnnouncementLink
-                    text={
-                      item.linkText
-                    }
-                    url={
-                      item.linkUrl
-                    }
-                  />
-                ) : null}
-              </div>
-            )
+              return {
+                id:
+                  getString(
+                    record.id,
+                    `announcement-${index + 1}`
+                  ),
+
+                text:
+                  getString(
+                    record.text
+                  ),
+
+                linkText:
+                  getString(
+                    record.linkText
+                  ),
+
+                linkUrl:
+                  getString(
+                    record.linkUrl
+                  ),
+
+                desktopAssetId:
+                  getString(
+                    record.desktopAssetId
+                  ) || null,
+
+                mobileAssetId:
+                  getString(
+                    record.mobileAssetId
+                  ) || null,
+
+                desktopAssetIdResolved:
+                  resolvedAsset(
+                    record.desktopAssetIdResolved
+                  ),
+
+                mobileAssetIdResolved:
+                  resolvedAsset(
+                    record.mobileAssetIdResolved
+                  ),
+
+                backgroundColor:
+                  getString(
+                    record.backgroundColor,
+                    defaultBackgroundColor
+                  ),
+
+                textColor:
+                  getString(
+                    record.textColor,
+                    defaultTextColor
+                  ),
+
+                isActive:
+                  getBoolean(
+                    record.isActive,
+                    true
+                  ),
+              } satisfies
+                AnnouncementSlide;
+            }
+          )
+          .filter(
+            (
+              item
+            ) =>
+              item.isActive &&
+              Boolean(
+                item.text ||
+                item.linkText ||
+                item.desktopAssetIdResolved?.publicUrl ||
+                item.mobileAssetIdResolved?.publicUrl
+              )
+          ),
+      [
+        rawSlides,
+        defaultBackgroundColor,
+        defaultTextColor,
+      ]
+    );
+
+  const fallbackSlides:
+    AnnouncementSlide[] =
+    [
+      {
+        id:
+          "fallback",
+        text:
+          websiteSettings
+            .announcementText ||
+          "Free Delivery in Dubai, Abu Dhabi & Sharjah",
+        linkText:
+          websiteSettings
+            .announcementLinkText ||
+          "",
+        linkUrl:
+          websiteSettings
+            .announcementLinkUrl ||
+          "",
+        desktopAssetId:
+          null,
+        mobileAssetId:
+          null,
+        desktopAssetIdResolved:
+          null,
+        mobileAssetIdResolved:
+          null,
+        backgroundColor:
+          defaultBackgroundColor,
+        textColor:
+          defaultTextColor,
+        isActive:
+          true,
+      },
+    ];
+
+  const effectiveSlides =
+    slides.length
+      ? slides
+      : fallbackSlides;
+
+  useEffect(
+    () => {
+      setActiveIndex(
+        (
+          current
+        ) =>
+          current <
+          effectiveSlides.length
+            ? current
+            : 0
+      );
+    },
+    [
+      effectiveSlides.length,
+    ]
+  );
+
+  useEffect(
+    () => {
+      if (
+        !autoplay ||
+        effectiveSlides.length <=
+          1
+      ) {
+        return;
+      }
+
+      const timer =
+        window.setInterval(
+          () => {
+            setActiveIndex(
+              (
+                current
+              ) =>
+                (
+                  current +
+                  1
+                ) %
+                effectiveSlides.length
+            );
+          },
+          autoplayDelayMs
+        );
+
+      return () =>
+        window.clearInterval(
+          timer
+        );
+    },
+    [
+      autoplay,
+      autoplayDelayMs,
+      effectiveSlides.length,
+    ]
+  );
+
+  if (
+    !enabled ||
+    effectiveSlides.length ===
+      0
+  ) {
+    return null;
+  }
+
+  const activeSlide =
+    effectiveSlides[
+      activeIndex
+    ] ||
+    effectiveSlides[0];
+
+  const desktopImageUrl =
+    resolveMediaUrl(
+      activeSlide
+        .desktopAssetIdResolved
+        ?.publicUrl
+    );
+
+  const mobileImageUrl =
+    resolveMediaUrl(
+      activeSlide
+        .mobileAssetIdResolved
+        ?.publicUrl
+    );
+
+  const hasDesktopImage =
+    Boolean(
+      desktopImageUrl
+    );
+
+  const hasMobileImage =
+    Boolean(
+      mobileImageUrl
+    );
+
+  return (
+    <>
+      <style jsx global>{`
+        @keyframes announcementFade {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+
+        @keyframes announcementSlideLeft {
+          from {
+            opacity: 0;
+            transform: translateX(24px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes announcementSlideRight {
+          from {
+            opacity: 0;
+            transform: translateX(-24px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes announcementSlideUp {
+          from {
+            opacity: 0;
+            transform: translateY(14px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes announcementSlideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-14px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+
+      <div
+        className={[
+          "relative w-full overflow-hidden",
+          hideOnMobile
+            ? "hidden sm:block"
+            : "",
+        ].join(
+          " "
+        )}
+        style={
+          {
+            backgroundColor:
+              activeSlide
+                .backgroundColor,
+            color:
+              activeSlide
+                .textColor,
+            minHeight:
+              `${height}px`,
+            "--announcement-mobile-height":
+              `${mobileHeight}px`,
+          } as CSSProperties
+        }
+      >
+        <div
+          key={
+            activeSlide.id
+          }
+          className={[
+            "relative flex w-full items-center justify-center overflow-hidden",
+            transitionClasses(
+              transition
+            ),
+          ].join(
+            " "
           )}
+          style={{
+            minHeight:
+              `${height}px`,
+          }}
+        >
+          {hasDesktopImage ? (
+            <div
+              className="absolute inset-0 hidden bg-cover bg-center sm:block"
+              style={{
+                backgroundImage:
+                  `url("${desktopImageUrl}")`,
+              }}
+            />
+          ) : null}
+
+          {hasMobileImage ||
+          hasDesktopImage ? (
+            <div
+              className="absolute inset-0 bg-cover bg-center sm:hidden"
+              style={{
+                backgroundImage:
+                  `url("${mobileImageUrl || desktopImageUrl}")`,
+              }}
+            />
+          ) : null}
+
+          <div className="relative z-10 mx-auto flex min-h-[inherit] w-full max-w-[1440px] items-center justify-center gap-2 px-4 text-center text-xs font-semibold sm:px-6 sm:text-sm lg:px-8">
+            {activeSlide.text ? (
+              <span>
+                {
+                  activeSlide.text
+                }
+              </span>
+            ) : null}
+
+            {activeSlide
+              .linkText &&
+            activeSlide
+              .linkUrl ? (
+              <AnnouncementLink
+                text={
+                  activeSlide
+                    .linkText
+                }
+                url={
+                  activeSlide
+                    .linkUrl
+                }
+              />
+            ) : null}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

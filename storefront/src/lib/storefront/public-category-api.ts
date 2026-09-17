@@ -3,6 +3,8 @@ import "server-only";
 import type {
   PublicCategoryApiResponse,
   PublicCategoryData,
+  PublicCategoryListApiResponse,
+  PublicCategoryListData,
   PublicCategoryQuery,
 } from "@/types/publicCategory";
 
@@ -19,13 +21,157 @@ const COMPANY_CODE =
   process.env.NEXT_PUBLIC_COMPANY_CODE ||
   "MYSHOPS";
 
+/*
+|--------------------------------------------------------------------------
+| Helpers
+|--------------------------------------------------------------------------
+*/
+
 const cleanSlug = (
   slug: string
 ) =>
-  decodeURIComponent(slug)
+  decodeURIComponent(
+    slug
+  )
     .trim()
-    .replace(/^\/+|\/+$/g, "")
+    .replace(
+      /^\/+|\/+$/g,
+      ""
+    )
     .toLowerCase();
+
+const getErrorPayload =
+  async (
+    response: Response
+  ) => {
+    let payload:
+      | {
+          error?: {
+            message?: string;
+            code?: string;
+          };
+
+          message?: string;
+
+          code?: string;
+        }
+      | undefined;
+
+    try {
+      payload =
+        await response.json();
+    } catch {
+      payload =
+        undefined;
+    }
+
+    return payload;
+  };
+
+/*
+|--------------------------------------------------------------------------
+| All Public Categories
+|--------------------------------------------------------------------------
+*/
+
+export async function getPublicCategories({
+  channel = "WEBSITE",
+}: {
+  channel?:
+    | "WEBSITE"
+    | "KIOSK";
+} = {}): Promise<PublicCategoryListData> {
+  const searchParams =
+    new URLSearchParams();
+
+  searchParams.set(
+    "channel",
+    channel
+  );
+
+  const response =
+    await fetch(
+      `${API_URL}/public/storefront/categories?${searchParams.toString()}`,
+      {
+        method:
+          "GET",
+
+        headers: {
+          Accept:
+            "application/json",
+
+          "x-company-code":
+            COMPANY_CODE,
+        },
+
+        next: {
+          revalidate:
+            120,
+
+          tags: [
+            "public-categories",
+          ],
+        },
+      }
+    );
+
+  if (!response.ok) {
+    const payload =
+      await getErrorPayload(
+        response
+      );
+
+    throw new StorefrontApiError({
+      status:
+        response.status,
+
+      message:
+        payload
+          ?.error
+          ?.message ||
+        payload
+          ?.message ||
+        `Unable to load categories. HTTP ${response.status}`,
+
+      code:
+        payload
+          ?.error
+          ?.code ||
+        payload
+          ?.code,
+    });
+  }
+
+  const payload =
+    (await response.json()) as PublicCategoryListApiResponse;
+
+  if (
+    !payload.success ||
+    !payload.data ||
+    !Array.isArray(
+      payload.data.categories
+    )
+  ) {
+    throw new StorefrontApiError({
+      status:
+        500,
+
+      message:
+        "The categories API returned an invalid response.",
+
+      code:
+        "INVALID_PUBLIC_CATEGORIES_RESPONSE",
+    });
+  }
+
+  return payload.data;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Single Public Category
+|--------------------------------------------------------------------------
+*/
 
 export async function getPublicCategory({
   slug,
@@ -35,27 +181,44 @@ export async function getPublicCategory({
   query?: PublicCategoryQuery;
 }): Promise<PublicCategoryData> {
   const normalizedSlug =
-    cleanSlug(slug);
+    cleanSlug(
+      slug
+    );
 
   const searchParams =
     new URLSearchParams();
 
   searchParams.set(
     "channel",
-    query.channel || "WEBSITE"
+    query.channel ||
+      "WEBSITE"
   );
 
-  if (query.page) {
+  if (
+    query.page &&
+    Number(query.page) >
+      1
+  ) {
     searchParams.set(
       "page",
-      String(query.page)
+      String(
+        query.page
+      )
     );
   }
 
-  if (query.pageSize) {
+  if (
+    query.pageSize &&
+    Number(
+      query.pageSize
+    ) !==
+      24
+  ) {
     searchParams.set(
       "pageSize",
-      String(query.pageSize)
+      String(
+        query.pageSize
+      )
     );
   }
 
@@ -66,42 +229,62 @@ export async function getPublicCategory({
     );
   }
 
-  if (query.brandIds?.length) {
+  if (
+    query.brandIds
+      ?.length
+  ) {
     searchParams.set(
       "brandIds",
-      query.brandIds.join(",")
+      query.brandIds.join(
+        ","
+      )
     );
   }
 
   if (
-    query.attributeOptionIds
+    query
+      .attributeOptionIds
       ?.length
   ) {
     searchParams.set(
       "attributeOptionIds",
-      query.attributeOptionIds.join(",")
+      query
+        .attributeOptionIds
+        .join(",")
     );
   }
 
   Object.entries(
-    query.attributeRanges || {}
+    query.attributeRanges ||
+      {}
   ).forEach(
-    ([attributeId, range]) => {
+    (
+      [
+        attributeId,
+        range,
+      ]
+    ) => {
       if (
-        range.min !== undefined
+        range.min !==
+        undefined
       ) {
         searchParams.set(
           `attributeMin[${attributeId}]`,
-          String(range.min)
+          String(
+            range.min
+          )
         );
       }
 
       if (
-        range.max !== undefined
+        range.max !==
+        undefined
       ) {
         searchParams.set(
           `attributeMax[${attributeId}]`,
-          String(range.max)
+          String(
+            range.max
+          )
         );
       }
     }
@@ -113,7 +296,9 @@ export async function getPublicCategory({
   ) {
     searchParams.set(
       "minPrice",
-      String(query.minPrice)
+      String(
+        query.minPrice
+      )
     );
   }
 
@@ -123,7 +308,9 @@ export async function getPublicCategory({
   ) {
     searchParams.set(
       "maxPrice",
-      String(query.maxPrice)
+      String(
+        query.maxPrice
+      )
     );
   }
 
@@ -140,7 +327,8 @@ export async function getPublicCategory({
         normalizedSlug
       )}?${searchParams.toString()}`,
       {
-        method: "GET",
+        method:
+          "GET",
 
         headers: {
           Accept:
@@ -151,7 +339,8 @@ export async function getPublicCategory({
         },
 
         next: {
-          revalidate: 120,
+          revalidate:
+            120,
 
           tags: [
             "public-category",
@@ -162,35 +351,29 @@ export async function getPublicCategory({
     );
 
   if (!response.ok) {
-    let payload:
-      | {
-          error?: {
-            message?: string;
-            code?: string;
-          };
-          message?: string;
-          code?: string;
-        }
-      | undefined;
-
-    try {
-      payload =
-        await response.json();
-    } catch {
-      payload = undefined;
-    }
+    const payload =
+      await getErrorPayload(
+        response
+      );
 
     throw new StorefrontApiError({
-      status: response.status,
+      status:
+        response.status,
 
       message:
-        payload?.error?.message ||
-        payload?.message ||
+        payload
+          ?.error
+          ?.message ||
+        payload
+          ?.message ||
         `Unable to load category. HTTP ${response.status}`,
 
       code:
-        payload?.error?.code ||
-        payload?.code,
+        payload
+          ?.error
+          ?.code ||
+        payload
+          ?.code,
     });
   }
 
@@ -202,9 +385,12 @@ export async function getPublicCategory({
     !payload.data
   ) {
     throw new StorefrontApiError({
-      status: 500,
+      status:
+        500,
+
       message:
         "The category API returned an invalid response.",
+
       code:
         "INVALID_PUBLIC_CATEGORY_RESPONSE",
     });

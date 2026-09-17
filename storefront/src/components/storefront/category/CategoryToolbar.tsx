@@ -76,7 +76,7 @@ export default function CategoryToolbar({
   };
 
   return (
-    <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-storefront bg-storefront-surface p-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-storefront-border-light bg-storefront-surface p-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-storefront-muted">
         <strong className="text-storefront-text">
           {totalItems}
@@ -102,7 +102,7 @@ export default function CategoryToolbar({
               ) || ""
             }
             placeholder="Search in category"
-            className="h-11 w-full rounded-storefront-button border border-storefront bg-white pl-9 pr-3 text-sm outline-none focus:border-storefront-primary"
+            className="h-11 w-full rounded-storefront-button border border-storefront-border-light bg-white pl-9 pr-3 text-sm outline-none transition focus:border-storefront-primary"
           />
         </form>
 
@@ -127,7 +127,7 @@ export default function CategoryToolbar({
                   .value
               )
             }
-            className="h-11 flex-1 rounded-storefront-button border border-storefront bg-white px-3 text-sm font-semibold text-storefront-text outline-none focus:border-storefront-primary sm:min-w-52"
+            className="h-11 flex-1 rounded-storefront-button border border-storefront-border-light bg-white px-3 text-sm font-medium text-storefront-text outline-none transition focus:border-storefront-primary sm:min-w-52"
           >
             {sortOptions.map(
               (option) => (

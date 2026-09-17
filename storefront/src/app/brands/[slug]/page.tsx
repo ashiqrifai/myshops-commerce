@@ -35,6 +35,7 @@ import {
   splitGlobalStorefrontSections,
 } from "@/lib/storefront/storefront-sections";
 
+import StorefrontPageViewTracker from "@/components/storefront/tracking/StorefrontPageViewTracker";
 /*
 |--------------------------------------------------------------------------
 | Route Types
@@ -542,6 +543,22 @@ export default async function BrandRoute({
             globalSections
               .navigationSection
           }
+        />
+
+
+        <StorefrontPageViewTracker
+          activityType="VIEW_BRAND"
+          brandId={
+            brand.id
+          }
+          source="BRAND_PAGE"
+          metadata={{
+            brandName:
+              brand.name,
+
+            brandSlug:
+              brand.slug,
+          }}
         />
 
         <main className="flex-1 bg-storefront-background">

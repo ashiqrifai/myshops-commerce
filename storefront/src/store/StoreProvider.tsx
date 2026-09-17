@@ -26,7 +26,17 @@ export default function StoreProvider({ children }: { children: React.ReactNode 
     const savedWishlist = loadWishlistState();
     const savedRecentlyViewed = loadRecentlyViewedState();
     const savedCustomerAuth = loadCustomerAuthState();
-    store.dispatch(hydrateCart(savedCart?.items || []));
+    store.dispatch(
+      hydrateCart({
+        items:
+          savedCart?.items ||
+          [],
+    
+        appliedCoupon:
+          savedCart?.appliedCoupon ||
+          null,
+      })
+    );
     store.dispatch(hydrateWishlist(savedWishlist?.items || []));
     store.dispatch(hydrateRecentlyViewed(savedRecentlyViewed?.items || []));
     store.dispatch(hydrateCustomerAuth(savedCustomerAuth));
