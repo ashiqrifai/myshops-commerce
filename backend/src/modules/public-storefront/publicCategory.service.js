@@ -3345,6 +3345,7 @@ const getPublicCategory = async ({
           "isFeatured",
           "sortOrder",
           "isDirectDelivery",
+          "alwaysAvailableForSale",
           "createdAt",
         ],
 
