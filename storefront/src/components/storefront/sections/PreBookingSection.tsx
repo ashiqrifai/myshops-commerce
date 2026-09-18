@@ -788,14 +788,14 @@ export default function PreBookingSection({
         {content.title ? (
           <h2
             className="
-              text-[24px]
+              text-[18px]
               font-bold
               leading-tight
               tracking-tight
               text-[#202223]
 
-              sm:text-[28px]
-              lg:text-[30px]
+              sm:text-[20px]
+              lg:text-[22px]
             "
           >
             {
