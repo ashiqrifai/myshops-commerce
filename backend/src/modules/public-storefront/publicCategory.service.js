@@ -3770,10 +3770,10 @@ const getPublicCategory = async ({
       currency: company.currency,
     },
     category:
-  compactPublicCategory(
-    category,
-    apiBaseUrl
-  ),
+      publicCategory(
+        category,
+        apiBaseUrl
+      ),
 
 breadcrumbs:
   resolvedBreadcrumbs,

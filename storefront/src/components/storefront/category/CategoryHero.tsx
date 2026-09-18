@@ -2,26 +2,69 @@ import type {
   PublicCategory,
 } from "@/types/publicCategory";
 
+const resolveMediaUrl = (
+  value?: string | null
+): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  if (
+    value.startsWith("http://") ||
+    value.startsWith("https://")
+  ) {
+    return value;
+  }
+
+  const configuredApiUrl =
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://api.vkposme.tech/api/v1";
+
+  const apiOrigin =
+    configuredApiUrl
+      .replace(
+        /\/api\/v1\/?$/,
+        ""
+      )
+      .replace(
+        /\/+$/,
+        ""
+      );
+
+  const normalizedPath =
+    value.startsWith("/")
+      ? value
+      : `/${value}`;
+
+  return `${apiOrigin}${normalizedPath}`;
+};
+
 const getAssetUrl = (
   category: PublicCategory
-) =>
-  category.bannerAsset
-    ?.variants?.find(
-      (variant) =>
-        variant.variantType ===
-        "DESKTOP"
-    )?.publicUrl ||
-  category.bannerAsset
-    ?.variants?.find(
-      (variant) =>
-        variant.variantType ===
-        "LARGE"
-    )?.publicUrl ||
-  category.bannerAsset
-    ?.publicUrl ||
-  category.imageAsset
-    ?.publicUrl ||
-  null;
+) => {
+  const value =
+    category.bannerAsset
+      ?.variants?.find(
+        (variant) =>
+          variant.variantType ===
+          "DESKTOP"
+      )?.publicUrl ||
+    category.bannerAsset
+      ?.variants?.find(
+        (variant) =>
+          variant.variantType ===
+          "LARGE"
+      )?.publicUrl ||
+    category.bannerAsset
+      ?.publicUrl ||
+    category.imageAsset
+      ?.publicUrl ||
+    null;
+
+  return resolveMediaUrl(
+    value
+  );
+};
 
 export default function CategoryHero({
   category,
