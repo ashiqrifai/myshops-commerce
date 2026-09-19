@@ -331,8 +331,7 @@ const buildPaymentOptions = (
   },
 ].filter(
   (option): boolean => {
-    const hiddenPaymentCodes: string[] = [
-      "TABBY",
+    const hiddenPaymentCodes: string[] = [      
       "TAMARA",
     ];
 

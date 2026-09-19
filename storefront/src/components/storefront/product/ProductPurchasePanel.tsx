@@ -2443,35 +2443,18 @@ physicallyOutOfStock
         ) : null}
 
 
-        {/*
-         * TEMPORARILY DISABLED:
-         * Tabby and Tamara promotional widgets.
-         *
-         * Integration code is intentionally retained
-         * so both providers can be re-enabled later.
-         *
-         * {numericSellingPrice > 0 ? (
-         *   <div className="mt-4 w-full min-w-0 max-w-xl overflow-hidden">
-         *     <TabbyPromo
-         *       key={`${selectedVariant.id}-${numericSellingPrice}`}
-         *       amount={numericSellingPrice}
-         *       currencyCode={currencyCode}
-         *       source="product"
-         *     />
-         *   </div>
-         * ) : null}
-         *
-         * {numericSellingPrice > 0 ? (
-         *   <div className="mt-3 w-full min-w-0 max-w-xl overflow-hidden">
-         *     <TamaraWidget
-         *       key={`${selectedVariant.id}-${numericSellingPrice}`}
-         *       amount={numericSellingPrice}
-         *       country="AE"
-         *       language="en"
-         *     />
-         *   </div>
-         * ) : null}
-         */}
+      {/* Tabby promotional widget */}
+
+      {numericSellingPrice > 0 ? (
+          <div className="mt-4 w-full min-w-0 max-w-xl overflow-hidden">
+            <TabbyPromo
+              key={`${selectedVariant.id}-${numericSellingPrice}`}
+              amount={numericSellingPrice}
+              currencyCode={currencyCode}
+              source="product"
+            />
+          </div>
+        ) : null}
 
         
 
