@@ -86,6 +86,23 @@ export async function generateMetadata(): Promise<Metadata> {
 
         url:
           "/",
+
+        images: [
+          {
+            url:
+              "/myshops-social-share.png",
+
+            width:
+              1323,
+
+            height:
+              1189,
+
+            alt:
+              "MyShops - Your Future Shop",
+          },
+        ],
+
       },
     };
   } catch {
