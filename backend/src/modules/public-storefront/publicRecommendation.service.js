@@ -18,8 +18,8 @@ const {
     require(
       "./publicAvailability.service"
     );
-  
-  const giftVoucherPromotionService =
+
+const giftVoucherPromotionService =
     require(
       "../gift-voucher-promotions/giftVoucherPromotion.service"
     );
@@ -3124,7 +3124,7 @@ lightweightCandidates
 * after channel-publication, pricing or availability checks.
 */
 
-const hydrationLimit =
+const hydrationBatchSize =
 Math.min(
   Math.max(
     requestedLimit * 2,
@@ -3133,13 +3133,8 @@ Math.min(
   20
 );
 
-
 const hydrationIds =
 lightweightScored
-  .slice(
-    0,
-    hydrationLimit
-  )
   .map(
     (
       item
@@ -3149,20 +3144,45 @@ lightweightScored
 
 /*
 |--------------------------------------------------------------------------
-| Phase 2 — Fully Hydrate Only Final Candidate Pool
+| Phase 2 — Hydrate Ranked Candidates In Small Batches
+|--------------------------------------------------------------------------
+|
+| Walk the ranked lightweight candidates in small batches. This avoids
+| hydrating the whole candidate pool at once while still allowing the service
+| to continue past out-of-stock candidates until enough sellable products
+| have been collected.
 |--------------------------------------------------------------------------
 */
 
-let candidateModels =
-hydrationIds.length
-  ? await db.Product.findAll({
+let publicProducts =
+  [];
+
+for (
+  let offset = 0;
+  offset < hydrationIds.length &&
+  publicProducts.length < requestedLimit;
+  offset += hydrationBatchSize
+) {
+  const batchIds =
+    hydrationIds.slice(
+      offset,
+      offset +
+        hydrationBatchSize
+    );
+
+  if (!batchIds.length) {
+    break;
+  }
+
+  let batchModels =
+    await db.Product.findAll({
       where: {
         companyId:
           company.id,
 
         id: {
           [Op.in]:
-            hydrationIds,
+            batchIds,
         },
 
         status:
@@ -3189,413 +3209,382 @@ hydrationIds.length
 
       distinct:
         true,
-    })
-  : [];
+    });
 
-/*
-* Restore Phase-1 ranking order after Sequelize hydration.
-*/
+  /*
+   * Restore the lightweight ranking order after Sequelize hydration.
+   */
 
-const hydrationOrder =
-new Map(
-  hydrationIds.map(
+  const batchOrder =
+    new Map(
+      batchIds.map(
+        (
+          id,
+          index
+        ) => [
+          String(
+            id
+          ),
+          index,
+        ]
+      )
+    );
+
+  batchModels.sort(
     (
-      id,
-      index
-    ) => [
-      String(
-        id
-      ),
-      index,
-    ]
-  )
-);
-
-candidateModels.sort(
-(
-  first,
-  second
-) =>
-  (
-    hydrationOrder.get(
-      String(
-        first.id
+      first,
+      second
+    ) =>
+      (
+        batchOrder.get(
+          String(
+            first.id
+          )
+        ) ??
+        Number.MAX_SAFE_INTEGER
+      ) -
+      (
+        batchOrder.get(
+          String(
+            second.id
+          )
+        ) ??
+        Number.MAX_SAFE_INTEGER
       )
-    ) ??
-    Number.MAX_SAFE_INTEGER
-  ) -
-  (
-    hydrationOrder.get(
-      String(
-        second.id
-      )
-    ) ??
-    Number.MAX_SAFE_INTEGER
-  )
-);
-
-/*
-|--------------------------------------------------------------------------
-| Cart Recommendation Images — Separate Hydration
-|--------------------------------------------------------------------------
-|
-| The main Product query intentionally excludes ProductImage/MediaAsset.
-| Select one image per product first, then load only those MediaAssets and
-| their variants in separate queries. This avoids the large cartesian join
-| that previously expanded some recommendation products into thousands of
-| media rows.
-|--------------------------------------------------------------------------
-*/
-
-const candidateProductIds =
-  candidateModels.map(
-    (model) =>
-      model.id
   );
 
-const candidateImageRows =
-  candidateProductIds.length
-    ? await db.ProductImage.findAll({
-        where: {
-          companyId:
-            company.id,
+  /*
+   * Load one selected image per hydrated product.
+   */
 
-          productId: {
-            [Op.in]:
-              candidateProductIds,
+  const batchProductIds =
+    batchModels.map(
+      (model) =>
+        model.id
+    );
+
+  const batchImageRows =
+    batchProductIds.length
+      ? await db.ProductImage.findAll({
+          where: {
+            companyId:
+              company.id,
+
+            productId: {
+              [Op.in]:
+                batchProductIds,
+            },
+
+            isActive:
+              true,
           },
 
-          isActive:
-            true,
-        },
-
-        attributes: [
-          "id",
-          "productId",
-          "mediaAssetId",
-          "imageRole",
-          "displayOrder",
-          "altText",
-          "title",
-        ],
-
-        order: [
-          [
+          attributes: [
+            "id",
             "productId",
-            "ASC",
-          ],
-          [
+            "mediaAssetId",
+            "imageRole",
             "displayOrder",
-            "ASC",
+            "altText",
+            "title",
           ],
-        ],
 
-        raw:
-          true,
-      })
-    : [];
+          order: [
+            [
+              "productId",
+              "ASC",
+            ],
+            [
+              "displayOrder",
+              "ASC",
+            ],
+          ],
 
-/*
- * Select one image per product.
- * PRIMARY wins; otherwise the lowest displayOrder wins.
- */
-const selectedImageByProduct =
-  new Map();
+          raw:
+            true,
+        })
+      : [];
 
-for (
-  const image of
-  candidateImageRows
-) {
-  const productId =
-    String(
-      image.productId
-    );
+  const selectedImageByProduct =
+    new Map();
 
-  const existing =
-    selectedImageByProduct.get(
-      productId
-    );
-
-  if (!existing) {
-    selectedImageByProduct.set(
-      productId,
-      image
-    );
-    continue;
-  }
-
-  const existingPrimary =
-    existing.imageRole ===
-    "PRIMARY";
-
-  const imagePrimary =
-    image.imageRole ===
-    "PRIMARY";
-
-  if (
-    imagePrimary &&
-    !existingPrimary
+  for (
+    const image of
+    batchImageRows
   ) {
-    selectedImageByProduct.set(
-      productId,
-      image
-    );
-    continue;
-  }
+    const productId =
+      String(
+        image.productId
+      );
 
-  if (
-    imagePrimary ===
-      existingPrimary &&
-    Number(
-      image.displayOrder ||
-        0
-    ) <
+    const existing =
+      selectedImageByProduct.get(
+        productId
+      );
+
+    if (!existing) {
+      selectedImageByProduct.set(
+        productId,
+        image
+      );
+      continue;
+    }
+
+    const existingPrimary =
+      existing.imageRole ===
+      "PRIMARY";
+
+    const imagePrimary =
+      image.imageRole ===
+      "PRIMARY";
+
+    if (
+      imagePrimary &&
+      !existingPrimary
+    ) {
+      selectedImageByProduct.set(
+        productId,
+        image
+      );
+      continue;
+    }
+
+    if (
+      imagePrimary ===
+        existingPrimary &&
       Number(
-        existing.displayOrder ||
+        image.displayOrder ||
           0
-      )
-  ) {
-    selectedImageByProduct.set(
-      productId,
-      image
-    );
+      ) <
+        Number(
+          existing.displayOrder ||
+            0
+        )
+    ) {
+      selectedImageByProduct.set(
+        productId,
+        image
+      );
+    }
   }
-}
 
-const selectedMediaAssetIds =
-  Array.from(
-    new Set(
-      Array.from(
-        selectedImageByProduct.values()
+  const selectedMediaAssetIds =
+    Array.from(
+      new Set(
+        Array.from(
+          selectedImageByProduct.values()
+        )
+          .map(
+            (image) =>
+              image.mediaAssetId
+          )
+          .filter(
+            Boolean
+          )
       )
-        .map(
-          (image) =>
-            image.mediaAssetId
-        )
-        .filter(
-          Boolean
-        )
-    )
-  );
-
-/*
- * Load only the selected MediaAsset rows.
- * Do not join MediaAssetVariant here.
- */
-const selectedMediaAssets =
-  selectedMediaAssetIds.length
-    ? await db.MediaAsset.findAll({
-        where: {
-          companyId:
-            company.id,
-
-          id: {
-            [Op.in]:
-              selectedMediaAssetIds,
-          },
-
-          status:
-            "READY",
-
-          isPublic:
-            true,
-
-          isActive:
-            true,
-        },
-
-        raw:
-          true,
-      })
-    : [];
-
-/*
- * Load variants separately as plain rows, then group by MediaAsset.
- */
-const selectedMediaVariantRows =
-  selectedMediaAssetIds.length
-    ? await db.MediaAssetVariant.findAll({
-        where: {
-          companyId:
-            company.id,
-
-          mediaAssetId: {
-            [Op.in]:
-              selectedMediaAssetIds,
-          },
-
-          isActive:
-            true,
-        },
-
-        raw:
-          true,
-      })
-    : [];
-
-const mediaVariantsByAsset =
-  new Map();
-
-for (
-  const variant of
-  selectedMediaVariantRows
-) {
-  const assetId =
-    String(
-      variant.mediaAssetId
     );
 
-  if (
-    !mediaVariantsByAsset.has(
+  const selectedMediaAssets =
+    selectedMediaAssetIds.length
+      ? await db.MediaAsset.findAll({
+          where: {
+            companyId:
+              company.id,
+
+            id: {
+              [Op.in]:
+                selectedMediaAssetIds,
+            },
+
+            status:
+              "READY",
+
+            isPublic:
+              true,
+
+            isActive:
+              true,
+          },
+
+          raw:
+            true,
+        })
+      : [];
+
+  const selectedMediaVariantRows =
+    selectedMediaAssetIds.length
+      ? await db.MediaAssetVariant.findAll({
+          where: {
+            companyId:
+              company.id,
+
+            mediaAssetId: {
+              [Op.in]:
+                selectedMediaAssetIds,
+            },
+
+            isActive:
+              true,
+          },
+
+          raw:
+            true,
+        })
+      : [];
+
+  const mediaVariantsByAsset =
+    new Map();
+
+  for (
+    const variant of
+    selectedMediaVariantRows
+  ) {
+    const assetId =
+      String(
+        variant.mediaAssetId
+      );
+
+    if (
+      !mediaVariantsByAsset.has(
+        assetId
+      )
+    ) {
+      mediaVariantsByAsset.set(
+        assetId,
+        []
+      );
+    }
+
+    mediaVariantsByAsset.get(
       assetId
-    )
-  ) {
-    mediaVariantsByAsset.set(
-      assetId,
-      []
+    ).push(
+      variant
     );
   }
 
-  mediaVariantsByAsset.get(
-    assetId
-  ).push(
-    variant
-  );
-}
+  const selectedMediaMap =
+    new Map(
+      selectedMediaAssets.map(
+        (asset) => [
+          String(
+            asset.id
+          ),
+          {
+            ...asset,
 
-const selectedMediaMap =
-  new Map(
-    selectedMediaAssets.map(
-      (asset) => [
+            variants:
+              mediaVariantsByAsset.get(
+                String(
+                  asset.id
+                )
+              ) ||
+              [],
+          },
+        ]
+      )
+    );
+
+  for (
+    const batchModel of
+    batchModels
+  ) {
+    const image =
+      selectedImageByProduct.get(
         String(
-          asset.id
-        ),
+          batchModel.id
+        )
+      );
+
+    if (!image) {
+      batchModel.setDataValue(
+        "images",
+        []
+      );
+      continue;
+    }
+
+    const mediaAsset =
+      image.mediaAssetId
+        ? selectedMediaMap.get(
+            String(
+              image.mediaAssetId
+            )
+          ) ||
+          null
+        : null;
+
+    batchModel.setDataValue(
+      "images",
+      [
         {
-          ...asset,
-          variants:
-            mediaVariantsByAsset.get(
-              String(
-                asset.id
-              )
-            ) ||
-            [],
+          ...image,
+          mediaAsset,
         },
       ]
-    )
-  );
-
-/*
- * Attach exactly one image to each Sequelize Product model so the existing
- * publicProduct() -> productImage() pipeline remains unchanged.
- */
-for (
-  const candidateModel of
-  candidateModels
-) {
-  const image =
-    selectedImageByProduct.get(
-      String(
-        candidateModel.id
-      )
     );
-
-  if (!image) {
-    candidateModel.setDataValue(
-      "images",
-      []
-    );
-    continue;
   }
 
-  const mediaAsset =
-    image.mediaAssetId
-      ? selectedMediaMap.get(
-          String(
-            image.mediaAssetId
-          )
-        ) ||
-        null
-      : null;
+  const availabilityByVariant =
+    await publicAvailabilityService
+      .getVariantAvailabilityMap({
+        companyId:
+          company.id,
 
-  candidateModel.setDataValue(
-    "images",
-    [
-      {
-        ...image,
-        mediaAsset,
-      },
-    ]
-  );
-}
+        products:
+          batchModels,
+      });
 
-const availabilityByVariant =
-await publicAvailabilityService
-  .getVariantAvailabilityMap({
-    companyId:
-      company.id,
-
-    products:
-      candidateModels,
-  });
-
-let publicProducts =
-publicAvailabilityService
-  .filterAvailablePublicProducts(
-    candidateModels.map(
+  const mappedBatchProducts =
+    batchModels.map(
       (model) =>
         publicProduct(
           model,
           apiBaseUrl,
           availabilityByVariant
         )
-    )
+    );
+
+  const sellableBatchProducts =
+    publicAvailabilityService
+      .filterAvailablePublicProducts(
+        mappedBatchProducts
+      )
+      .filter(
+        (product) => {
+          const availability =
+            product.availability;
+
+          return (
+            availability?.status ===
+              "AVAILABLE" &&
+            (
+              Number(
+                availability?.quantity ||
+                  0
+              ) > 0 ||
+              availability
+                ?.alwaysAvailableForSale ===
+                true
+            )
+          );
+        }
+      );
+
+  publicProducts.push(
+    ...sellableBatchProducts
   );
+}
 
 /*
-|--------------------------------------------------------------------------
-| Cart Recommendations — Physical Stock Only
-|--------------------------------------------------------------------------
-|
-| Cart recommendations must only show products whose selected/default
-| variant currently has physical sellable inventory.
-|
-| This is intentionally stricter than normal storefront availability.
-| Products configured as alwaysAvailableForSale can remain purchasable
-| elsewhere, but they are excluded from cart recommendations when their
-| physical stock is zero.
-|--------------------------------------------------------------------------
-*/
+ * Keep only the number requested. Ranking is preserved because batches and
+ * products within each batch follow the Phase-1 lightweight score order.
+ */
 
 publicProducts =
-publicProducts.filter(
-  (product) => {
-    const variantId =
-      product.defaultVariant
-        ?.id;
-
-    if (!variantId) {
-      return false;
-    }
-
-    const availability =
-      availabilityByVariant.get(
-        variantId
-      );
-
-      return (
-        availability?.status ===
-          "AVAILABLE" &&
-        (
-          Number(
-            availability?.quantity ||
-              0
-          ) > 0 ||
-          availability?.alwaysAvailableForSale ===
-            true
-        )
-      );
-  }
-);
+  publicProducts.slice(
+    0,
+    requestedLimit
+  );
 
       /*
       |--------------------------------------------------------------------------
@@ -3749,11 +3738,11 @@ publicProducts.filter(
                * though the compact public product object does not expose
                * every fulfillment field.
                */
-              const sourceModel =
-                candidateModels.find(
-                  (model) =>
+              const sourceCandidate =
+                lightweightCandidates.find(
+                  (candidate) =>
                     String(
-                      model.id
+                      candidate.id
                     ) ===
                     String(
                       product.id
@@ -3761,7 +3750,7 @@ publicProducts.filter(
                 );
 
               if (
-                sourceModel
+                sourceCandidate
                   ?.expressDeliveryEnabled ===
                 true
               ) {
