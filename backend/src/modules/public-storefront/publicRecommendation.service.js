@@ -3133,6 +3133,7 @@ Math.min(
   20
 );
 
+
 const hydrationIds =
 lightweightScored
   .slice(
@@ -3527,28 +3528,74 @@ for (
   );
 }
 
-      const availabilityByVariant =
-        await publicAvailabilityService
-          .getVariantAvailabilityMap({
-            companyId:
-              company.id,
+const availabilityByVariant =
+await publicAvailabilityService
+  .getVariantAvailabilityMap({
+    companyId:
+      company.id,
 
-            products:
-              candidateModels,
-          });
+    products:
+      candidateModels,
+  });
 
-      let publicProducts =
-        publicAvailabilityService
-          .filterAvailablePublicProducts(
-            candidateModels.map(
-              (model) =>
-                publicProduct(
-                  model,
-                  apiBaseUrl,
-                  availabilityByVariant
-                )
-            )
-          );
+let publicProducts =
+publicAvailabilityService
+  .filterAvailablePublicProducts(
+    candidateModels.map(
+      (model) =>
+        publicProduct(
+          model,
+          apiBaseUrl,
+          availabilityByVariant
+        )
+    )
+  );
+
+/*
+|--------------------------------------------------------------------------
+| Cart Recommendations — Physical Stock Only
+|--------------------------------------------------------------------------
+|
+| Cart recommendations must only show products whose selected/default
+| variant currently has physical sellable inventory.
+|
+| This is intentionally stricter than normal storefront availability.
+| Products configured as alwaysAvailableForSale can remain purchasable
+| elsewhere, but they are excluded from cart recommendations when their
+| physical stock is zero.
+|--------------------------------------------------------------------------
+*/
+
+publicProducts =
+publicProducts.filter(
+  (product) => {
+    const variantId =
+      product.defaultVariant
+        ?.id;
+
+    if (!variantId) {
+      return false;
+    }
+
+    const availability =
+      availabilityByVariant.get(
+        variantId
+      );
+
+      return (
+        availability?.status ===
+          "AVAILABLE" &&
+        (
+          Number(
+            availability?.quantity ||
+              0
+          ) > 0 ||
+          availability?.alwaysAvailableForSale ===
+            true
+        )
+      );
+  }
+);
 
       /*
       |--------------------------------------------------------------------------
