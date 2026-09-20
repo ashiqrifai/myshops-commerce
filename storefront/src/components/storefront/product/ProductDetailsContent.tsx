@@ -464,44 +464,71 @@ export default function ProductDetailsContent({
         </div>
       ) : null}
 
-      {data.relatedProducts.length ? (
-        <section id="related-products">
-          <div className="mb-6 flex items-end justify-between gap-4">
-            <h2 className="text-3xl font-black">
-              You May Also Like
-            </h2>
+{data.relatedProducts.filter(
+  (related) =>
+    Boolean(
+      related
+        .defaultVariant
+        ?.id
+    ) &&
+    related.price
+      ?.sellingPrice !=
+      null &&
+    related.availability
+      ?.status !==
+      "OUT_OF_STOCK"
+).length ? (
+  <section id="related-products">
+    <div className="mb-6 flex items-end justify-between gap-4">
+      <h2 className="text-3xl font-black">
+        You May Also Like
+      </h2>
 
-            <button
-              type="button"
-              className="text-sm font-black"
-            >
-              View All⌄
-            </button>
-          </div>
+      <button
+        type="button"
+        className="text-sm font-black"
+      >
+        View All⌄
+      </button>
+    </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
-            {data.relatedProducts
-              .slice(
-                0,
-                5
-              )
-              .map(
-                (
-                  related
-                ) => (
-                  <StorefrontProductCard
-                    key={
-                      related.id
-                    }
-                    product={
-                      related
-                    }
-                  />
-                )
-              )}
-          </div>
-        </section>
-      ) : null}
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+      {data.relatedProducts
+        .filter(
+          (related) =>
+            Boolean(
+              related
+                .defaultVariant
+                ?.id
+            ) &&
+            related.price
+              ?.sellingPrice !=
+              null &&
+            related.availability
+              ?.status !==
+              "OUT_OF_STOCK"
+        )
+        .slice(
+          0,
+          5
+        )
+        .map(
+          (
+            related
+          ) => (
+            <StorefrontProductCard
+              key={
+                related.id
+              }
+              product={
+                related
+              }
+            />
+          )
+        )}
+    </div>
+  </section>
+) : null}
     </div>
   );
 }

@@ -1277,7 +1277,7 @@ const getRelatedProducts = async ({
         ],
       ],
 
-      limit: 8,
+      limit: 20,
     });
 
   if (!productModels.length) {
@@ -1666,10 +1666,6 @@ const getRelatedProducts = async ({
       product.isDirectDelivery ===
       true,
 
-    isDirectDelivery:
-      product.isDirectDelivery ===
-      true,
-
         taxPercent:
           Number(
             product.taxPercent ||
@@ -1754,11 +1750,66 @@ const getRelatedProducts = async ({
                 true,
             }),
 
-        productUrl:
-          `/products/${product.slug}`,
-      };
-    })
-    .filter(Boolean);
+            productUrl:
+            `/products/${product.slug}`,
+        };
+      })
+  
+      /*
+      |--------------------------------------------------------------------------
+      | Keep Only Purchasable Related Products
+      |--------------------------------------------------------------------------
+      |
+      | "You May Also Like" should not show products that the customer cannot
+      | currently add to cart.
+      |
+      | Candidate products are intentionally loaded above the final display
+      | limit so unavailable products can be removed without leaving empty
+      | recommendation slots.
+      |
+      |--------------------------------------------------------------------------
+      */
+  
+      .filter(
+        (product) =>
+          Boolean(
+            product &&
+            product
+              .defaultVariant
+              ?.id
+          ) &&
+          product
+            .price
+            ?.sellingPrice !=
+            null &&
+          product
+            .availability
+            ?.status !==
+            "OUT_OF_STOCK"
+      )
+  
+      /*
+      |--------------------------------------------------------------------------
+      | Final Recommendation Limit
+      |--------------------------------------------------------------------------
+      */
+  
+      .slice(
+        0,
+        5
+      );
+  };
+
+const logPdpMemory = (stage, slug) => {
+  const m = process.memoryUsage();
+
+  console.log("[PDP-MEM]", stage, {
+    slug,
+    heapUsedMB: Math.round(m.heapUsed / 1024 / 1024),
+    heapTotalMB: Math.round(m.heapTotal / 1024 / 1024),
+    rssMB: Math.round(m.rss / 1024 / 1024),
+    externalMB: Math.round(m.external / 1024 / 1024),
+  });
 };
 
 exports.getPublicProduct = async ({
@@ -1767,6 +1818,7 @@ exports.getPublicProduct = async ({
   channel = "WEBSITE",
   apiBaseUrl,
 }) => {
+  logPdpMemory("START", slug);
   const normalizedSlug =
     normalizeSlug(slug);
 
@@ -1849,6 +1901,8 @@ exports.getPublicProduct = async ({
       ],
     });
 
+  logPdpMemory("AFTER_BASE_PRODUCT", normalizedSlug);
+
   if (!productModel) {
     const error =
       new Error(
@@ -1894,6 +1948,8 @@ exports.getPublicProduct = async ({
 
     throw error;
   }
+
+  logPdpMemory("BEFORE_PRODUCT_CHILDREN", normalizedSlug);
 
   const [
     categoryAssignmentModels,
@@ -2062,6 +2118,8 @@ exports.getPublicProduct = async ({
       }),
     ]);
 
+  logPdpMemory("AFTER_PRODUCT_CHILDREN", normalizedSlug);
+
   const variantIds =
     productVariantModels.map(
       (variant) =>
@@ -2081,6 +2139,8 @@ exports.getPublicProduct = async ({
     [];
 
   if (variantIds.length) {
+    logPdpMemory("BEFORE_VARIANT_CHILDREN", normalizedSlug);
+
     [
       variantChannelModels,
       variantAttributeValueModels,
@@ -2271,6 +2331,8 @@ exports.getPublicProduct = async ({
       ]);
   }
 
+  logPdpMemory("AFTER_VARIANT_CHILDREN", normalizedSlug);
+
   const channelsByVariant =
     groupByKey(
       variantChannelModels,
@@ -2428,6 +2490,8 @@ exports.getPublicProduct = async ({
         })
       );
 
+  logPdpMemory("BEFORE_GIFT_VOUCHER", normalizedSlug);
+
   const giftVoucherMap =
     giftVoucherItems.length
       ? await giftVoucherPromotionService
@@ -2445,6 +2509,8 @@ exports.getPublicProduct = async ({
               now,
           })
       : new Map();
+
+  logPdpMemory("AFTER_GIFT_VOUCHER", normalizedSlug);
 
   variants =
     variants
@@ -2607,6 +2673,8 @@ exports.getPublicProduct = async ({
         })
       );
 
+      logPdpMemory("BEFORE_RELATED_PRODUCTS", normalizedSlug);
+
       const relatedProducts =
       await getRelatedProducts({
         companyId:
@@ -2638,6 +2706,9 @@ exports.getPublicProduct = async ({
     |--------------------------------------------------------------------------
     */
     
+    logPdpMemory("AFTER_RELATED_PRODUCTS", normalizedSlug);
+    logPdpMemory("BEFORE_BUNDLE_PROMOTIONS", normalizedSlug);
+
     const bundlePromotionsByVariant =
       await publicBundlePromotionService
         .resolveForVariants({
@@ -2660,6 +2731,8 @@ exports.getPublicProduct = async ({
             now,
         });
     
+    logPdpMemory("BEFORE_RETURN", normalizedSlug);
+
     return {
     company: {
       id:

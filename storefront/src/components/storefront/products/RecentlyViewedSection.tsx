@@ -425,7 +425,7 @@ export default function RecentlyViewedSection({
                           }
                         />
 
-                        Add
+                          Add to cart
                       </button>
 
                       <button
