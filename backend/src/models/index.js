@@ -192,6 +192,11 @@ const NewsletterSubscriber =
     "./NewsletterSubscriber"
   );
 
+  const ContactEnquiry =
+  require(
+    "./ContactEnquiry"
+  );
+
 const ZohoItemLinkStatus =
   require(
     "./ZohoItemLinkStatus"
@@ -292,6 +297,7 @@ const db = {
     GiftVoucherPromotion,
     GiftVoucherPromotionItem,
     NewsletterSubscriber,
+    ContactEnquiry,
     PreBookingCampaign,
     PreBookingCampaignProduct,
     PreBookingBundle,

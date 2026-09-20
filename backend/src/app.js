@@ -97,6 +97,11 @@ const publicCouponRoutes =
     "./modules/public-storefront/publicNewsletter.routes"
   );
 
+  const publicContactRoutes =
+  require(
+    "./modules/public-storefront/publicContact.routes"
+  );
+
 /*
  * Admin coupon management routes.
  *
@@ -458,6 +463,11 @@ app.use(
 app.use(
   "/api/v1/public/newsletter",
   publicNewsletterRoutes
+);
+
+app.use(
+  "/api/v1/public/contact",
+  publicContactRoutes
 );
 
 /*
