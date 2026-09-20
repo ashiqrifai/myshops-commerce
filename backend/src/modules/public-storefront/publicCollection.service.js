@@ -2222,23 +2222,26 @@ const giftVoucherPromotionService =
         
 
             let products =
-            productModels.map(
-              (
-                model
-              ) =>
-                publicProduct(
-                  model,
-          
-                  apiBaseUrl,
-          
-                  orderMap.get(
-                    model.id
-                  ) ||
-                    0,
-          
-                  availabilityByVariant
+            publicAvailabilityService
+              .filterAvailablePublicProducts(
+                productModels.map(
+                  (
+                    model
+                  ) =>
+                    publicProduct(
+                      model,
+
+                      apiBaseUrl,
+
+                      orderMap.get(
+                        model.id
+                      ) ||
+                        0,
+
+                      availabilityByVariant
+                    )
                 )
-            );
+              );
   
       /*
       |--------------------------------------------------------------------------
