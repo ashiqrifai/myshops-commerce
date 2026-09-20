@@ -475,6 +475,14 @@ const publicAvailabilityService =
       required:
         false,
   
+      separate:
+        true,
+
+      order: [
+        ["displayOrder", "ASC"],
+        ["createdAt", "ASC"],
+      ],
+
       where: {
         companyId,
         isActive: true,
@@ -563,6 +571,14 @@ const publicAvailabilityService =
 
         required:
           false,
+
+        separate:
+          true,
+
+        order: [
+          ["sortOrder", "ASC"],
+          ["createdAt", "ASC"],
+        ],
 
         attributes: [
           "id",
@@ -2067,48 +2083,35 @@ const publicProduct = (
               now,
             }),
   
-          order: [
-            [
-              "isFeatured",
-              "DESC",
+            order: [
+              [
+                "isFeatured",
+                "DESC",
+              ],
+            
+              [
+                "sortOrder",
+                "ASC",
+              ],
+            
+              [
+                "createdAt",
+                "DESC",
+              ],
+            
+              [
+                {
+                  model:
+                    db.ProductVariant,
+            
+                  as:
+                    "variants",
+                },
+            
+                "sortOrder",
+                "ASC",
+              ],
             ],
-  
-            [
-              "sortOrder",
-              "ASC",
-            ],
-  
-            [
-              "createdAt",
-              "DESC",
-            ],
-  
-            [
-              {
-                model:
-                  db.ProductImage,
-  
-                as:
-                  "images",
-              },
-  
-              "displayOrder",
-              "ASC",
-            ],
-  
-            [
-              {
-                model:
-                  db.ProductVariant,
-  
-                as:
-                  "variants",
-              },
-  
-              "sortOrder",
-              "ASC",
-            ],
-          ],
   
           distinct:
             true,

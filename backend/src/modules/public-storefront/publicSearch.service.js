@@ -472,6 +472,14 @@ const giftVoucherPromotionService =
       required:
         false,
   
+      separate:
+        true,
+
+      order: [
+        ["displayOrder", "ASC"],
+        ["createdAt", "ASC"],
+      ],
+
       where: {
         companyId,
         isActive: true,
@@ -2772,18 +2780,7 @@ if (
                   "DESC",
                 ],
   
-                [
-                  {
-                    model:
-                      db.ProductImage,
-  
-                    as:
-                      "images",
-                  },
-  
-                  "displayOrder",
-                  "ASC",
-                ],
+                
   
                 [
                   {

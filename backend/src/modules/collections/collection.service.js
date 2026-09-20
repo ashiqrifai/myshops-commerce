@@ -1,417 +1,1466 @@
 const {
-    Op,
-  } = require(
-    "sequelize"
-  );
-  
-  const db = require(
-    "../../models"
-  );
-  
-  const AppError = require(
-    "../../utils/AppError"
-  );
-  
-  /*
-  |--------------------------------------------------------------------------
-  | Constants
-  |--------------------------------------------------------------------------
-  */
-  
-  const COLLECTION_TYPES = [
-    "MANUAL",
-    "SMART",
-  ];
-  
-  const SMART_RULE_FIELDS =
-    new Set([
-      "EXPRESS_DELIVERY_ENABLED",
-      "STATUS",
-      "IS_FEATURED",
-      "IS_SEARCHABLE",
-      "PRODUCT_TYPE",
-      "BRAND_ID",
-      "CATEGORY_ID",
-    ]);
+  Op,
+} = require(
+  "sequelize"
+);
 
-  const SMART_RULE_OPERATORS =
-    new Set([
-      "IS",
-      "IS_NOT",
-    ]);
+const db = require(
+  "../../models"
+);
 
-  const normalizeSmartRules = (
-    value,
-    collectionType
-  ) => {
-    if (
-      String(
-        collectionType ||
-        ""
-      )
-        .trim()
-        .toUpperCase() !==
-      "SMART"
-    ) {
-      return null;
-    }
+const AppError = require(
+  "../../utils/AppError"
+);
 
-    const source =
-      value &&
-      typeof value ===
-        "object" &&
-      !Array.isArray(
-        value
-      )
-        ? value
-        : {
-            match:
-              "ALL",
-            rules: [],
-          };
+/*
+|--------------------------------------------------------------------------
+| Constants
+|--------------------------------------------------------------------------
+*/
 
-    const match =
-      String(
-        source.match ||
-        "ALL"
-      )
-        .trim()
-        .toUpperCase();
+const COLLECTION_TYPES = [
+  "MANUAL",
+  "SMART",
+];
 
-    if (
-      ![
-        "ALL",
-        "ANY",
-      ].includes(
-        match
-      )
-    ) {
-      throw new AppError(
-        "Smart collection match mode must be ALL or ANY.",
-        400,
-        "SMART_COLLECTION_MATCH_INVALID"
-      );
-    }
+const SMART_RULE_FIELDS =
+  new Set([
+    "EXPRESS_DELIVERY_ENABLED",
+    "STATUS",
+    "IS_FEATURED",
+    "IS_SEARCHABLE",
+    "PRODUCT_TYPE",
+    "BRAND_ID",
+    "CATEGORY_ID",
+  ]);
 
-    const sourceRules =
-      Array.isArray(
-        source.rules
-      )
-        ? source.rules
-        : [];
+const SMART_RULE_OPERATORS =
+  new Set([
+    "IS",
+    "IS_NOT",
+  ]);
 
-    if (
-      sourceRules.length ===
-      0
-    ) {
-      throw new AppError(
-        "A smart collection must contain at least one rule.",
-        400,
-        "SMART_COLLECTION_RULE_REQUIRED"
-      );
-    }
+const normalizeSmartRules = (
+  value,
+  collectionType
+) => {
+  if (
+    String(
+      collectionType ||
+      ""
+    )
+      .trim()
+      .toUpperCase() !==
+    "SMART"
+  ) {
+    return null;
+  }
 
-    const rules =
-      sourceRules.map(
-        (
-          rule,
-          index
-        ) => {
-          const field =
+  const source =
+    value &&
+    typeof value ===
+      "object" &&
+    !Array.isArray(
+      value
+    )
+      ? value
+      : {
+          match:
+            "ALL",
+          rules: [],
+        };
+
+  const match =
+    String(
+      source.match ||
+      "ALL"
+    )
+      .trim()
+      .toUpperCase();
+
+  if (
+    ![
+      "ALL",
+      "ANY",
+    ].includes(
+      match
+    )
+  ) {
+    throw new AppError(
+      "Smart collection match mode must be ALL or ANY.",
+      400,
+      "SMART_COLLECTION_MATCH_INVALID"
+    );
+  }
+
+  const sourceRules =
+    Array.isArray(
+      source.rules
+    )
+      ? source.rules
+      : [];
+
+  if (
+    sourceRules.length ===
+    0
+  ) {
+    throw new AppError(
+      "A smart collection must contain at least one rule.",
+      400,
+      "SMART_COLLECTION_RULE_REQUIRED"
+    );
+  }
+
+  const rules =
+    sourceRules.map(
+      (
+        rule,
+        index
+      ) => {
+        const field =
+          String(
+            rule?.field ||
+            ""
+          )
+            .trim()
+            .toUpperCase();
+
+        const operator =
+          String(
+            rule?.operator ||
+            "IS"
+          )
+            .trim()
+            .toUpperCase();
+
+        if (
+          !SMART_RULE_FIELDS.has(
+            field
+          )
+        ) {
+          throw new AppError(
+            `Unsupported smart collection field at rule ${index + 1}: ${field || "(blank)"}.`,
+            400,
+            "SMART_COLLECTION_FIELD_INVALID"
+          );
+        }
+
+        if (
+          !SMART_RULE_OPERATORS.has(
+            operator
+          )
+        ) {
+          throw new AppError(
+            `Unsupported smart collection operator at rule ${index + 1}: ${operator}.`,
+            400,
+            "SMART_COLLECTION_OPERATOR_INVALID"
+          );
+        }
+
+        let normalizedValue =
+          rule?.value;
+
+        if (
+          [
+            "EXPRESS_DELIVERY_ENABLED",
+            "IS_FEATURED",
+            "IS_SEARCHABLE",
+          ].includes(
+            field
+          )
+        ) {
+          const bool =
+            normalizeBoolean(
+              normalizedValue
+            );
+
+          if (
+            bool ===
+            undefined
+          ) {
+            throw new AppError(
+              `${field} requires a true or false value.`,
+              400,
+              "SMART_COLLECTION_BOOLEAN_INVALID"
+            );
+          }
+
+          normalizedValue =
+            bool;
+        } else if (
+          [
+            "STATUS",
+            "PRODUCT_TYPE",
+          ].includes(
+            field
+          )
+        ) {
+          normalizedValue =
             String(
-              rule?.field ||
+              normalizedValue ||
               ""
             )
               .trim()
               .toUpperCase();
-
-          const operator =
+        } else {
+          normalizedValue =
             String(
-              rule?.operator ||
-              "IS"
-            )
-              .trim()
-              .toUpperCase();
-
-          if (
-            !SMART_RULE_FIELDS.has(
-              field
-            )
-          ) {
-            throw new AppError(
-              `Unsupported smart collection field at rule ${index + 1}: ${field || "(blank)"}.`,
-              400,
-              "SMART_COLLECTION_FIELD_INVALID"
-            );
-          }
-
-          if (
-            !SMART_RULE_OPERATORS.has(
-              operator
-            )
-          ) {
-            throw new AppError(
-              `Unsupported smart collection operator at rule ${index + 1}: ${operator}.`,
-              400,
-              "SMART_COLLECTION_OPERATOR_INVALID"
-            );
-          }
-
-          let normalizedValue =
-            rule?.value;
-
-          if (
-            [
-              "EXPRESS_DELIVERY_ENABLED",
-              "IS_FEATURED",
-              "IS_SEARCHABLE",
-            ].includes(
-              field
-            )
-          ) {
-            const bool =
-              normalizeBoolean(
-                normalizedValue
-              );
-
-            if (
-              bool ===
-              undefined
-            ) {
-              throw new AppError(
-                `${field} requires a true or false value.`,
-                400,
-                "SMART_COLLECTION_BOOLEAN_INVALID"
-              );
-            }
-
-            normalizedValue =
-              bool;
-          } else if (
-            [
-              "STATUS",
-              "PRODUCT_TYPE",
-            ].includes(
-              field
-            )
-          ) {
-            normalizedValue =
-              String(
-                normalizedValue ||
-                ""
-              )
-                .trim()
-                .toUpperCase();
-          } else {
-            normalizedValue =
-              String(
-                normalizedValue ||
-                ""
-              ).trim();
-          }
-
-          if (
-            normalizedValue ===
-              "" ||
-            normalizedValue ===
-              null ||
-            normalizedValue ===
-              undefined
-          ) {
-            throw new AppError(
-              `${field} requires a value.`,
-              400,
-              "SMART_COLLECTION_VALUE_REQUIRED"
-            );
-          }
-
-          return {
-            field,
-            operator,
-            value:
-              normalizedValue,
-          };
+              normalizedValue ||
+              ""
+            ).trim();
         }
+
+        if (
+          normalizedValue ===
+            "" ||
+          normalizedValue ===
+            null ||
+          normalizedValue ===
+            undefined
+        ) {
+          throw new AppError(
+            `${field} requires a value.`,
+            400,
+            "SMART_COLLECTION_VALUE_REQUIRED"
+          );
+        }
+
+        return {
+          field,
+          operator,
+          value:
+            normalizedValue,
+        };
+      }
+    );
+
+  return {
+    match,
+    rules,
+  };
+};
+
+const buildSmartRuleCondition = (
+  rule
+) => {
+  const operator =
+    rule.operator ===
+    "IS_NOT"
+      ? Op.ne
+      : Op.eq;
+
+  switch (
+    rule.field
+  ) {
+    case "EXPRESS_DELIVERY_ENABLED":
+      return {
+        expressDeliveryEnabled: {
+          [operator]:
+            rule.value ===
+            true,
+        },
+      };
+
+    case "STATUS":
+      return {
+        status: {
+          [operator]:
+            String(
+              rule.value
+            ).toUpperCase(),
+        },
+      };
+
+    case "IS_FEATURED":
+      return {
+        isFeatured: {
+          [operator]:
+            rule.value ===
+            true,
+        },
+      };
+
+    case "IS_SEARCHABLE":
+      return {
+        isSearchable: {
+          [operator]:
+            rule.value ===
+            true,
+        },
+      };
+
+    case "PRODUCT_TYPE":
+      return {
+        productType: {
+          [operator]:
+            String(
+              rule.value
+            ).toUpperCase(),
+        },
+      };
+
+    case "BRAND_ID":
+      return {
+        brandId: {
+          [operator]:
+            rule.value,
+        },
+      };
+
+    case "CATEGORY_ID":
+      return {
+        primaryCategoryId: {
+          [operator]:
+            rule.value,
+        },
+      };
+
+    default:
+      throw new AppError(
+        `Unsupported smart collection field: ${rule.field}.`,
+        400,
+        "SMART_COLLECTION_FIELD_INVALID"
+      );
+  }
+};
+
+const buildSmartProductWhere = ({
+  companyId,
+  smartRules,
+}) => {
+  const normalized =
+    normalizeSmartRules(
+      smartRules,
+      "SMART"
+    );
+
+  const conditions =
+    normalized.rules.map(
+      buildSmartRuleCondition
+    );
+
+  return {
+    companyId,
+
+    [
+      normalized.match ===
+      "ANY"
+        ? Op.or
+        : Op.and
+    ]:
+      conditions,
+  };
+};
+
+const syncSmartCollectionProducts =
+  async ({
+    companyId,
+    collection,
+    userId,
+    transaction,
+  }) => {
+    if (
+      !collection ||
+      collection.collectionType !==
+        "SMART"
+    ) {
+      return {
+        assignedCount:
+          0,
+        productIds: [],
+      };
+    }
+
+    const where =
+      buildSmartProductWhere({
+        companyId,
+        smartRules:
+          collection.smartRules,
+      });
+
+    const products =
+      await db.Product.findAll({
+        where,
+
+        attributes: [
+          "id",
+        ],
+
+        order: [
+          [
+            "sortOrder",
+            "ASC",
+          ],
+          [
+            "createdAt",
+            "DESC",
+          ],
+        ],
+
+        transaction,
+      });
+
+    const productIds =
+      products.map(
+        (
+          product
+        ) =>
+          product.id
       );
 
+    await db.ProductCollection
+      .destroy({
+        where: {
+          companyId,
+          collectionId:
+            collection.id,
+        },
+
+        transaction,
+      });
+
+    if (
+      productIds.length >
+      0
+    ) {
+      await db.ProductCollection
+        .bulkCreate(
+          productIds.map(
+            (
+              productId,
+              index
+            ) => ({
+              companyId,
+              collectionId:
+                collection.id,
+              productId,
+              sortOrder:
+                index,
+              createdBy:
+                userId ||
+                collection.updatedBy ||
+                collection.createdBy,
+              updatedBy:
+                userId ||
+                collection.updatedBy ||
+                collection.createdBy,
+            })
+          ),
+          {
+            transaction,
+          }
+        );
+    }
+
     return {
-      match,
-      rules,
+      assignedCount:
+        productIds.length,
+      productIds,
     };
   };
 
-  const buildSmartRuleCondition = (
-    rule
-  ) => {
-    const operator =
-      rule.operator ===
-      "IS_NOT"
-        ? Op.ne
-        : Op.eq;
+const ALLOWED_SORT_FIELDS =
+  new Set([
+    "name",
+    "slug",
+    "collectionType",
+    "sortOrder",
+    "isActive",
+    "isFeatured",
+    "showInMenu",
+    "showOnHome",
+    "publishedFrom",
+    "publishedUntil",
+    "createdAt",
+    "updatedAt",
+  ]);
 
-    switch (
-      rule.field
-    ) {
-      case "EXPRESS_DELIVERY_ENABLED":
-        return {
-          expressDeliveryEnabled: {
-            [operator]:
-              rule.value ===
-              true,
+const COLLECTION_INCLUDE = [
+  {
+    model:
+      db.MediaAsset,
+
+    as:
+      "thumbnailAsset",
+
+    required:
+      false,
+
+    include: [
+      {
+        model:
+          db.MediaAssetVariant,
+
+        as:
+          "variants",
+
+        required:
+          false,
+
+        where: {
+          isActive:
+            true,
+        },
+
+        attributes: [
+          "id",
+          "variantType",
+          "format",
+          "mimeType",
+          "width",
+          "height",
+          "publicUrl",
+          "isPrimary",
+        ],
+      },
+    ],
+  },
+
+  {
+    model:
+      db.MediaAsset,
+
+    as:
+      "bannerAsset",
+
+    required:
+      false,
+
+    include: [
+      {
+        model:
+          db.MediaAssetVariant,
+
+        as:
+          "variants",
+
+        required:
+          false,
+
+        where: {
+          isActive:
+            true,
+        },
+
+        attributes: [
+          "id",
+          "variantType",
+          "format",
+          "mimeType",
+          "width",
+          "height",
+          "publicUrl",
+          "isPrimary",
+        ],
+      },
+    ],
+  },
+
+  {
+    model:
+      db.MediaAsset,
+
+    as:
+      "mobileBannerAsset",
+
+    required:
+      false,
+
+    include: [
+      {
+        model:
+          db.MediaAssetVariant,
+
+        as:
+          "variants",
+
+        required:
+          false,
+
+        where: {
+          isActive:
+            true,
+        },
+
+        attributes: [
+          "id",
+          "variantType",
+          "format",
+          "mimeType",
+          "width",
+          "height",
+          "publicUrl",
+          "isPrimary",
+        ],
+      },
+    ],
+  },
+
+  {
+    model:
+      db.CmsPage,
+
+    as:
+      "landingPage",
+
+    required:
+      false,
+
+    attributes: [
+      "id",
+      "title",
+      "slug",
+      "status",
+    ],
+  },
+
+  {
+    model:
+      db.User,
+
+    as:
+      "createdByUser",
+
+    required:
+      false,
+
+    attributes: [
+      "id",
+      "firstName",
+      "lastName",
+      "email",
+    ],
+  },
+
+  {
+    model:
+      db.User,
+
+    as:
+      "updatedByUser",
+
+    required:
+      false,
+
+    attributes: [
+      "id",
+      "firstName",
+      "lastName",
+      "email",
+    ],
+  },
+];
+
+const COLLECTION_LIST_INCLUDE = [
+  {
+    model:
+      db.MediaAsset,
+
+    as:
+      "thumbnailAsset",
+
+    required:
+      false,
+
+
+  },
+
+  {
+    model:
+      db.MediaAsset,
+
+    as:
+      "bannerAsset",
+
+    required:
+      false,
+
+
+  },
+
+  {
+    model:
+      db.MediaAsset,
+
+    as:
+      "mobileBannerAsset",
+
+    required:
+      false,
+
+
+  },
+
+  {
+    model:
+      db.CmsPage,
+
+    as:
+      "landingPage",
+
+    required:
+      false,
+
+    attributes: [
+      "id",
+      "title",
+      "slug",
+      "status",
+    ],
+  },
+
+  {
+    model:
+      db.User,
+
+    as:
+      "createdByUser",
+
+    required:
+      false,
+
+    attributes: [
+      "id",
+      "firstName",
+      "lastName",
+      "email",
+    ],
+  },
+
+  {
+    model:
+      db.User,
+
+    as:
+      "updatedByUser",
+
+    required:
+      false,
+
+    attributes: [
+      "id",
+      "firstName",
+      "lastName",
+      "email",
+    ],
+  },
+];
+
+
+/*
+|--------------------------------------------------------------------------
+| Collection List Media Variant Loader
+|--------------------------------------------------------------------------
+|
+| Avoid joining thumbnail/banner/mobile-banner variant arrays together.
+| Load active variants once for all unique list asset IDs and attach them
+| after the paginated collection query.
+|--------------------------------------------------------------------------
+*/
+
+const attachCollectionListMediaVariants =
+  async ({
+    collections,
+    transaction,
+  }) => {
+    if (!Array.isArray(collections) || !collections.length) {
+      return;
+    }
+
+    const assetFields = [
+      "thumbnailAsset",
+      "bannerAsset",
+      "mobileBannerAsset",
+    ];
+
+    const assetIds = new Set();
+
+    for (const collection of collections) {
+      for (const field of assetFields) {
+        const asset = collection?.[field];
+
+        if (asset?.id) {
+          assetIds.add(asset.id);
+        }
+      }
+    }
+
+    if (!assetIds.size) {
+      return;
+    }
+
+    const variants =
+      await db.MediaAssetVariant.findAll({
+        where: {
+          mediaAssetId: {
+            [Op.in]: Array.from(assetIds),
           },
-        };
+          isActive: true,
+        },
 
-      case "STATUS":
-        return {
-          status: {
-            [operator]:
-              String(
-                rule.value
-              ).toUpperCase(),
-          },
-        };
+        attributes: [
+          "id",
+          "mediaAssetId",
+          "variantType",
+          "format",
+          "mimeType",
+          "width",
+          "height",
+          "publicUrl",
+          "isPrimary",
+        ],
 
-      case "IS_FEATURED":
-        return {
-          isFeatured: {
-            [operator]:
-              rule.value ===
-              true,
-          },
-        };
+        order: [
+          ["mediaAssetId", "ASC"],
+          ["variantType", "ASC"],
+          ["createdAt", "ASC"],
+        ],
 
-      case "IS_SEARCHABLE":
-        return {
-          isSearchable: {
-            [operator]:
-              rule.value ===
-              true,
-          },
-        };
+        transaction,
+      });
 
-      case "PRODUCT_TYPE":
-        return {
-          productType: {
-            [operator]:
-              String(
-                rule.value
-              ).toUpperCase(),
-          },
-        };
+    const variantsByAssetId = new Map();
 
-      case "BRAND_ID":
-        return {
-          brandId: {
-            [operator]:
-              rule.value,
-          },
-        };
+    for (const variant of variants) {
+      const key = String(variant.mediaAssetId);
 
-      case "CATEGORY_ID":
-        return {
-          primaryCategoryId: {
-            [operator]:
-              rule.value,
-          },
-        };
+      if (!variantsByAssetId.has(key)) {
+        variantsByAssetId.set(key, []);
+      }
 
-      default:
-        throw new AppError(
-          `Unsupported smart collection field: ${rule.field}.`,
-          400,
-          "SMART_COLLECTION_FIELD_INVALID"
+      variantsByAssetId.get(key).push(variant);
+    }
+
+    for (const collection of collections) {
+      for (const field of assetFields) {
+        const asset = collection?.[field];
+
+        if (!asset?.id) {
+          continue;
+        }
+
+        asset.setDataValue(
+          "variants",
+          variantsByAssetId.get(String(asset.id)) || []
         );
+      }
     }
   };
 
-  const buildSmartProductWhere = ({
-    companyId,
-    smartRules,
-  }) => {
+/*
+|--------------------------------------------------------------------------
+| Basic Helpers
+|--------------------------------------------------------------------------
+*/
+
+const hasOwn = (
+  object,
+  field
+) =>
+  Object.prototype
+    .hasOwnProperty.call(
+      object,
+      field
+    );
+
+const normalizeNullable = (
+  value
+) => {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return null;
+  }
+
+  if (
+    typeof value ===
+    "string"
+  ) {
     const normalized =
-      normalizeSmartRules(
-        smartRules,
-        "SMART"
-      );
+      value.trim();
 
-    const conditions =
-      normalized.rules.map(
-        buildSmartRuleCondition
-      );
+    return normalized ||
+      null;
+  }
 
-    return {
-      companyId,
+  return value;
+};
 
+const generateSlug = (
+  value
+) => {
+  return String(
+    value || ""
+  )
+    .trim()
+    .toLowerCase()
+    .normalize(
+      "NFD"
+    )
+    .replace(
+      /[\u0300-\u036f]/g,
+      ""
+    )
+    .replace(
+      /[^a-z0-9]+/g,
+      "-"
+    )
+    .replace(
+      /^-+|-+$/g,
+      ""
+    );
+};
+
+const normalizeBoolean = (
+  value
+) => {
+  if (
+    typeof value ===
+    "boolean"
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value ===
+    "string"
+  ) {
+    const normalized =
+      value
+        .trim()
+        .toLowerCase();
+
+    if (
       [
-        normalized.match ===
-        "ANY"
-          ? Op.or
-          : Op.and
-      ]:
-        conditions,
-    };
-  };
+        "true",
+        "1",
+        "yes",
+      ].includes(
+        normalized
+      )
+    ) {
+      return true;
+    }
 
-  const syncSmartCollectionProducts =
-    async ({
-      companyId,
-      collection,
-      userId,
+    if (
+      [
+        "false",
+        "0",
+        "no",
+      ].includes(
+        normalized
+      )
+    ) {
+      return false;
+    }
+  }
+
+  return undefined;
+};
+
+const normalizeNonNegativeInteger = (
+  value,
+  fallback = 0
+) => {
+  if (
+    value === undefined ||
+    value === null ||
+    value === ""
+  ) {
+    return fallback;
+  }
+
+  const number =
+    Number(value);
+
+  if (
+    !Number.isInteger(
+      number
+    ) ||
+    number < 0
+  ) {
+    return null;
+  }
+
+  return number;
+};
+
+const normalizeDate = (
+  value
+) => {
+  if (
+    value === undefined ||
+    value === null ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return undefined;
+  }
+
+  return date;
+};
+
+const normalizeCollectionType = (
+  value
+) => {
+  const normalized =
+    String(
+      value ||
+      "MANUAL"
+    )
+      .trim()
+      .toUpperCase();
+
+  return COLLECTION_TYPES.includes(
+    normalized
+  )
+    ? normalized
+    : null;
+};
+
+const normalizePageNumber = (
+  value,
+  fallback
+) => {
+  const number =
+    Number(value);
+
+  return Number.isInteger(
+    number
+  ) &&
+    number > 0
+    ? number
+    : fallback;
+};
+
+const normalizeSortDirection = (
+  value
+) => {
+  return String(
+    value ||
+    "ASC"
+  )
+    .trim()
+    .toUpperCase() ===
+    "DESC"
+    ? "DESC"
+    : "ASC";
+};
+
+const normalizeSortField = (
+  value
+) => {
+  const sortField =
+    String(
+      value ||
+      "sortOrder"
+    ).trim();
+
+  return ALLOWED_SORT_FIELDS.has(
+    sortField
+  )
+    ? sortField
+    : "sortOrder";
+};
+
+/*
+|--------------------------------------------------------------------------
+| Validation Helpers
+|--------------------------------------------------------------------------
+*/
+
+const validateCollectionType = (
+  collectionType
+) => {
+  if (
+    !collectionType
+  ) {
+    throw new AppError(
+      "Collection type must be MANUAL or SMART.",
+      400,
+      "COLLECTION_TYPE_INVALID"
+    );
+  }
+};
+
+const validatePublishingPeriod = ({
+  publishedFrom,
+  publishedUntil,
+}) => {
+  if (
+    publishedFrom ===
+    undefined
+  ) {
+    throw new AppError(
+      "Published From is invalid.",
+      400,
+      "COLLECTION_PUBLISHED_FROM_INVALID"
+    );
+  }
+
+  if (
+    publishedUntil ===
+    undefined
+  ) {
+    throw new AppError(
+      "Published Until is invalid.",
+      400,
+      "COLLECTION_PUBLISHED_UNTIL_INVALID"
+    );
+  }
+
+  if (
+    publishedFrom &&
+    publishedUntil &&
+    publishedUntil.getTime() <
+      publishedFrom.getTime()
+  ) {
+    throw new AppError(
+      "Published Until cannot be earlier than Published From.",
+      400,
+      "COLLECTION_PUBLISHING_PERIOD_INVALID"
+    );
+  }
+};
+
+const validateImageAsset = async ({
+  companyId,
+  assetId,
+  fieldName,
+  transaction,
+}) => {
+  if (!assetId) {
+    return null;
+  }
+
+  const asset =
+    await db.MediaAsset
+      .findOne({
+        where: {
+          id:
+            assetId,
+
+          companyId,
+
+          isActive:
+            true,
+
+          assetType:
+            "IMAGE",
+        },
+
+        transaction,
+      });
+
+  if (!asset) {
+    throw new AppError(
+      `${fieldName} image was not found.`,
+      400,
+      "COLLECTION_MEDIA_ASSET_INVALID"
+    );
+  }
+
+  return asset;
+};
+
+const validateLandingPage = async ({
+  companyId,
+  landingPageId,
+  transaction,
+}) => {
+  if (!landingPageId) {
+    return null;
+  }
+
+  const page =
+    await db.CmsPage.findOne({
+      where: {
+        id:
+          landingPageId,
+
+        companyId,
+      },
+
       transaction,
-    }) => {
+    });
+
+  if (!page) {
+    throw new AppError(
+      "The selected landing page was not found.",
+      400,
+      "COLLECTION_LANDING_PAGE_INVALID"
+    );
+  }
+
+  return page;
+};
+
+const validateCollectionAssets =
+  async ({
+    companyId,
+    payload,
+    transaction,
+    partial = false,
+  }) => {
+    const assetFields = [
+      {
+        field:
+          "thumbnailAssetId",
+
+        label:
+          "Collection thumbnail",
+      },
+
+      {
+        field:
+          "bannerAssetId",
+
+        label:
+          "Collection banner",
+      },
+
+      {
+        field:
+          "mobileBannerAssetId",
+
+        label:
+          "Collection mobile banner",
+      },
+    ];
+
+    for (
+      const assetField of
+      assetFields
+    ) {
       if (
-        !collection ||
-        collection.collectionType !==
-          "SMART"
+        partial &&
+        !hasOwn(
+          payload,
+          assetField.field
+        )
       ) {
-        return {
-          assignedCount:
-            0,
-          productIds: [],
-        };
+        continue;
       }
 
-      const where =
-        buildSmartProductWhere({
-          companyId,
-          smartRules:
-            collection.smartRules,
+      await validateImageAsset({
+        companyId,
+
+        assetId:
+          normalizeNullable(
+            payload[
+              assetField.field
+            ]
+          ),
+
+        fieldName:
+          assetField.label,
+
+        transaction,
+      });
+    }
+
+    if (
+      !partial ||
+      hasOwn(
+        payload,
+        "landingPageId"
+      )
+    ) {
+      await validateLandingPage({
+        companyId,
+
+        landingPageId:
+          normalizeNullable(
+            payload.landingPageId
+          ),
+
+        transaction,
+      });
+    }
+  };
+
+const ensureUniqueCollection =
+  async ({
+    companyId,
+    slug,
+    excludeId,
+    transaction,
+  }) => {
+    const where = {
+      companyId,
+      slug,
+    };
+
+    if (excludeId) {
+      where.id = {
+        [Op.ne]:
+          excludeId,
+      };
+    }
+
+    const existing =
+      await db.Collection
+        .findOne({
+          where,
+          transaction,
         });
 
-      const products =
-        await db.Product.findAll({
-          where,
+    if (existing) {
+      throw new AppError(
+        "A collection with this slug already exists.",
+        409,
+        "COLLECTION_SLUG_EXISTS"
+      );
+    }
+  };
 
-          attributes: [
-            "id",
-          ],
+/*
+|--------------------------------------------------------------------------
+| Product Count Helpers
+|--------------------------------------------------------------------------
+*/
 
-          order: [
-            [
-              "sortOrder",
-              "ASC",
-            ],
-            [
-              "createdAt",
-              "DESC",
-            ],
+const loadProductCounts = async ({
+  companyId,
+  collectionIds,
+  transaction,
+}) => {
+  if (
+    !Array.isArray(
+      collectionIds
+    ) ||
+    collectionIds.length ===
+      0
+  ) {
+    return new Map();
+  }
+
+  const rows =
+    await db.ProductCollection
+      .findAll({
+        where: {
+          companyId,
+
+          collectionId: {
+            [Op.in]:
+              collectionIds,
+          },
+        },
+
+        attributes: [
+          "collectionId",
+
+          [
+            db.sequelize.fn(
+              "COUNT",
+              db.sequelize.col(
+                "id"
+              )
+            ),
+            "productCount",
           ],
+        ],
+
+        group: [
+          "collectionId",
+        ],
+
+        raw:
+          true,
+
+        transaction,
+      });
+
+  return new Map(
+    rows.map(
+      (
+        row
+      ) => [
+        row.collectionId,
+        Number(
+          row.productCount ||
+          0
+        ),
+      ]
+    )
+  );
+};
+
+const attachProductCount = (
+  collection,
+  productCount
+) => {
+  if (!collection) {
+    return collection;
+  }
+
+  collection.setDataValue(
+    "productCount",
+    Number(
+      productCount ||
+      0
+    )
+  );
+
+  return collection;
+};
+
+/*
+|--------------------------------------------------------------------------
+| Get Collection
+|--------------------------------------------------------------------------
+*/
+
+const getCollectionById =
+  async ({
+    companyId,
+    collectionId,
+    transaction,
+  }) => {
+    const collection =
+      await db.Collection
+        .findOne({
+          where: {
+            id:
+              collectionId,
+
+            companyId,
+          },
+
+          include:
+            COLLECTION_INCLUDE,
+
+          distinct:
+            true,
 
           transaction,
         });
 
-      const productIds =
-        products.map(
-          (
-            product
-          ) =>
-            product.id
-        );
+    if (!collection) {
+      throw new AppError(
+        "Collection not found.",
+        404,
+        "COLLECTION_NOT_FOUND"
+      );
+    }
 
+    const productCount =
       await db.ProductCollection
-        .destroy({
+        .count({
           where: {
             companyId,
+
             collectionId:
               collection.id,
           },
@@ -419,31 +1468,1570 @@ const {
           transaction,
         });
 
+    return attachProductCount(
+      collection,
+      productCount
+    );
+  };
+
+/*
+|--------------------------------------------------------------------------
+| List Collections
+|--------------------------------------------------------------------------
+*/
+
+const listCollections =
+  async ({
+    companyId,
+    page = 1,
+    pageSize = 30,
+    search,
+    isActive,
+    isFeatured,
+    showInMenu,
+    showOnHome,
+    collectionType,
+    published,
+    sortBy = "sortOrder",
+    sortDirection = "ASC",
+  }) => {
+    const normalizedPage =
+      normalizePageNumber(
+        page,
+        1
+      );
+
+    const normalizedPageSize =
+      Math.min(
+        normalizePageNumber(
+          pageSize,
+          30
+        ),
+        200
+      );
+
+    const normalizedSortBy =
+      normalizeSortField(
+        sortBy
+      );
+
+    const normalizedDirection =
+      normalizeSortDirection(
+        sortDirection
+      );
+
+    const where = {
+      companyId,
+    };
+
+    const activeFilter =
+      normalizeBoolean(
+        isActive
+      );
+
+    const featuredFilter =
+      normalizeBoolean(
+        isFeatured
+      );
+
+    const menuFilter =
+      normalizeBoolean(
+        showInMenu
+      );
+
+    const homeFilter =
+      normalizeBoolean(
+        showOnHome
+      );
+
+    const publishedFilter =
+      normalizeBoolean(
+        published
+      );
+
+    if (
+      activeFilter !==
+      undefined
+    ) {
+      where.isActive =
+        activeFilter;
+    }
+
+    if (
+      featuredFilter !==
+      undefined
+    ) {
+      where.isFeatured =
+        featuredFilter;
+    }
+
+    if (
+      menuFilter !==
+      undefined
+    ) {
+      where.showInMenu =
+        menuFilter;
+    }
+
+    if (
+      homeFilter !==
+      undefined
+    ) {
+      where.showOnHome =
+        homeFilter;
+    }
+
+    if (collectionType) {
+      const normalizedType =
+        normalizeCollectionType(
+          collectionType
+        );
+
+      validateCollectionType(
+        normalizedType
+      );
+
+      where.collectionType =
+        normalizedType;
+    }
+
+    if (search) {
+      const normalizedSearch =
+        String(
+          search
+        ).trim();
+
       if (
-        productIds.length >
+        normalizedSearch
+      ) {
+        where[Op.or] = [
+          {
+            name: {
+              [Op.iLike]:
+                `%${normalizedSearch}%`,
+            },
+          },
+
+          {
+            slug: {
+              [Op.iLike]:
+                `%${normalizedSearch}%`,
+            },
+          },
+
+          {
+            shortDescription: {
+              [Op.iLike]:
+                `%${normalizedSearch}%`,
+            },
+          },
+
+          {
+            description: {
+              [Op.iLike]:
+                `%${normalizedSearch}%`,
+            },
+          },
+        ];
+      }
+    }
+
+    if (
+      publishedFilter !==
+      undefined
+    ) {
+      const now =
+        new Date();
+
+      const publishedConditions = [
+        {
+          [Op.or]: [
+            {
+              publishedFrom:
+                null,
+            },
+
+            {
+              publishedFrom: {
+                [Op.lte]:
+                  now,
+              },
+            },
+          ],
+        },
+
+        {
+          [Op.or]: [
+            {
+              publishedUntil:
+                null,
+            },
+
+            {
+              publishedUntil: {
+                [Op.gte]:
+                  now,
+              },
+            },
+          ],
+        },
+      ];
+
+      if (
+        publishedFilter ===
+        true
+      ) {
+        where[Op.and] = [
+          ...(where[Op.and] ||
+            []),
+
+          {
+            isActive:
+              true,
+          },
+
+          ...publishedConditions,
+        ];
+      } else {
+        where[Op.and] = [
+          ...(where[Op.and] ||
+            []),
+
+          {
+            [Op.or]: [
+              {
+                isActive:
+                  false,
+              },
+
+              {
+                publishedFrom: {
+                  [Op.gt]:
+                    now,
+                },
+              },
+
+              {
+                publishedUntil: {
+                  [Op.lt]:
+                    now,
+                },
+              },
+            ],
+          },
+        ];
+      }
+    }
+
+    const offset =
+      (normalizedPage - 1) *
+      normalizedPageSize;
+
+    const result =
+      await db.Collection
+        .findAndCountAll({
+          where,
+
+          include:
+            COLLECTION_LIST_INCLUDE,
+
+          distinct:
+            true,
+
+          limit:
+            normalizedPageSize,
+
+          offset,
+
+          order: [
+            [
+              normalizedSortBy,
+              normalizedDirection,
+            ],
+
+            [
+              "name",
+              "ASC",
+            ],
+          ],
+        });
+
+
+    await attachCollectionListMediaVariants({
+      collections: result.rows,
+    });
+
+
+    const collectionIds =
+      result.rows.map(
+        (
+          collection
+        ) =>
+          collection.id
+      );
+
+    const productCountMap =
+      await loadProductCounts({
+        companyId,
+        collectionIds,
+      });
+
+    for (
+      const collection of
+      result.rows
+    ) {
+      attachProductCount(
+        collection,
+        productCountMap.get(
+          collection.id
+        ) ||
+          0
+      );
+    }
+
+    return {
+      rows:
+        result.rows,
+
+      pagination: {
+        page:
+          normalizedPage,
+
+        pageSize:
+          normalizedPageSize,
+
+        totalItems:
+          result.count,
+
+        totalPages:
+          Math.ceil(
+            result.count /
+              normalizedPageSize
+          ),
+      },
+    };
+  };
+
+/*
+|--------------------------------------------------------------------------
+| Create Collection
+|--------------------------------------------------------------------------
+*/
+
+const createCollection =
+  async ({
+    companyId,
+    userId,
+    payload,
+  }) => {
+    const transaction =
+      await db.sequelize
+        .transaction();
+
+    try {
+      const name =
+        String(
+          payload.name ||
+          ""
+        ).trim();
+
+      if (!name) {
+        throw new AppError(
+          "Collection name is required.",
+          400,
+          "COLLECTION_NAME_REQUIRED"
+        );
+      }
+
+      const slug =
+        generateSlug(
+          payload.slug ||
+          name
+        );
+
+      if (!slug) {
+        throw new AppError(
+          "Collection slug could not be generated.",
+          400,
+          "COLLECTION_SLUG_REQUIRED"
+        );
+      }
+
+      const collectionType =
+        normalizeCollectionType(
+          payload.collectionType
+        );
+
+      validateCollectionType(
+        collectionType
+      );
+
+      
+      const smartRules =
+        normalizeSmartRules(
+          payload.smartRules,
+          collectionType
+        );
+const sortOrder =
+        normalizeNonNegativeInteger(
+          payload.sortOrder,
+          0
+        );
+
+      if (
+        sortOrder ===
+        null
+      ) {
+        throw new AppError(
+          "Sort order must be a non-negative whole number.",
+          400,
+          "COLLECTION_SORT_ORDER_INVALID"
+        );
+      }
+
+      const publishedFrom =
+        normalizeDate(
+          payload.publishedFrom
+        );
+
+      const publishedUntil =
+        normalizeDate(
+          payload.publishedUntil
+        );
+
+      validatePublishingPeriod({
+        publishedFrom,
+        publishedUntil,
+      });
+
+      await ensureUniqueCollection({
+        companyId,
+        slug,
+        transaction,
+      });
+
+      await validateCollectionAssets({
+        companyId,
+        payload,
+        transaction,
+      });
+
+      const collection =
+        await db.Collection
+          .create(
+            {
+              companyId,
+              name,
+              slug,
+
+              description:
+                normalizeNullable(
+                  payload.description
+                ),
+
+              shortDescription:
+                normalizeNullable(
+                  payload.shortDescription
+                ),
+
+              collectionType,
+
+              smartRules,
+              sortOrder,
+
+              thumbnailAssetId:
+                normalizeNullable(
+                  payload.thumbnailAssetId
+                ),
+
+              bannerAssetId:
+                normalizeNullable(
+                  payload.bannerAssetId
+                ),
+
+              mobileBannerAssetId:
+                normalizeNullable(
+                  payload.mobileBannerAssetId
+                ),
+
+              landingPageId:
+                normalizeNullable(
+                  payload.landingPageId
+                ),
+
+              isActive:
+                payload.isActive !==
+                false,
+
+              isFeatured:
+                payload.isFeatured ===
+                true,
+
+              showInMenu:
+                payload.showInMenu ===
+                true,
+
+              showOnHome:
+                payload.showOnHome ===
+                true,
+
+              isSearchable:
+                payload.isSearchable !==
+                false,
+
+              showProductCount:
+                payload.showProductCount !==
+                false,
+
+              publishedFrom,
+              publishedUntil,
+
+              metaTitle:
+                normalizeNullable(
+                  payload.metaTitle
+                ),
+
+              metaDescription:
+                normalizeNullable(
+                  payload.metaDescription
+                ),
+
+              metaKeywords:
+                normalizeNullable(
+                  payload.metaKeywords
+                ),
+
+              canonicalUrl:
+                normalizeNullable(
+                  payload.canonicalUrl
+                ),
+
+              robotsIndex:
+                payload.robotsIndex !==
+                false,
+
+              robotsFollow:
+                payload.robotsFollow !==
+                false,
+
+              createdBy:
+                userId,
+
+              updatedBy:
+                userId,
+            },
+            {
+              transaction,
+            }
+          );
+
+              if (
+        collectionType ===
+        "SMART"
+      ) {
+        await syncSmartCollectionProducts({
+          companyId,
+          collection,
+          userId,
+          transaction,
+        });
+      }
+
+await transaction
+        .commit();
+
+      return getCollectionById({
+        companyId,
+
+        collectionId:
+          collection.id,
+      });
+    } catch (error) {
+      if (
+        !transaction.finished
+      ) {
+        await transaction
+          .rollback();
+      }
+
+      throw error;
+    }
+  };
+
+/*
+|--------------------------------------------------------------------------
+| Update Collection
+|--------------------------------------------------------------------------
+*/
+
+const updateCollection =
+  async ({
+    companyId,
+    collectionId,
+    userId,
+    payload,
+  }) => {
+    const transaction =
+      await db.sequelize
+        .transaction();
+
+    try {
+      const collection =
+        await db.Collection
+          .findOne({
+            where: {
+              id:
+                collectionId,
+
+              companyId,
+            },
+
+            transaction,
+
+            lock:
+              transaction.LOCK
+                .UPDATE,
+          });
+
+      if (!collection) {
+        throw new AppError(
+          "Collection not found.",
+          404,
+          "COLLECTION_NOT_FOUND"
+        );
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | Preserve Original Collection Type
+      |--------------------------------------------------------------------------
+      |
+      | Capture the type before collection.update() so MANUAL -> MANUAL
+      | does not accidentally delete manually assigned products.
+      |--------------------------------------------------------------------------
+      */
+
+      const originalCollectionType =
+        String(
+          collection.collectionType ||
+            "MANUAL"
+        )
+          .trim()
+          .toUpperCase();
+
+      const name =
+        hasOwn(
+          payload,
+          "name"
+        )
+          ? String(
+              payload.name ||
+              ""
+            ).trim()
+          : collection.name;
+
+      if (!name) {
+        throw new AppError(
+          "Collection name is required.",
+          400,
+          "COLLECTION_NAME_REQUIRED"
+        );
+      }
+
+      const slug =
+        hasOwn(
+          payload,
+          "slug"
+        )
+          ? generateSlug(
+              payload.slug ||
+              name
+            )
+          : collection.slug;
+
+      if (!slug) {
+        throw new AppError(
+          "Collection slug could not be generated.",
+          400,
+          "COLLECTION_SLUG_REQUIRED"
+        );
+      }
+
+      const collectionType =
+        hasOwn(
+          payload,
+          "collectionType"
+        )
+          ? normalizeCollectionType(
+              payload.collectionType
+            )
+          : collection.collectionType;
+
+      validateCollectionType(
+        collectionType
+      );
+
+      
+      const smartRules =
+        collectionType ===
+        "SMART"
+          ? normalizeSmartRules(
+              hasOwn(
+                payload,
+                "smartRules"
+              )
+                ? payload.smartRules
+                : collection.smartRules,
+              collectionType
+            )
+          : null;
+const sortOrder =
+        hasOwn(
+          payload,
+          "sortOrder"
+        )
+          ? normalizeNonNegativeInteger(
+              payload.sortOrder,
+              0
+            )
+          : collection.sortOrder;
+
+      if (
+        sortOrder ===
+        null
+      ) {
+        throw new AppError(
+          "Sort order must be a non-negative whole number.",
+          400,
+          "COLLECTION_SORT_ORDER_INVALID"
+        );
+      }
+
+      const publishedFrom =
+        hasOwn(
+          payload,
+          "publishedFrom"
+        )
+          ? normalizeDate(
+              payload.publishedFrom
+            )
+          : collection.publishedFrom;
+
+      const publishedUntil =
+        hasOwn(
+          payload,
+          "publishedUntil"
+        )
+          ? normalizeDate(
+              payload.publishedUntil
+            )
+          : collection.publishedUntil;
+
+      validatePublishingPeriod({
+        publishedFrom,
+        publishedUntil,
+      });
+
+      await ensureUniqueCollection({
+        companyId,
+        slug,
+
+        excludeId:
+          collection.id,
+
+        transaction,
+      });
+
+      await validateCollectionAssets({
+        companyId,
+        payload,
+        transaction,
+
+        partial:
+          true,
+      });
+
+      const updateValues = {
+        name,
+        slug,
+        collectionType,
+
+        smartRules,
+        sortOrder,
+        publishedFrom,
+        publishedUntil,
+
+        updatedBy:
+          userId,
+      };
+
+      const nullableFields = [
+        "description",
+        "shortDescription",
+        "thumbnailAssetId",
+        "bannerAssetId",
+        "mobileBannerAssetId",
+        "landingPageId",
+        "metaTitle",
+        "metaDescription",
+        "metaKeywords",
+        "canonicalUrl",
+      ];
+
+      for (
+        const field of
+        nullableFields
+      ) {
+        if (
+          hasOwn(
+            payload,
+            field
+          )
+        ) {
+          updateValues[field] =
+            normalizeNullable(
+              payload[field]
+            );
+        }
+      }
+
+      const booleanFields = [
+        "isActive",
+        "isFeatured",
+        "showInMenu",
+        "showOnHome",
+        "isSearchable",
+        "showProductCount",
+        "robotsIndex",
+        "robotsFollow",
+      ];
+
+      for (
+        const field of
+        booleanFields
+      ) {
+        if (
+          hasOwn(
+            payload,
+            field
+          )
+        ) {
+          const booleanValue =
+            normalizeBoolean(
+              payload[field]
+            );
+
+          if (
+            booleanValue ===
+            undefined
+          ) {
+            throw new AppError(
+              `${field} must be true or false.`,
+              400,
+              "COLLECTION_BOOLEAN_INVALID"
+            );
+          }
+
+          updateValues[field] =
+            booleanValue;
+        }
+      }
+
+      await collection.update(
+        updateValues,
+        {
+          transaction,
+        }
+      );
+
+      /*
+      |--------------------------------------------------------------------------
+      | Maintain Collection Product Assignments
+      |--------------------------------------------------------------------------
+      |
+      | MANUAL -> MANUAL
+      |   Preserve manually assigned ProductCollection rows.
+      |
+      | SMART -> SMART
+      |   Refresh assignments from smart rules.
+      |
+      | MANUAL -> SMART
+      |   syncSmartCollectionProducts() replaces the previous assignments
+      |   with products resolved from the smart rules.
+      |
+      | SMART -> MANUAL
+      |   Remove automatically generated smart assignments. Products can
+      |   then be assigned manually through the Products tab.
+      |--------------------------------------------------------------------------
+      */
+
+      if (
+        collection.collectionType ===
+        "SMART"
+      ) {
+        await syncSmartCollectionProducts({
+          companyId,
+          collection,
+          userId,
+          transaction,
+        });
+      } else if (
+        originalCollectionType ===
+          "SMART" &&
+        collection.collectionType ===
+          "MANUAL"
+      ) {
+        await db.ProductCollection
+          .destroy({
+            where: {
+              companyId,
+
+              collectionId:
+                collection.id,
+            },
+
+            transaction,
+          });
+      }
+
+      /*
+       * MANUAL -> MANUAL intentionally does nothing here.
+       * Existing manual ProductCollection assignments are preserved.
+       */
+
+
+      await transaction
+        .commit();
+
+      return getCollectionById({
+        companyId,
+
+        collectionId:
+          collection.id,
+      });
+    } catch (error) {
+      if (
+        !transaction.finished
+      ) {
+        await transaction
+          .rollback();
+      }
+
+      throw error;
+    }
+  };
+
+/*
+|--------------------------------------------------------------------------
+| Change Status
+|--------------------------------------------------------------------------
+*/
+
+const changeCollectionStatus =
+  async ({
+    companyId,
+    collectionId,
+    userId,
+    isActive,
+  }) => {
+    const normalizedStatus =
+      normalizeBoolean(
+        isActive
+      );
+
+    if (
+      normalizedStatus ===
+      undefined
+    ) {
+      throw new AppError(
+        "isActive must be true or false.",
+        400,
+        "COLLECTION_STATUS_INVALID"
+      );
+    }
+
+    const collection =
+      await db.Collection
+        .findOne({
+          where: {
+            id:
+              collectionId,
+
+            companyId,
+          },
+        });
+
+    if (!collection) {
+      throw new AppError(
+        "Collection not found.",
+        404,
+        "COLLECTION_NOT_FOUND"
+      );
+    }
+
+    await collection.update({
+      isActive:
+        normalizedStatus,
+
+      updatedBy:
+        userId,
+    });
+
+    return getCollectionById({
+      companyId,
+      collectionId,
+    });
+  };
+
+/*
+|--------------------------------------------------------------------------
+| Get Collection Products
+|--------------------------------------------------------------------------
+*/
+
+const getCollectionProducts =
+  async ({
+    companyId,
+    collectionId,
+    page = 1,
+    pageSize = 50,
+    search,
+    status,
+  }) => {
+    const collection =
+      await db.Collection
+        .findOne({
+          where: {
+            id:
+              collectionId,
+
+            companyId,
+          },
+
+          attributes: [
+            "id",
+            "name",
+            "slug",
+            "collectionType",
+            "smartRules",
+            "isActive",
+            "createdBy",
+            "updatedBy",
+          ],
+        });
+
+    if (!collection) {
+      throw new AppError(
+        "Collection not found.",
+        404,
+        "COLLECTION_NOT_FOUND"
+      );
+    }
+
+          if (
+      collection.collectionType ===
+      "SMART"
+    ) {
+      await syncSmartCollectionProducts({
+        companyId,
+        collection,
+        userId:
+          collection.updatedBy ||
+          collection.createdBy,
+      });
+    }
+
+const normalizedPage =
+      normalizePageNumber(
+        page,
+        1
+      );
+
+    const normalizedPageSize =
+      Math.min(
+        normalizePageNumber(
+          pageSize,
+          50
+        ),
+        200
+      );
+
+    const productWhere = {
+      companyId,
+    };
+
+    if (search) {
+      const normalizedSearch =
+        String(
+          search
+        ).trim();
+
+      if (
+        normalizedSearch
+      ) {
+        productWhere[Op.or] = [
+          {
+            name: {
+              [Op.iLike]:
+                `%${normalizedSearch}%`,
+            },
+          },
+
+          {
+            parentSku: {
+              [Op.iLike]:
+                `%${normalizedSearch}%`,
+            },
+          },
+
+          {
+            slug: {
+              [Op.iLike]:
+                `%${normalizedSearch}%`,
+            },
+          },
+        ];
+      }
+    }
+
+    if (status) {
+      productWhere.status =
+        String(
+          status
+        )
+          .trim()
+          .toUpperCase();
+    }
+
+    const offset =
+      (normalizedPage - 1) *
+      normalizedPageSize;
+
+    const result =
+      await db.ProductCollection
+        .findAndCountAll({
+          where: {
+            companyId,
+            collectionId,
+          },
+
+          include: [
+            {
+              model:
+                db.Product,
+
+              as:
+                "product",
+
+              required:
+                true,
+
+              where:
+                productWhere,
+
+              attributes: [
+                "id",
+                "name",
+                "parentSku",
+                "slug",
+                "status",
+                "brandId",
+                "primaryCategoryId",
+                "productType",
+                "updatedAt",
+              ],
+
+              include: [
+                {
+                  model:
+                    db.Brand,
+
+                  as:
+                    "brand",
+
+                  required:
+                    false,
+
+                  attributes: [
+                    "id",
+                    "name",
+                    "slug",
+                  ],
+                },
+
+                {
+                  model:
+                    db.Category,
+
+                  as:
+                    "primaryCategory",
+
+                  required:
+                    false,
+
+                  attributes: [
+                    "id",
+                    "name",
+                    "slug",
+                  ],
+                },
+
+                {
+                  model:
+                    db.ProductImage,
+                
+                  as:
+                    "images",
+                
+                  required:
+                    false,
+                
+                  separate:
+                    true,
+                
+                  limit:
+                    1,
+                
+                  order: [
+                    [
+                      "displayOrder",
+                      "ASC",
+                    ],
+                  ],
+                
+                  include: [
+                    {
+                      model:
+                        db.MediaAsset,
+                
+                      as:
+                        "mediaAsset",
+                
+                      required:
+                        false,
+                
+                      attributes: [
+                        "id",
+                        "publicUrl",
+                        "originalFileName",
+                      ],
+                    },
+                  ],
+                }
+              ],
+            },
+          ],
+
+          distinct:
+            true,
+
+          limit:
+            normalizedPageSize,
+
+          offset,
+
+          order: [
+            [
+              "sortOrder",
+              "ASC",
+            ],
+
+            [
+              "createdAt",
+              "ASC",
+            ],
+          ],
+        });
+
+    return {
+      collection,
+
+      rows:
+        result.rows,
+
+      pagination: {
+        page:
+          normalizedPage,
+
+        pageSize:
+          normalizedPageSize,
+
+        totalItems:
+          result.count,
+
+        totalPages:
+          Math.ceil(
+            result.count /
+              normalizedPageSize
+          ),
+      },
+    };
+  };
+
+/*
+|--------------------------------------------------------------------------
+| Replace Collection Products
+|--------------------------------------------------------------------------
+*/
+
+const replaceCollectionProducts =
+  async ({
+    companyId,
+    collectionId,
+    userId,
+    productIds,
+  }) => {
+    if (
+      !Array.isArray(
+        productIds
+      )
+    ) {
+      throw new AppError(
+        "productIds must be an array.",
+        400,
+        "COLLECTION_PRODUCT_IDS_REQUIRED"
+      );
+    }
+
+    const transaction =
+      await db.sequelize
+        .transaction();
+
+    try {
+      const collection =
+        await db.Collection
+          .findOne({
+            where: {
+              id:
+                collectionId,
+
+              companyId,
+            },
+
+            transaction,
+
+            lock:
+              transaction.LOCK
+                .UPDATE,
+          });
+
+      if (!collection) {
+        throw new AppError(
+          "Collection not found.",
+          404,
+          "COLLECTION_NOT_FOUND"
+        );
+      }
+
+      if (
+        collection.collectionType ===
+        "SMART"
+      ) {
+        throw new AppError(
+          "Products cannot be assigned manually to a smart collection.",
+          409,
+          "SMART_COLLECTION_MANUAL_ASSIGNMENT_NOT_ALLOWED"
+        );
+      }
+
+      /*
+       * Accept either:
+       *
+       * ["uuid-1", "uuid-2"]
+       *
+       * or:
+       *
+       * [
+       *   {
+       *     productId: "uuid-1",
+       *     sortOrder: 0
+       *   }
+       * ]
+       */
+
+      const normalizedAssignments =
+        productIds.map(
+          (
+            item,
+            index
+          ) => {
+            const productId =
+              typeof item ===
+              "string"
+                ? item.trim()
+                : String(
+                    item?.productId ||
+                    item?.id ||
+                    ""
+                  ).trim();
+
+            const suppliedSortOrder =
+              typeof item ===
+              "object" &&
+              item !==
+                null &&
+              hasOwn(
+                item,
+                "sortOrder"
+              )
+                ? normalizeNonNegativeInteger(
+                    item.sortOrder,
+                    index
+                  )
+                : index;
+
+            if (!productId) {
+              throw new AppError(
+                `Product ID is required at position ${
+                  index + 1
+                }.`,
+                400,
+                "COLLECTION_PRODUCT_ID_INVALID"
+              );
+            }
+
+            if (
+              suppliedSortOrder ===
+              null
+            ) {
+              throw new AppError(
+                `Sort order is invalid for product ${productId}.`,
+                400,
+                "COLLECTION_PRODUCT_SORT_ORDER_INVALID"
+              );
+            }
+
+            return {
+              productId,
+
+              sortOrder:
+                suppliedSortOrder,
+            };
+          }
+        );
+
+      const seenProductIds =
+        new Set();
+
+      for (
+        const assignment of
+        normalizedAssignments
+      ) {
+        if (
+          seenProductIds.has(
+            assignment.productId
+          )
+        ) {
+          throw new AppError(
+            "The same product cannot be assigned more than once.",
+            400,
+            "COLLECTION_PRODUCT_DUPLICATE"
+          );
+        }
+
+        seenProductIds.add(
+          assignment.productId
+        );
+      }
+
+      const uniqueProductIds =
+        normalizedAssignments.map(
+          (
+            assignment
+          ) =>
+            assignment.productId
+        );
+
+      if (
+        uniqueProductIds.length >
+        0
+      ) {
+        const products =
+          await db.Product.findAll({
+            where: {
+              id: {
+                [Op.in]:
+                  uniqueProductIds,
+              },
+
+              companyId,
+            },
+
+            attributes: [
+              "id",
+            ],
+
+            transaction,
+          });
+
+        if (
+          products.length !==
+          uniqueProductIds.length
+        ) {
+          const foundIds =
+            new Set(
+              products.map(
+                (
+                  product
+                ) =>
+                  product.id
+              )
+            );
+
+          const missingIds =
+            uniqueProductIds.filter(
+              (
+                productId
+              ) =>
+                !foundIds.has(
+                  productId
+                )
+            );
+
+          throw new AppError(
+            `One or more products were not found: ${missingIds.join(
+              ", "
+            )}`,
+            400,
+            "COLLECTION_PRODUCTS_NOT_FOUND"
+          );
+        }
+      }
+
+      await db.ProductCollection
+        .destroy({
+          where: {
+            companyId,
+            collectionId,
+          },
+
+          transaction,
+        });
+
+      if (
+        normalizedAssignments.length >
         0
       ) {
         await db.ProductCollection
           .bulkCreate(
-            productIds.map(
+            normalizedAssignments.map(
               (
-                productId,
-                index
+                assignment
               ) => ({
                 companyId,
-                collectionId:
-                  collection.id,
-                productId,
+                collectionId,
+
+                productId:
+                  assignment.productId,
+
                 sortOrder:
-                  index,
+                  assignment.sortOrder,
+
                 createdBy:
-                  userId ||
-                  collection.updatedBy ||
-                  collection.createdBy,
+                  userId,
+
                 updatedBy:
-                  userId ||
-                  collection.updatedBy ||
-                  collection.createdBy,
+                  userId,
               })
             ),
             {
@@ -452,2622 +3040,236 @@ const {
           );
       }
 
-      return {
-        assignedCount:
-          productIds.length,
-        productIds,
-      };
-    };
-
-  const ALLOWED_SORT_FIELDS =
-    new Set([
-      "name",
-      "slug",
-      "collectionType",
-      "sortOrder",
-      "isActive",
-      "isFeatured",
-      "showInMenu",
-      "showOnHome",
-      "publishedFrom",
-      "publishedUntil",
-      "createdAt",
-      "updatedAt",
-    ]);
-  
-  const COLLECTION_INCLUDE = [
-    {
-      model:
-        db.MediaAsset,
-  
-      as:
-        "thumbnailAsset",
-  
-      required:
-        false,
-  
-      include: [
+      await collection.update(
         {
-          model:
-            db.MediaAssetVariant,
-  
-          as:
-            "variants",
-  
-          required:
-            false,
-  
-          where: {
-            isActive:
-              true,
-          },
-  
-          attributes: [
-            "id",
-            "variantType",
-            "format",
-            "mimeType",
-            "width",
-            "height",
-            "publicUrl",
-            "isPrimary",
-          ],
-        },
-      ],
-    },
-  
-    {
-      model:
-        db.MediaAsset,
-  
-      as:
-        "bannerAsset",
-  
-      required:
-        false,
-  
-      include: [
-        {
-          model:
-            db.MediaAssetVariant,
-  
-          as:
-            "variants",
-  
-          required:
-            false,
-  
-          where: {
-            isActive:
-              true,
-          },
-  
-          attributes: [
-            "id",
-            "variantType",
-            "format",
-            "mimeType",
-            "width",
-            "height",
-            "publicUrl",
-            "isPrimary",
-          ],
-        },
-      ],
-    },
-  
-    {
-      model:
-        db.MediaAsset,
-  
-      as:
-        "mobileBannerAsset",
-  
-      required:
-        false,
-  
-      include: [
-        {
-          model:
-            db.MediaAssetVariant,
-  
-          as:
-            "variants",
-  
-          required:
-            false,
-  
-          where: {
-            isActive:
-              true,
-          },
-  
-          attributes: [
-            "id",
-            "variantType",
-            "format",
-            "mimeType",
-            "width",
-            "height",
-            "publicUrl",
-            "isPrimary",
-          ],
-        },
-      ],
-    },
-  
-    {
-      model:
-        db.CmsPage,
-  
-      as:
-        "landingPage",
-  
-      required:
-        false,
-  
-      attributes: [
-        "id",
-        "title",
-        "slug",
-        "status",
-      ],
-    },
-  
-    {
-      model:
-        db.User,
-  
-      as:
-        "createdByUser",
-  
-      required:
-        false,
-  
-      attributes: [
-        "id",
-        "firstName",
-        "lastName",
-        "email",
-      ],
-    },
-  
-    {
-      model:
-        db.User,
-  
-      as:
-        "updatedByUser",
-  
-      required:
-        false,
-  
-      attributes: [
-        "id",
-        "firstName",
-        "lastName",
-        "email",
-      ],
-    },
-  ];
-  
-  /*
-  |--------------------------------------------------------------------------
-  | Basic Helpers
-  |--------------------------------------------------------------------------
-  */
-  
-  const hasOwn = (
-    object,
-    field
-  ) =>
-    Object.prototype
-      .hasOwnProperty.call(
-        object,
-        field
-      );
-  
-  const normalizeNullable = (
-    value
-  ) => {
-    if (
-      value === undefined ||
-      value === null
-    ) {
-      return null;
-    }
-  
-    if (
-      typeof value ===
-      "string"
-    ) {
-      const normalized =
-        value.trim();
-  
-      return normalized ||
-        null;
-    }
-  
-    return value;
-  };
-  
-  const generateSlug = (
-    value
-  ) => {
-    return String(
-      value || ""
-    )
-      .trim()
-      .toLowerCase()
-      .normalize(
-        "NFD"
-      )
-      .replace(
-        /[\u0300-\u036f]/g,
-        ""
-      )
-      .replace(
-        /[^a-z0-9]+/g,
-        "-"
-      )
-      .replace(
-        /^-+|-+$/g,
-        ""
-      );
-  };
-  
-  const normalizeBoolean = (
-    value
-  ) => {
-    if (
-      typeof value ===
-      "boolean"
-    ) {
-      return value;
-    }
-  
-    if (
-      typeof value ===
-      "string"
-    ) {
-      const normalized =
-        value
-          .trim()
-          .toLowerCase();
-  
-      if (
-        [
-          "true",
-          "1",
-          "yes",
-        ].includes(
-          normalized
-        )
-      ) {
-        return true;
-      }
-  
-      if (
-        [
-          "false",
-          "0",
-          "no",
-        ].includes(
-          normalized
-        )
-      ) {
-        return false;
-      }
-    }
-  
-    return undefined;
-  };
-  
-  const normalizeNonNegativeInteger = (
-    value,
-    fallback = 0
-  ) => {
-    if (
-      value === undefined ||
-      value === null ||
-      value === ""
-    ) {
-      return fallback;
-    }
-  
-    const number =
-      Number(value);
-  
-    if (
-      !Number.isInteger(
-        number
-      ) ||
-      number < 0
-    ) {
-      return null;
-    }
-  
-    return number;
-  };
-  
-  const normalizeDate = (
-    value
-  ) => {
-    if (
-      value === undefined ||
-      value === null ||
-      value === ""
-    ) {
-      return null;
-    }
-  
-    const date =
-      new Date(value);
-  
-    if (
-      Number.isNaN(
-        date.getTime()
-      )
-    ) {
-      return undefined;
-    }
-  
-    return date;
-  };
-  
-  const normalizeCollectionType = (
-    value
-  ) => {
-    const normalized =
-      String(
-        value ||
-        "MANUAL"
-      )
-        .trim()
-        .toUpperCase();
-  
-    return COLLECTION_TYPES.includes(
-      normalized
-    )
-      ? normalized
-      : null;
-  };
-  
-  const normalizePageNumber = (
-    value,
-    fallback
-  ) => {
-    const number =
-      Number(value);
-  
-    return Number.isInteger(
-      number
-    ) &&
-      number > 0
-      ? number
-      : fallback;
-  };
-  
-  const normalizeSortDirection = (
-    value
-  ) => {
-    return String(
-      value ||
-      "ASC"
-    )
-      .trim()
-      .toUpperCase() ===
-      "DESC"
-      ? "DESC"
-      : "ASC";
-  };
-  
-  const normalizeSortField = (
-    value
-  ) => {
-    const sortField =
-      String(
-        value ||
-        "sortOrder"
-      ).trim();
-  
-    return ALLOWED_SORT_FIELDS.has(
-      sortField
-    )
-      ? sortField
-      : "sortOrder";
-  };
-  
-  /*
-  |--------------------------------------------------------------------------
-  | Validation Helpers
-  |--------------------------------------------------------------------------
-  */
-  
-  const validateCollectionType = (
-    collectionType
-  ) => {
-    if (
-      !collectionType
-    ) {
-      throw new AppError(
-        "Collection type must be MANUAL or SMART.",
-        400,
-        "COLLECTION_TYPE_INVALID"
-      );
-    }
-  };
-  
-  const validatePublishingPeriod = ({
-    publishedFrom,
-    publishedUntil,
-  }) => {
-    if (
-      publishedFrom ===
-      undefined
-    ) {
-      throw new AppError(
-        "Published From is invalid.",
-        400,
-        "COLLECTION_PUBLISHED_FROM_INVALID"
-      );
-    }
-  
-    if (
-      publishedUntil ===
-      undefined
-    ) {
-      throw new AppError(
-        "Published Until is invalid.",
-        400,
-        "COLLECTION_PUBLISHED_UNTIL_INVALID"
-      );
-    }
-  
-    if (
-      publishedFrom &&
-      publishedUntil &&
-      publishedUntil.getTime() <
-        publishedFrom.getTime()
-    ) {
-      throw new AppError(
-        "Published Until cannot be earlier than Published From.",
-        400,
-        "COLLECTION_PUBLISHING_PERIOD_INVALID"
-      );
-    }
-  };
-  
-  const validateImageAsset = async ({
-    companyId,
-    assetId,
-    fieldName,
-    transaction,
-  }) => {
-    if (!assetId) {
-      return null;
-    }
-  
-    const asset =
-      await db.MediaAsset
-        .findOne({
-          where: {
-            id:
-              assetId,
-  
-            companyId,
-  
-            isActive:
-              true,
-  
-            assetType:
-              "IMAGE",
-          },
-  
-          transaction,
-        });
-  
-    if (!asset) {
-      throw new AppError(
-        `${fieldName} image was not found.`,
-        400,
-        "COLLECTION_MEDIA_ASSET_INVALID"
-      );
-    }
-  
-    return asset;
-  };
-  
-  const validateLandingPage = async ({
-    companyId,
-    landingPageId,
-    transaction,
-  }) => {
-    if (!landingPageId) {
-      return null;
-    }
-  
-    const page =
-      await db.CmsPage.findOne({
-        where: {
-          id:
-            landingPageId,
-  
-          companyId,
-        },
-  
-        transaction,
-      });
-  
-    if (!page) {
-      throw new AppError(
-        "The selected landing page was not found.",
-        400,
-        "COLLECTION_LANDING_PAGE_INVALID"
-      );
-    }
-  
-    return page;
-  };
-  
-  const validateCollectionAssets =
-    async ({
-      companyId,
-      payload,
-      transaction,
-      partial = false,
-    }) => {
-      const assetFields = [
-        {
-          field:
-            "thumbnailAssetId",
-  
-          label:
-            "Collection thumbnail",
-        },
-  
-        {
-          field:
-            "bannerAssetId",
-  
-          label:
-            "Collection banner",
-        },
-  
-        {
-          field:
-            "mobileBannerAssetId",
-  
-          label:
-            "Collection mobile banner",
-        },
-      ];
-  
-      for (
-        const assetField of
-        assetFields
-      ) {
-        if (
-          partial &&
-          !hasOwn(
-            payload,
-            assetField.field
-          )
-        ) {
-          continue;
-        }
-  
-        await validateImageAsset({
-          companyId,
-  
-          assetId:
-            normalizeNullable(
-              payload[
-                assetField.field
-              ]
-            ),
-  
-          fieldName:
-            assetField.label,
-  
-          transaction,
-        });
-      }
-  
-      if (
-        !partial ||
-        hasOwn(
-          payload,
-          "landingPageId"
-        )
-      ) {
-        await validateLandingPage({
-          companyId,
-  
-          landingPageId:
-            normalizeNullable(
-              payload.landingPageId
-            ),
-  
-          transaction,
-        });
-      }
-    };
-  
-  const ensureUniqueCollection =
-    async ({
-      companyId,
-      slug,
-      excludeId,
-      transaction,
-    }) => {
-      const where = {
-        companyId,
-        slug,
-      };
-  
-      if (excludeId) {
-        where.id = {
-          [Op.ne]:
-            excludeId,
-        };
-      }
-  
-      const existing =
-        await db.Collection
-          .findOne({
-            where,
-            transaction,
-          });
-  
-      if (existing) {
-        throw new AppError(
-          "A collection with this slug already exists.",
-          409,
-          "COLLECTION_SLUG_EXISTS"
-        );
-      }
-    };
-  
-  /*
-  |--------------------------------------------------------------------------
-  | Product Count Helpers
-  |--------------------------------------------------------------------------
-  */
-  
-  const loadProductCounts = async ({
-    companyId,
-    collectionIds,
-    transaction,
-  }) => {
-    if (
-      !Array.isArray(
-        collectionIds
-      ) ||
-      collectionIds.length ===
-        0
-    ) {
-      return new Map();
-    }
-  
-    const rows =
-      await db.ProductCollection
-        .findAll({
-          where: {
-            companyId,
-  
-            collectionId: {
-              [Op.in]:
-                collectionIds,
-            },
-          },
-  
-          attributes: [
-            "collectionId",
-  
-            [
-              db.sequelize.fn(
-                "COUNT",
-                db.sequelize.col(
-                  "id"
-                )
-              ),
-              "productCount",
-            ],
-          ],
-  
-          group: [
-            "collectionId",
-          ],
-  
-          raw:
-            true,
-  
-          transaction,
-        });
-  
-    return new Map(
-      rows.map(
-        (
-          row
-        ) => [
-          row.collectionId,
-          Number(
-            row.productCount ||
-            0
-          ),
-        ]
-      )
-    );
-  };
-  
-  const attachProductCount = (
-    collection,
-    productCount
-  ) => {
-    if (!collection) {
-      return collection;
-    }
-  
-    collection.setDataValue(
-      "productCount",
-      Number(
-        productCount ||
-        0
-      )
-    );
-  
-    return collection;
-  };
-  
-  /*
-  |--------------------------------------------------------------------------
-  | Get Collection
-  |--------------------------------------------------------------------------
-  */
-  
-  const getCollectionById =
-    async ({
-      companyId,
-      collectionId,
-      transaction,
-    }) => {
-      const collection =
-        await db.Collection
-          .findOne({
-            where: {
-              id:
-                collectionId,
-  
-              companyId,
-            },
-  
-            include:
-              COLLECTION_INCLUDE,
-  
-            distinct:
-              true,
-  
-            transaction,
-          });
-  
-      if (!collection) {
-        throw new AppError(
-          "Collection not found.",
-          404,
-          "COLLECTION_NOT_FOUND"
-        );
-      }
-  
-      const productCount =
-        await db.ProductCollection
-          .count({
-            where: {
-              companyId,
-  
-              collectionId:
-                collection.id,
-            },
-  
-            transaction,
-          });
-  
-      return attachProductCount(
-        collection,
-        productCount
-      );
-    };
-  
-  /*
-  |--------------------------------------------------------------------------
-  | List Collections
-  |--------------------------------------------------------------------------
-  */
-  
-  const listCollections =
-    async ({
-      companyId,
-      page = 1,
-      pageSize = 30,
-      search,
-      isActive,
-      isFeatured,
-      showInMenu,
-      showOnHome,
-      collectionType,
-      published,
-      sortBy = "sortOrder",
-      sortDirection = "ASC",
-    }) => {
-      const normalizedPage =
-        normalizePageNumber(
-          page,
-          1
-        );
-  
-      const normalizedPageSize =
-        Math.min(
-          normalizePageNumber(
-            pageSize,
-            30
-          ),
-          200
-        );
-  
-      const normalizedSortBy =
-        normalizeSortField(
-          sortBy
-        );
-  
-      const normalizedDirection =
-        normalizeSortDirection(
-          sortDirection
-        );
-  
-      const where = {
-        companyId,
-      };
-  
-      const activeFilter =
-        normalizeBoolean(
-          isActive
-        );
-  
-      const featuredFilter =
-        normalizeBoolean(
-          isFeatured
-        );
-  
-      const menuFilter =
-        normalizeBoolean(
-          showInMenu
-        );
-  
-      const homeFilter =
-        normalizeBoolean(
-          showOnHome
-        );
-  
-      const publishedFilter =
-        normalizeBoolean(
-          published
-        );
-  
-      if (
-        activeFilter !==
-        undefined
-      ) {
-        where.isActive =
-          activeFilter;
-      }
-  
-      if (
-        featuredFilter !==
-        undefined
-      ) {
-        where.isFeatured =
-          featuredFilter;
-      }
-  
-      if (
-        menuFilter !==
-        undefined
-      ) {
-        where.showInMenu =
-          menuFilter;
-      }
-  
-      if (
-        homeFilter !==
-        undefined
-      ) {
-        where.showOnHome =
-          homeFilter;
-      }
-  
-      if (collectionType) {
-        const normalizedType =
-          normalizeCollectionType(
-            collectionType
-          );
-  
-        validateCollectionType(
-          normalizedType
-        );
-  
-        where.collectionType =
-          normalizedType;
-      }
-  
-      if (search) {
-        const normalizedSearch =
-          String(
-            search
-          ).trim();
-  
-        if (
-          normalizedSearch
-        ) {
-          where[Op.or] = [
-            {
-              name: {
-                [Op.iLike]:
-                  `%${normalizedSearch}%`,
-              },
-            },
-  
-            {
-              slug: {
-                [Op.iLike]:
-                  `%${normalizedSearch}%`,
-              },
-            },
-  
-            {
-              shortDescription: {
-                [Op.iLike]:
-                  `%${normalizedSearch}%`,
-              },
-            },
-  
-            {
-              description: {
-                [Op.iLike]:
-                  `%${normalizedSearch}%`,
-              },
-            },
-          ];
-        }
-      }
-  
-      if (
-        publishedFilter !==
-        undefined
-      ) {
-        const now =
-          new Date();
-  
-        const publishedConditions = [
-          {
-            [Op.or]: [
-              {
-                publishedFrom:
-                  null,
-              },
-  
-              {
-                publishedFrom: {
-                  [Op.lte]:
-                    now,
-                },
-              },
-            ],
-          },
-  
-          {
-            [Op.or]: [
-              {
-                publishedUntil:
-                  null,
-              },
-  
-              {
-                publishedUntil: {
-                  [Op.gte]:
-                    now,
-                },
-              },
-            ],
-          },
-        ];
-  
-        if (
-          publishedFilter ===
-          true
-        ) {
-          where[Op.and] = [
-            ...(where[Op.and] ||
-              []),
-  
-            {
-              isActive:
-                true,
-            },
-  
-            ...publishedConditions,
-          ];
-        } else {
-          where[Op.and] = [
-            ...(where[Op.and] ||
-              []),
-  
-            {
-              [Op.or]: [
-                {
-                  isActive:
-                    false,
-                },
-  
-                {
-                  publishedFrom: {
-                    [Op.gt]:
-                      now,
-                  },
-                },
-  
-                {
-                  publishedUntil: {
-                    [Op.lt]:
-                      now,
-                  },
-                },
-              ],
-            },
-          ];
-        }
-      }
-  
-      const offset =
-        (normalizedPage - 1) *
-        normalizedPageSize;
-  
-      const result =
-        await db.Collection
-          .findAndCountAll({
-            where,
-  
-            include:
-              COLLECTION_INCLUDE,
-  
-            distinct:
-              true,
-  
-            limit:
-              normalizedPageSize,
-  
-            offset,
-  
-            order: [
-              [
-                normalizedSortBy,
-                normalizedDirection,
-              ],
-  
-              [
-                "name",
-                "ASC",
-              ],
-            ],
-          });
-  
-      const collectionIds =
-        result.rows.map(
-          (
-            collection
-          ) =>
-            collection.id
-        );
-  
-      const productCountMap =
-        await loadProductCounts({
-          companyId,
-          collectionIds,
-        });
-  
-      for (
-        const collection of
-        result.rows
-      ) {
-        attachProductCount(
-          collection,
-          productCountMap.get(
-            collection.id
-          ) ||
-            0
-        );
-      }
-  
-      return {
-        rows:
-          result.rows,
-  
-        pagination: {
-          page:
-            normalizedPage,
-  
-          pageSize:
-            normalizedPageSize,
-  
-          totalItems:
-            result.count,
-  
-          totalPages:
-            Math.ceil(
-              result.count /
-                normalizedPageSize
-            ),
-        },
-      };
-    };
-  
-  /*
-  |--------------------------------------------------------------------------
-  | Create Collection
-  |--------------------------------------------------------------------------
-  */
-  
-  const createCollection =
-    async ({
-      companyId,
-      userId,
-      payload,
-    }) => {
-      const transaction =
-        await db.sequelize
-          .transaction();
-  
-      try {
-        const name =
-          String(
-            payload.name ||
-            ""
-          ).trim();
-  
-        if (!name) {
-          throw new AppError(
-            "Collection name is required.",
-            400,
-            "COLLECTION_NAME_REQUIRED"
-          );
-        }
-  
-        const slug =
-          generateSlug(
-            payload.slug ||
-            name
-          );
-  
-        if (!slug) {
-          throw new AppError(
-            "Collection slug could not be generated.",
-            400,
-            "COLLECTION_SLUG_REQUIRED"
-          );
-        }
-  
-        const collectionType =
-          normalizeCollectionType(
-            payload.collectionType
-          );
-  
-        validateCollectionType(
-          collectionType
-        );
-  
-        
-        const smartRules =
-          normalizeSmartRules(
-            payload.smartRules,
-            collectionType
-          );
-const sortOrder =
-          normalizeNonNegativeInteger(
-            payload.sortOrder,
-            0
-          );
-  
-        if (
-          sortOrder ===
-          null
-        ) {
-          throw new AppError(
-            "Sort order must be a non-negative whole number.",
-            400,
-            "COLLECTION_SORT_ORDER_INVALID"
-          );
-        }
-  
-        const publishedFrom =
-          normalizeDate(
-            payload.publishedFrom
-          );
-  
-        const publishedUntil =
-          normalizeDate(
-            payload.publishedUntil
-          );
-  
-        validatePublishingPeriod({
-          publishedFrom,
-          publishedUntil,
-        });
-  
-        await ensureUniqueCollection({
-          companyId,
-          slug,
-          transaction,
-        });
-  
-        await validateCollectionAssets({
-          companyId,
-          payload,
-          transaction,
-        });
-  
-        const collection =
-          await db.Collection
-            .create(
-              {
-                companyId,
-                name,
-                slug,
-  
-                description:
-                  normalizeNullable(
-                    payload.description
-                  ),
-  
-                shortDescription:
-                  normalizeNullable(
-                    payload.shortDescription
-                  ),
-  
-                collectionType,
-
-                smartRules,
-                sortOrder,
-  
-                thumbnailAssetId:
-                  normalizeNullable(
-                    payload.thumbnailAssetId
-                  ),
-  
-                bannerAssetId:
-                  normalizeNullable(
-                    payload.bannerAssetId
-                  ),
-  
-                mobileBannerAssetId:
-                  normalizeNullable(
-                    payload.mobileBannerAssetId
-                  ),
-  
-                landingPageId:
-                  normalizeNullable(
-                    payload.landingPageId
-                  ),
-  
-                isActive:
-                  payload.isActive !==
-                  false,
-  
-                isFeatured:
-                  payload.isFeatured ===
-                  true,
-  
-                showInMenu:
-                  payload.showInMenu ===
-                  true,
-  
-                showOnHome:
-                  payload.showOnHome ===
-                  true,
-  
-                isSearchable:
-                  payload.isSearchable !==
-                  false,
-  
-                showProductCount:
-                  payload.showProductCount !==
-                  false,
-  
-                publishedFrom,
-                publishedUntil,
-  
-                metaTitle:
-                  normalizeNullable(
-                    payload.metaTitle
-                  ),
-  
-                metaDescription:
-                  normalizeNullable(
-                    payload.metaDescription
-                  ),
-  
-                metaKeywords:
-                  normalizeNullable(
-                    payload.metaKeywords
-                  ),
-  
-                canonicalUrl:
-                  normalizeNullable(
-                    payload.canonicalUrl
-                  ),
-  
-                robotsIndex:
-                  payload.robotsIndex !==
-                  false,
-  
-                robotsFollow:
-                  payload.robotsFollow !==
-                  false,
-  
-                createdBy:
-                  userId,
-  
-                updatedBy:
-                  userId,
-              },
-              {
-                transaction,
-              }
-            );
-  
-                if (
-          collectionType ===
-          "SMART"
-        ) {
-          await syncSmartCollectionProducts({
-            companyId,
-            collection,
-            userId,
-            transaction,
-          });
-        }
-
-await transaction
-          .commit();
-  
-        return getCollectionById({
-          companyId,
-  
-          collectionId:
-            collection.id,
-        });
-      } catch (error) {
-        if (
-          !transaction.finished
-        ) {
-          await transaction
-            .rollback();
-        }
-  
-        throw error;
-      }
-    };
-  
-  /*
-  |--------------------------------------------------------------------------
-  | Update Collection
-  |--------------------------------------------------------------------------
-  */
-  
-  const updateCollection =
-    async ({
-      companyId,
-      collectionId,
-      userId,
-      payload,
-    }) => {
-      const transaction =
-        await db.sequelize
-          .transaction();
-  
-      try {
-        const collection =
-          await db.Collection
-            .findOne({
-              where: {
-                id:
-                  collectionId,
-  
-                companyId,
-              },
-  
-              transaction,
-  
-              lock:
-                transaction.LOCK
-                  .UPDATE,
-            });
-  
-        if (!collection) {
-          throw new AppError(
-            "Collection not found.",
-            404,
-            "COLLECTION_NOT_FOUND"
-          );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Preserve Original Collection Type
-        |--------------------------------------------------------------------------
-        |
-        | Capture the type before collection.update() so MANUAL -> MANUAL
-        | does not accidentally delete manually assigned products.
-        |--------------------------------------------------------------------------
-        */
-
-        const originalCollectionType =
-          String(
-            collection.collectionType ||
-              "MANUAL"
-          )
-            .trim()
-            .toUpperCase();
-  
-        const name =
-          hasOwn(
-            payload,
-            "name"
-          )
-            ? String(
-                payload.name ||
-                ""
-              ).trim()
-            : collection.name;
-  
-        if (!name) {
-          throw new AppError(
-            "Collection name is required.",
-            400,
-            "COLLECTION_NAME_REQUIRED"
-          );
-        }
-  
-        const slug =
-          hasOwn(
-            payload,
-            "slug"
-          )
-            ? generateSlug(
-                payload.slug ||
-                name
-              )
-            : collection.slug;
-  
-        if (!slug) {
-          throw new AppError(
-            "Collection slug could not be generated.",
-            400,
-            "COLLECTION_SLUG_REQUIRED"
-          );
-        }
-  
-        const collectionType =
-          hasOwn(
-            payload,
-            "collectionType"
-          )
-            ? normalizeCollectionType(
-                payload.collectionType
-              )
-            : collection.collectionType;
-  
-        validateCollectionType(
-          collectionType
-        );
-  
-        
-        const smartRules =
-          collectionType ===
-          "SMART"
-            ? normalizeSmartRules(
-                hasOwn(
-                  payload,
-                  "smartRules"
-                )
-                  ? payload.smartRules
-                  : collection.smartRules,
-                collectionType
-              )
-            : null;
-const sortOrder =
-          hasOwn(
-            payload,
-            "sortOrder"
-          )
-            ? normalizeNonNegativeInteger(
-                payload.sortOrder,
-                0
-              )
-            : collection.sortOrder;
-  
-        if (
-          sortOrder ===
-          null
-        ) {
-          throw new AppError(
-            "Sort order must be a non-negative whole number.",
-            400,
-            "COLLECTION_SORT_ORDER_INVALID"
-          );
-        }
-  
-        const publishedFrom =
-          hasOwn(
-            payload,
-            "publishedFrom"
-          )
-            ? normalizeDate(
-                payload.publishedFrom
-              )
-            : collection.publishedFrom;
-  
-        const publishedUntil =
-          hasOwn(
-            payload,
-            "publishedUntil"
-          )
-            ? normalizeDate(
-                payload.publishedUntil
-              )
-            : collection.publishedUntil;
-  
-        validatePublishingPeriod({
-          publishedFrom,
-          publishedUntil,
-        });
-  
-        await ensureUniqueCollection({
-          companyId,
-          slug,
-  
-          excludeId:
-            collection.id,
-  
-          transaction,
-        });
-  
-        await validateCollectionAssets({
-          companyId,
-          payload,
-          transaction,
-  
-          partial:
-            true,
-        });
-  
-        const updateValues = {
-          name,
-          slug,
-          collectionType,
-
-          smartRules,
-          sortOrder,
-          publishedFrom,
-          publishedUntil,
-  
           updatedBy:
             userId,
-        };
-  
-        const nullableFields = [
-          "description",
-          "shortDescription",
-          "thumbnailAssetId",
-          "bannerAssetId",
-          "mobileBannerAssetId",
-          "landingPageId",
-          "metaTitle",
-          "metaDescription",
-          "metaKeywords",
-          "canonicalUrl",
-        ];
-  
-        for (
-          const field of
-          nullableFields
-        ) {
-          if (
-            hasOwn(
-              payload,
-              field
-            )
-          ) {
-            updateValues[field] =
-              normalizeNullable(
-                payload[field]
-              );
-          }
-        }
-  
-        const booleanFields = [
-          "isActive",
-          "isFeatured",
-          "showInMenu",
-          "showOnHome",
-          "isSearchable",
-          "showProductCount",
-          "robotsIndex",
-          "robotsFollow",
-        ];
-  
-        for (
-          const field of
-          booleanFields
-        ) {
-          if (
-            hasOwn(
-              payload,
-              field
-            )
-          ) {
-            const booleanValue =
-              normalizeBoolean(
-                payload[field]
-              );
-  
-            if (
-              booleanValue ===
-              undefined
-            ) {
-              throw new AppError(
-                `${field} must be true or false.`,
-                400,
-                "COLLECTION_BOOLEAN_INVALID"
-              );
-            }
-  
-            updateValues[field] =
-              booleanValue;
-          }
-        }
-  
-        await collection.update(
-          updateValues,
-          {
-            transaction,
-          }
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Maintain Collection Product Assignments
-        |--------------------------------------------------------------------------
-        |
-        | MANUAL -> MANUAL
-        |   Preserve manually assigned ProductCollection rows.
-        |
-        | SMART -> SMART
-        |   Refresh assignments from smart rules.
-        |
-        | MANUAL -> SMART
-        |   syncSmartCollectionProducts() replaces the previous assignments
-        |   with products resolved from the smart rules.
-        |
-        | SMART -> MANUAL
-        |   Remove automatically generated smart assignments. Products can
-        |   then be assigned manually through the Products tab.
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-          collection.collectionType ===
-          "SMART"
-        ) {
-          await syncSmartCollectionProducts({
-            companyId,
-            collection,
-            userId,
-            transaction,
-          });
-        } else if (
-          originalCollectionType ===
-            "SMART" &&
-          collection.collectionType ===
-            "MANUAL"
-        ) {
-          await db.ProductCollection
-            .destroy({
-              where: {
-                companyId,
-
-                collectionId:
-                  collection.id,
-              },
-
-              transaction,
-            });
-        }
-
-        /*
-         * MANUAL -> MANUAL intentionally does nothing here.
-         * Existing manual ProductCollection assignments are preserved.
-         */
-
-  
-        await transaction
-          .commit();
-  
-        return getCollectionById({
-          companyId,
-  
-          collectionId:
-            collection.id,
-        });
-      } catch (error) {
-        if (
-          !transaction.finished
-        ) {
-          await transaction
-            .rollback();
-        }
-  
-        throw error;
-      }
-    };
-  
-  /*
-  |--------------------------------------------------------------------------
-  | Change Status
-  |--------------------------------------------------------------------------
-  */
-  
-  const changeCollectionStatus =
-    async ({
-      companyId,
-      collectionId,
-      userId,
-      isActive,
-    }) => {
-      const normalizedStatus =
-        normalizeBoolean(
-          isActive
-        );
-  
-      if (
-        normalizedStatus ===
-        undefined
-      ) {
-        throw new AppError(
-          "isActive must be true or false.",
-          400,
-          "COLLECTION_STATUS_INVALID"
-        );
-      }
-  
-      const collection =
-        await db.Collection
-          .findOne({
-            where: {
-              id:
-                collectionId,
-  
-              companyId,
-            },
-          });
-  
-      if (!collection) {
-        throw new AppError(
-          "Collection not found.",
-          404,
-          "COLLECTION_NOT_FOUND"
-        );
-      }
-  
-      await collection.update({
-        isActive:
-          normalizedStatus,
-  
-        updatedBy:
-          userId,
-      });
-  
-      return getCollectionById({
-        companyId,
-        collectionId,
-      });
-    };
-  
-  /*
-  |--------------------------------------------------------------------------
-  | Get Collection Products
-  |--------------------------------------------------------------------------
-  */
-  
-  const getCollectionProducts =
-    async ({
-      companyId,
-      collectionId,
-      page = 1,
-      pageSize = 50,
-      search,
-      status,
-    }) => {
-      const collection =
-        await db.Collection
-          .findOne({
-            where: {
-              id:
-                collectionId,
-  
-              companyId,
-            },
-  
-            attributes: [
-              "id",
-              "name",
-              "slug",
-              "collectionType",
-              "smartRules",
-              "isActive",
-              "createdBy",
-              "updatedBy",
-            ],
-          });
-  
-      if (!collection) {
-        throw new AppError(
-          "Collection not found.",
-          404,
-          "COLLECTION_NOT_FOUND"
-        );
-      }
-  
-            if (
-        collection.collectionType ===
-        "SMART"
-      ) {
-        await syncSmartCollectionProducts({
-          companyId,
-          collection,
-          userId:
-            collection.updatedBy ||
-            collection.createdBy,
-        });
-      }
-
-const normalizedPage =
-        normalizePageNumber(
-          page,
-          1
-        );
-  
-      const normalizedPageSize =
-        Math.min(
-          normalizePageNumber(
-            pageSize,
-            50
-          ),
-          200
-        );
-  
-      const productWhere = {
-        companyId,
-      };
-  
-      if (search) {
-        const normalizedSearch =
-          String(
-            search
-          ).trim();
-  
-        if (
-          normalizedSearch
-        ) {
-          productWhere[Op.or] = [
-            {
-              name: {
-                [Op.iLike]:
-                  `%${normalizedSearch}%`,
-              },
-            },
-  
-            {
-              parentSku: {
-                [Op.iLike]:
-                  `%${normalizedSearch}%`,
-              },
-            },
-  
-            {
-              slug: {
-                [Op.iLike]:
-                  `%${normalizedSearch}%`,
-              },
-            },
-          ];
-        }
-      }
-  
-      if (status) {
-        productWhere.status =
-          String(
-            status
-          )
-            .trim()
-            .toUpperCase();
-      }
-  
-      const offset =
-        (normalizedPage - 1) *
-        normalizedPageSize;
-  
-      const result =
-        await db.ProductCollection
-          .findAndCountAll({
-            where: {
-              companyId,
-              collectionId,
-            },
-  
-            include: [
-              {
-                model:
-                  db.Product,
-  
-                as:
-                  "product",
-  
-                required:
-                  true,
-  
-                where:
-                  productWhere,
-  
-                attributes: [
-                  "id",
-                  "name",
-                  "parentSku",
-                  "slug",
-                  "status",
-                  "brandId",
-                  "primaryCategoryId",
-                  "productType",
-                  "updatedAt",
-                ],
-  
-                include: [
-                  {
-                    model:
-                      db.Brand,
-  
-                    as:
-                      "brand",
-  
-                    required:
-                      false,
-  
-                    attributes: [
-                      "id",
-                      "name",
-                      "slug",
-                    ],
-                  },
-  
-                  {
-                    model:
-                      db.Category,
-  
-                    as:
-                      "primaryCategory",
-  
-                    required:
-                      false,
-  
-                    attributes: [
-                      "id",
-                      "name",
-                      "slug",
-                    ],
-                  },
-  
-                  {
-                    model:
-                      db.ProductImage,
-                  
-                    as:
-                      "images",
-                  
-                    required:
-                      false,
-                  
-                    separate:
-                      true,
-                  
-                    limit:
-                      1,
-                  
-                    order: [
-                      [
-                        "displayOrder",
-                        "ASC",
-                      ],
-                    ],
-                  
-                    include: [
-                      {
-                        model:
-                          db.MediaAsset,
-                  
-                        as:
-                          "mediaAsset",
-                  
-                        required:
-                          false,
-                  
-                        attributes: [
-                          "id",
-                          "publicUrl",
-                          "originalFileName",
-                        ],
-                      },
-                    ],
-                  }
-                ],
-              },
-            ],
-  
-            distinct:
-              true,
-  
-            limit:
-              normalizedPageSize,
-  
-            offset,
-  
-            order: [
-              [
-                "sortOrder",
-                "ASC",
-              ],
-  
-              [
-                "createdAt",
-                "ASC",
-              ],
-            ],
-          });
-  
-      return {
-        collection,
-  
-        rows:
-          result.rows,
-  
-        pagination: {
-          page:
-            normalizedPage,
-  
-          pageSize:
-            normalizedPageSize,
-  
-          totalItems:
-            result.count,
-  
-          totalPages:
-            Math.ceil(
-              result.count /
-                normalizedPageSize
-            ),
         },
-      };
-    };
-  
-  /*
-  |--------------------------------------------------------------------------
-  | Replace Collection Products
-  |--------------------------------------------------------------------------
-  */
-  
-  const replaceCollectionProducts =
-    async ({
-      companyId,
-      collectionId,
-      userId,
-      productIds,
-    }) => {
-      if (
-        !Array.isArray(
-          productIds
-        )
-      ) {
-        throw new AppError(
-          "productIds must be an array.",
-          400,
-          "COLLECTION_PRODUCT_IDS_REQUIRED"
-        );
-      }
-  
-      const transaction =
-        await db.sequelize
-          .transaction();
-  
-      try {
-        const collection =
-          await db.Collection
-            .findOne({
-              where: {
-                id:
-                  collectionId,
-  
-                companyId,
-              },
-  
-              transaction,
-  
-              lock:
-                transaction.LOCK
-                  .UPDATE,
-            });
-  
-        if (!collection) {
-          throw new AppError(
-            "Collection not found.",
-            404,
-            "COLLECTION_NOT_FOUND"
-          );
+        {
+          transaction,
         }
-  
-        if (
-          collection.collectionType ===
-          "SMART"
-        ) {
-          throw new AppError(
-            "Products cannot be assigned manually to a smart collection.",
-            409,
-            "SMART_COLLECTION_MANUAL_ASSIGNMENT_NOT_ALLOWED"
-          );
-        }
-  
-        /*
-         * Accept either:
-         *
-         * ["uuid-1", "uuid-2"]
-         *
-         * or:
-         *
-         * [
-         *   {
-         *     productId: "uuid-1",
-         *     sortOrder: 0
-         *   }
-         * ]
-         */
-  
-        const normalizedAssignments =
-          productIds.map(
-            (
-              item,
-              index
-            ) => {
-              const productId =
-                typeof item ===
-                "string"
-                  ? item.trim()
-                  : String(
-                      item?.productId ||
-                      item?.id ||
-                      ""
-                    ).trim();
-  
-              const suppliedSortOrder =
-                typeof item ===
-                "object" &&
-                item !==
-                  null &&
-                hasOwn(
-                  item,
-                  "sortOrder"
-                )
-                  ? normalizeNonNegativeInteger(
-                      item.sortOrder,
-                      index
-                    )
-                  : index;
-  
-              if (!productId) {
-                throw new AppError(
-                  `Product ID is required at position ${
-                    index + 1
-                  }.`,
-                  400,
-                  "COLLECTION_PRODUCT_ID_INVALID"
-                );
-              }
-  
-              if (
-                suppliedSortOrder ===
-                null
-              ) {
-                throw new AppError(
-                  `Sort order is invalid for product ${productId}.`,
-                  400,
-                  "COLLECTION_PRODUCT_SORT_ORDER_INVALID"
-                );
-              }
-  
-              return {
-                productId,
-  
-                sortOrder:
-                  suppliedSortOrder,
-              };
-            }
-          );
-  
-        const seenProductIds =
-          new Set();
-  
-        for (
-          const assignment of
-          normalizedAssignments
-        ) {
-          if (
-            seenProductIds.has(
-              assignment.productId
-            )
-          ) {
-            throw new AppError(
-              "The same product cannot be assigned more than once.",
-              400,
-              "COLLECTION_PRODUCT_DUPLICATE"
-            );
-          }
-  
-          seenProductIds.add(
-            assignment.productId
-          );
-        }
-  
-        const uniqueProductIds =
+      );
+
+      await transaction
+        .commit();
+
+      return {
+        collection:
+          await getCollectionById({
+            companyId,
+            collectionId,
+          }),
+
+        assignedCount:
+          normalizedAssignments.length,
+
+        productIds:
           normalizedAssignments.map(
             (
               assignment
             ) =>
               assignment.productId
-          );
-  
-        if (
-          uniqueProductIds.length >
-          0
-        ) {
-          const products =
-            await db.Product.findAll({
-              where: {
-                id: {
-                  [Op.in]:
-                    uniqueProductIds,
-                },
-  
-                companyId,
-              },
-  
-              attributes: [
-                "id",
-              ],
-  
-              transaction,
-            });
-  
-          if (
-            products.length !==
-            uniqueProductIds.length
-          ) {
-            const foundIds =
-              new Set(
-                products.map(
-                  (
-                    product
-                  ) =>
-                    product.id
-                )
-              );
-  
-            const missingIds =
-              uniqueProductIds.filter(
-                (
-                  productId
-                ) =>
-                  !foundIds.has(
-                    productId
-                  )
-              );
-  
-            throw new AppError(
-              `One or more products were not found: ${missingIds.join(
-                ", "
-              )}`,
-              400,
-              "COLLECTION_PRODUCTS_NOT_FOUND"
-            );
-          }
+          ),
+      };
+    } catch (error) {
+      if (
+        !transaction.finished
+      ) {
+        await transaction
+          .rollback();
+      }
+
+      throw error;
+    }
+  };
+
+  const refreshSmartCollection =
+  async ({
+    companyId,
+    collectionId,
+    userId,
+  }) => {
+    const transaction =
+      await db.sequelize
+        .transaction();
+
+    try {
+      const collection =
+        await db.Collection
+          .findOne({
+            where: {
+              id:
+                collectionId,
+              companyId,
+            },
+            transaction,
+            lock:
+              transaction.LOCK
+                .UPDATE,
+          });
+
+      if (!collection) {
+        throw new AppError(
+          "Collection not found.",
+          404,
+          "COLLECTION_NOT_FOUND"
+        );
+      }
+
+      if (
+        collection.collectionType !==
+        "SMART"
+      ) {
+        throw new AppError(
+          "Only SMART collections can be refreshed.",
+          409,
+          "COLLECTION_NOT_SMART"
+        );
+      }
+
+      const result =
+        await syncSmartCollectionProducts({
+          companyId,
+          collection,
+          userId,
+          transaction,
+        });
+
+      await collection.update(
+        {
+          updatedBy:
+            userId,
+        },
+        {
+          transaction,
         }
-  
+      );
+
+      await transaction
+        .commit();
+
+      return {
+        collection:
+          await getCollectionById({
+            companyId,
+            collectionId,
+          }),
+        ...result,
+      };
+    } catch (error) {
+      if (
+        !transaction.finished
+      ) {
+        await transaction
+          .rollback();
+      }
+
+      throw error;
+    }
+  };
+
+/*
+|--------------------------------------------------------------------------
+| Delete Collection
+|--------------------------------------------------------------------------
+*/
+
+const deleteCollection =
+  async ({
+    companyId,
+    collectionId,
+  }) => {
+    const transaction =
+      await db.sequelize
+        .transaction();
+
+    try {
+      const collection =
+        await db.Collection
+          .findOne({
+            where: {
+              id:
+                collectionId,
+
+              companyId,
+            },
+
+            transaction,
+
+            lock:
+              transaction.LOCK
+                .UPDATE,
+          });
+
+      if (!collection) {
+        throw new AppError(
+          "Collection not found.",
+          404,
+          "COLLECTION_NOT_FOUND"
+        );
+      }
+
+      const productCount =
         await db.ProductCollection
-          .destroy({
+          .count({
             where: {
               companyId,
               collectionId,
             },
-  
-            transaction,
-          });
-  
-        if (
-          normalizedAssignments.length >
-          0
-        ) {
-          await db.ProductCollection
-            .bulkCreate(
-              normalizedAssignments.map(
-                (
-                  assignment
-                ) => ({
-                  companyId,
-                  collectionId,
-  
-                  productId:
-                    assignment.productId,
-  
-                  sortOrder:
-                    assignment.sortOrder,
-  
-                  createdBy:
-                    userId,
-  
-                  updatedBy:
-                    userId,
-                })
-              ),
-              {
-                transaction,
-              }
-            );
-        }
-  
-        await collection.update(
-          {
-            updatedBy:
-              userId,
-          },
-          {
-            transaction,
-          }
-        );
-  
-        await transaction
-          .commit();
-  
-        return {
-          collection:
-            await getCollectionById({
-              companyId,
-              collectionId,
-            }),
-  
-          assignedCount:
-            normalizedAssignments.length,
-  
-          productIds:
-            normalizedAssignments.map(
-              (
-                assignment
-              ) =>
-                assignment.productId
-            ),
-        };
-      } catch (error) {
-        if (
-          !transaction.finished
-        ) {
-          await transaction
-            .rollback();
-        }
-  
-        throw error;
-      }
-    };
-  
-    const refreshSmartCollection =
-    async ({
-      companyId,
-      collectionId,
-      userId,
-    }) => {
-      const transaction =
-        await db.sequelize
-          .transaction();
 
-      try {
-        const collection =
-          await db.Collection
-            .findOne({
-              where: {
-                id:
-                  collectionId,
-                companyId,
-              },
-              transaction,
-              lock:
-                transaction.LOCK
-                  .UPDATE,
-            });
-
-        if (!collection) {
-          throw new AppError(
-            "Collection not found.",
-            404,
-            "COLLECTION_NOT_FOUND"
-          );
-        }
-
-        if (
-          collection.collectionType !==
-          "SMART"
-        ) {
-          throw new AppError(
-            "Only SMART collections can be refreshed.",
-            409,
-            "COLLECTION_NOT_SMART"
-          );
-        }
-
-        const result =
-          await syncSmartCollectionProducts({
-            companyId,
-            collection,
-            userId,
             transaction,
           });
 
-        await collection.update(
-          {
-            updatedBy:
-              userId,
-          },
-          {
-            transaction,
-          }
+      if (
+        productCount > 0
+      ) {
+        throw new AppError(
+          "This collection contains products and cannot be deleted. Remove the products first or deactivate the collection.",
+          409,
+          "COLLECTION_IN_USE"
         );
-
-        await transaction
-          .commit();
-
-        return {
-          collection:
-            await getCollectionById({
-              companyId,
-              collectionId,
-            }),
-          ...result,
-        };
-      } catch (error) {
-        if (
-          !transaction.finished
-        ) {
-          await transaction
-            .rollback();
-        }
-
-        throw error;
       }
-    };
+
+      await collection.destroy({
+        transaction,
+      });
+
+      await transaction
+        .commit();
+
+      return {
+        id:
+          collectionId,
+      };
+    } catch (error) {
+      if (
+        !transaction.finished
+      ) {
+        await transaction
+          .rollback();
+      }
+
+      throw error;
+    }
+  };
 
 /*
-  |--------------------------------------------------------------------------
-  | Delete Collection
-  |--------------------------------------------------------------------------
-  */
-  
-  const deleteCollection =
-    async ({
-      companyId,
-      collectionId,
-    }) => {
-      const transaction =
-        await db.sequelize
-          .transaction();
-  
-      try {
-        const collection =
-          await db.Collection
-            .findOne({
-              where: {
-                id:
-                  collectionId,
-  
-                companyId,
-              },
-  
-              transaction,
-  
-              lock:
-                transaction.LOCK
-                  .UPDATE,
-            });
-  
-        if (!collection) {
-          throw new AppError(
-            "Collection not found.",
-            404,
-            "COLLECTION_NOT_FOUND"
-          );
-        }
-  
-        const productCount =
-          await db.ProductCollection
-            .count({
-              where: {
-                companyId,
-                collectionId,
-              },
-  
-              transaction,
-            });
-  
-        if (
-          productCount > 0
-        ) {
-          throw new AppError(
-            "This collection contains products and cannot be deleted. Remove the products first or deactivate the collection.",
-            409,
-            "COLLECTION_IN_USE"
-          );
-        }
-  
-        await collection.destroy({
-          transaction,
-        });
-  
-        await transaction
-          .commit();
-  
-        return {
-          id:
-            collectionId,
-        };
-      } catch (error) {
-        if (
-          !transaction.finished
-        ) {
-          await transaction
-            .rollback();
-        }
-  
-        throw error;
-      }
-    };
-  
-  /*
-  |--------------------------------------------------------------------------
-  | Exports
-  |--------------------------------------------------------------------------
-  */
-  
-  module.exports = {
-    listCollections,
-    getCollectionById,
-    createCollection,
-    updateCollection,
-    changeCollectionStatus,
-    deleteCollection,
-    getCollectionProducts,
-    replaceCollectionProducts,
-    refreshSmartCollection,
-    syncSmartCollectionProducts,
-    validateCollectionAssets,
-    ensureUniqueCollection,
-  };
+|--------------------------------------------------------------------------
+| Exports
+|--------------------------------------------------------------------------
+*/
+
+module.exports = {
+  listCollections,
+  getCollectionById,
+  createCollection,
+  updateCollection,
+  changeCollectionStatus,
+  deleteCollection,
+  getCollectionProducts,
+  replaceCollectionProducts,
+  refreshSmartCollection,
+  syncSmartCollectionProducts,
+  validateCollectionAssets,
+  ensureUniqueCollection,
+};
