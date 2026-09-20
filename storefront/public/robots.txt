@@ -1,0 +1,122 @@
+# robots.txt for https://myshops.ae/
+# Last updated: 2026-09-20
+
+# ---------------------------------------------------------------
+# Default rules for all crawlers
+# ---------------------------------------------------------------
+User-agent: *
+Allow: /
+
+# Transactional & private pages — no SEO value, keep out of the index
+Disallow: /cart
+Disallow: /cart/
+Disallow: /checkout
+Disallow: /checkout/
+Disallow: /account
+Disallow: /account/
+Disallow: /wishlist
+Disallow: /api/
+Disallow: /_next/static/chunks/
+Disallow: /*/thank-you$
+Disallow: /*/order-confirmation$
+
+# Internal search results — infinite, low-value URL space
+Disallow: /search
+Disallow: /*?q=
+Disallow: /*?query=
+Disallow: /*&q=
+
+# Faceted navigation — prevents duplicate/near-duplicate crawl traps.
+# Pagination (?page=) is intentionally left crawlable so deep
+# category and brand listings can still be discovered.
+Disallow: /*?sort=
+Disallow: /*&sort=
+Disallow: /*?brand=
+Disallow: /*&brand=
+Disallow: /*?price=
+Disallow: /*&price=
+Disallow: /*?minPrice=
+Disallow: /*&minPrice=
+Disallow: /*?maxPrice=
+Disallow: /*&maxPrice=
+Disallow: /*?storage=
+Disallow: /*&storage=
+Disallow: /*?version=
+Disallow: /*&version=
+Disallow: /*?colour=
+Disallow: /*&colour=
+Disallow: /*?color=
+Disallow: /*&color=
+Disallow: /*?filter=
+Disallow: /*&filter=
+
+# Tracking parameters — avoid duplicate URLs from ad & email campaigns
+Disallow: /*?utm_
+Disallow: /*&utm_
+Disallow: /*?gclid=
+Disallow: /*&gclid=
+Disallow: /*?fbclid=
+Disallow: /*&fbclid=
+
+# Let bots fetch the assets needed to render pages correctly
+Allow: /_next/
+Allow: /*.js$
+Allow: /*.css$
+Allow: /*.avif$
+Allow: /*.webp$
+Allow: /*.png$
+Allow: /*.jpg$
+Allow: /*.svg$
+
+# ---------------------------------------------------------------
+# Search engines — image crawling for product photos
+# ---------------------------------------------------------------
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# ---------------------------------------------------------------
+# Aggressive SEO crawlers — throttle to protect server resources.
+# Change Disallow: / if you use these tools for your own audits.
+# ---------------------------------------------------------------
+User-agent: AhrefsBot
+Crawl-delay: 10
+
+User-agent: SemrushBot
+Crawl-delay: 10
+
+User-agent: MJ12bot
+Crawl-delay: 10
+
+User-agent: DotBot
+Crawl-delay: 10
+
+# ---------------------------------------------------------------
+# Uncomment to opt out of AI training crawlers.
+# Note: blocking these can also remove MyShops from AI shopping
+# answers, so this is a business decision, not a purely technical one.
+# ---------------------------------------------------------------
+# User-agent: GPTBot
+# Disallow: /
+#
+# User-agent: CCBot
+# Disallow: /
+#
+# User-agent: ClaudeBot
+# Disallow: /
+#
+# User-agent: Google-Extended
+# Disallow: /
+#
+# User-agent: Bytespider
+# Disallow: /
+
+# ---------------------------------------------------------------
+# Sitemap
+# ---------------------------------------------------------------
+Sitemap: https://myshops.ae/sitemap.xml

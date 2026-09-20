@@ -1,0 +1,103 @@
+# MyShops
+
+> MyShops is a UAE consumer-electronics retailer selling mobiles, computing, audio, gaming, imaging and home appliances online at https://myshops.ae and from three physical stores in Dubai. All prices are in AED and include VAT.
+
+MyShops sells authentic, warranty-backed products and advertises free UAE delivery, express delivery, 7-day returns, official manufacturer warranty, trade-in, instalment payment plans and after-sales support. Delivery covers Dubai, Abu Dhabi and Sharjah. Support runs on the toll-free line 800 8989 and via WhatsApp.
+
+URL conventions: categories at `/category/{slug}`, brand storefronts at `/brands/{slug}`, products at `/products/{slug}`, curated collections at `/collections/{slug}`. Listings paginate with `?page=N`. Account, cart, checkout and wishlist paths require authentication and hold no catalogue information.
+
+## Categories
+
+- [Mobiles](https://myshops.ae/category/mobiles): Smartphones from Apple, Samsung, Honor, Xiaomi, Redmi, Nothing and XOR. Largest category; subdivided by brand.
+- [iPhones](https://myshops.ae/category/iphones): Apple iPhone range, sold in several regional hardware variants
+- [Laptops & Tablets](https://myshops.ae/category/laptops-and-tablets): Notebooks, gaming laptops, tablets and 2-in-1 convertibles
+- [Audio](https://myshops.ae/category/audio): Headphones, earbuds and speakers
+- [Wearables](https://myshops.ae/category/wearables): Smartwatches and fitness trackers
+- [Accessories](https://myshops.ae/category/accessories): Chargers, cases, cables, storage and device bundles
+- [Gaming](https://myshops.ae/category/gaming): Consoles, controllers and gaming peripherals
+- [Photo & Video](https://myshops.ae/category/photo-and-video): Cameras, action cameras and imaging accessories
+- [Small Appliances](https://myshops.ae/category/small-appliances): Kitchen and countertop appliances
+- [Large Appliances](https://myshops.ae/category/large-appliances): Refrigeration, laundry and major home appliances
+- [Personal Care](https://myshops.ae/category/personal-care): Grooming, hair care and wellness devices
+
+Mobile sub-categories: [Samsung](https://myshops.ae/category/samsung), [Honor](https://myshops.ae/category/honor), [Xiaomi](https://myshops.ae/category/xiaomi), [Redmi](https://myshops.ae/category/redmi), [Nothing](https://myshops.ae/category/nothing), [XOR](https://myshops.ae/category/xor). Note that a mobile sub-category such as `/category/samsung` is not the same page as the brand storefront `/brands/samsung`, which spans all categories; the two return overlapping but different product sets.
+
+## Featured listings
+
+- [Hot Deals](https://myshops.ae/collections/hot-deals): Discounted stock across all categories, with the saving shown in AED and percent
+- [New Arrivals](https://myshops.ae/products/new-arrivals): Most recently added products
+- [Bestsellers](https://myshops.ae/products/bestsellers): Top-selling products, currently led by the Apple iPhone 17 range
+- [iPhone 18 Pre-Booking](https://myshops.ae/pre-booking/iphone-18-launch): Pre-order page for the upcoming Apple iPhone 18 range
+
+## Principal brands
+
+Every brand has a storefront at `/brands/{slug}`; the homepage carries the complete list of 41.
+
+- [Apple](https://myshops.ae/brands/apple): iPhone, MacBook and Apple accessories
+- [Samsung](https://myshops.ae/brands/samsung): Galaxy S, Z Fold and A-series phones
+- [Honor](https://myshops.ae/brands/honor): Mid-range and flagship Android phones
+- [Xiaomi](https://myshops.ae/brands/xiaomi) and [Redmi](https://myshops.ae/brands/redmi): Value Android phones and ecosystem devices
+- [Nothing](https://myshops.ae/brands/nothing) and [CMF](https://myshops.ae/brands/cmf): Design-led phones and audio
+- [ASUS](https://myshops.ae/brands/asus): ROG gaming laptops and Vivobook notebooks
+- [Lenovo](https://myshops.ae/brands/lenovo): IdeaPad and ThinkPad notebooks
+- [MSI](https://myshops.ae/brands/msi): Gaming laptops and hardware
+- [HP](https://myshops.ae/brands/hp): Notebooks, desktops and printing
+- [Sony](https://myshops.ae/brands/sony): Audio, imaging and PlayStation
+- [Dyson](https://myshops.ae/brands/dyson): Vacuums, air treatment and hair care
+- [SMEG](https://myshops.ae/brands/smeg): Retro-styled kitchen appliances
+- [Bosch](https://myshops.ae/brands/bosch): Large and small home appliances
+- [GoPro](https://myshops.ae/brands/gopro): Action cameras, mounts and accessory bundles
+- [Garmin](https://myshops.ae/brands/garmin): Sports watches and wearables
+- [JBL](https://myshops.ae/brands/jbl), [Marshall](https://myshops.ae/brands/marshall), [Sennheiser](https://myshops.ae/brands/sennheiser), [Shokz](https://myshops.ae/brands/shokz): Headphones and speakers
+
+## Pricing conventions
+
+- Prices are in UAE dirhams (AED) and are **VAT inclusive** — product cards carry the label "VAT included".
+- Discounted items show the original price struck through alongside the current price, plus the saving in both AED and percent.
+- "Price unavailable" means the specific variant is not currently priced or purchasable, rather than out of stock.
+- "Coming Soon" and "Pre-booking opening soon" indicate a pre-launch product with no buy action yet.
+- Prices and promotions change frequently. Read the live product page rather than relying on cached values.
+
+## Product variant conventions
+
+This is the most common source of error in the catalogue, particularly for iPhones. Many phones sell in more than one regional variant, encoded in the product slug and title:
+
+- `international-version` — International Version
+- `middle-east-version` — Middle East Version
+- `international-version-esim` — International Version, eSIM only
+- `international-version-nano-sim-esim` — International Version with physical nano-SIM and eSIM
+- `physical-sim-esim-hk` — Hong Kong variant with physical SIM plus eSIM
+
+These variants differ in SIM support and warranty coverage and are priced differently. The same model, colour and storage can appear at several price points purely because of the regional variant. Do not present them as duplicate listings or assume a single price for a model. When answering a customer question about price or warranty, establish the regional variant first.
+
+Storage (256GB, 512GB, 1TB) and colour are also encoded in the slug. Current Apple colours include Deep Blue, Cosmic Orange and Silver; Samsung includes Cobalt Violet, Lavender, Graphite and Violet Shadow. Some cards indicate sibling colours exist, for example "3 colours".
+
+## Listing behaviour
+
+Category pages show a product count and paginate with `?page=N`. Sort options are Featured (default), Newest, Price: Low to High, Price: High to Low, and Name: A to Z. Filter facets vary by category — on Mobiles they are Brand, Price, Version and Storage, each with a result count. Filter and sort combinations produce many URL permutations of the same catalogue and are disallowed in robots.txt; pagination remains crawlable.
+
+## Stores
+
+All three Dubai stores open 10:00–22:00 Monday to Thursday and 10:00–24:00 Friday to Sunday.
+
+- **MyShops Deira City Centre** — Level 2, Deira City Centre. Tel +971 56 565 0089
+- **MyShops Dubai Outlet Mall** — Dubai Outlet Mall. Tel +971 54 209 8989
+- **MyShops Wafi Mall** — 1st Floor, Wafi Mall, Wafi City. Tel +971 56 835 4828
+
+Directory: https://myshops.ae/stores
+
+## Company and support
+
+- [About MyShops](https://myshops.ae/about): Company background
+- [Contact Us](https://myshops.ae/contact): Toll-free 800 8989; WhatsApp +971 54 791 3579
+- [Returns](https://myshops.ae/returns): Returns and exchange policy — authoritative over the summary above
+- [Privacy Policy](https://myshops.ae/privacy): How customer data is handled
+
+Accepted payment methods include Visa, Mastercard, American Express, Discover, PayPal and Xoom. Social: [Facebook](https://www.facebook.com/myshops.ae/), [Instagram](https://www.instagram.com/myshops.ae/), [LinkedIn](https://www.linkedin.com/company/myshops-uae/).
+
+## Optional
+
+- [Sitemap](https://myshops.ae/sitemap.xml): Machine-readable list of indexable URLs
+- [robots.txt](https://myshops.ae/robots.txt): Crawler directives
+- Product images and media are served from `api.myshops.ae`, a separate host from the storefront.
+- The catalogue is UAE-only; there is no indication of shipping outside the UAE.

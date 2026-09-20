@@ -87,6 +87,11 @@ const {
   "./publicSearch.validation"
 );
 
+const publicSitemapController =
+  require(
+    "./publicSitemap.controller"
+  );
+
 const router =
   express.Router();
 
@@ -161,6 +166,19 @@ router.get(
   "/pickup-locations",
   publicStorefrontController
     .getPickupLocations
+);
+
+
+/*
+|--------------------------------------------------------------------------
+| Sitemap
+|--------------------------------------------------------------------------
+*/
+
+router.get(
+  "/sitemap-data",
+  publicSitemapController
+    .getSitemapData
 );
 
 /*
