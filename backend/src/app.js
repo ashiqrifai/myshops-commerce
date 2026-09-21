@@ -102,6 +102,11 @@ const publicCouponRoutes =
     "./modules/public-storefront/publicContact.routes"
   );
 
+const accessControlRoutes =
+  require(
+    "./modules/access-control/accessControl.routes"
+  );
+
 /*
  * Admin coupon management routes.
  *
@@ -479,6 +484,11 @@ app.use(
 app.use(
   "/api/v1/admin/zoho",
   adminZohoIntegrationRoutes
+);
+
+app.use(
+  "/api/v1/admin/access-control",
+  accessControlRoutes
 );
 
 /*

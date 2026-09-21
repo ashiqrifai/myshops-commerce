@@ -1,0 +1,21 @@
+"use client";
+import {FormEvent,useMemo,useState} from "react";
+import {KeyRound,Pencil,Plus,X} from "lucide-react";
+import {toast} from "sonner";
+import {useCreateAccessRoleMutation,useGetAccessPermissionsQuery,useGetAccessRolesQuery,useUpdateAccessRoleMutation} from "@/store/api/accessControlApi";
+import type {AccessRole} from "@/types/accessControl";
+const em=(e:unknown)=>{const x=e as {data?:{error?:{message?:string}}};return x?.data?.error?.message||"Unable to save role."};
+export default function Page(){
+ const {data}=useGetAccessRolesQuery(); const {data:pd}=useGetAccessPermissionsQuery();
+ const [createRole,{isLoading:c}]=useCreateAccessRoleMutation(); const [updateRole,{isLoading:u}]=useUpdateAccessRoleMutation();
+ const [open,setOpen]=useState(false),[editing,setEditing]=useState<AccessRole|null>(null),[name,setName]=useState(""),[code,setCode]=useState(""),[description,setDescription]=useState(""),[ids,setIds]=useState<string[]>([]);
+ const permissions=pd?.data||[]; const groups=useMemo(()=>{const m=new Map<string,typeof permissions>();permissions.forEach(p=>m.set(p.module,[...(m.get(p.module)||[]),p]));return [...m.entries()]},[permissions]);
+ const close=()=>{setOpen(false);setEditing(null);setName("");setCode("");setDescription("");setIds([])};
+ const edit=(r:AccessRole)=>{setEditing(r);setName(r.name);setCode(r.code);setDescription(r.description||"");setIds(r.permissions.map(p=>p.id));setOpen(true)};
+ const save=async(e:FormEvent)=>{e.preventDefault();try{const body={name,code,description:description||null,isActive:true,permissionIds:ids};editing?await updateRole({id:editing.id,body}).unwrap():await createRole(body).unwrap();toast.success("Role saved successfully.");close()}catch(e){toast.error(em(e))}};
+ return <main className="min-h-screen bg-[#f6f6f7]"><div className="mx-auto max-w-[1500px] px-5 py-6 md:px-8">
+ <header className="flex justify-between"><div><div className="flex items-center gap-3"><KeyRound/><h1 className="text-2xl font-semibold">Roles & Permissions</h1></div><p className="mt-2 text-sm text-gray-500">Create roles and select permissions.</p></div><button onClick={()=>{close();setOpen(true)}} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#303030] px-4 text-white"><Plus size={16}/>New role</button></header>
+ <section className="mt-6 divide-y rounded-2xl border bg-white">{(data?.data||[]).map(r=><div key={r.id} className="flex items-center p-5"><div className="flex-1"><b>{r.name}</b><p className="text-xs text-gray-500">{r.code} · {r.permissions.length} permissions</p></div>{!r.isSystemRole&&<button onClick={()=>edit(r)} className="inline-flex gap-2 rounded-lg border px-3 py-2"><Pencil size={15}/>Edit</button>}</div>)}</section>
+ {open&&<div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-6"><form onSubmit={save} className="mx-auto max-w-5xl rounded-2xl bg-white"><div className="flex justify-between border-b p-5"><b>{editing?"Edit role":"Create role"}</b><button type="button" onClick={close}><X/></button></div><div className="grid gap-4 p-5 md:grid-cols-2"><input className="admin-input" required placeholder="Role name" value={name} onChange={e=>setName(e.target.value)}/><input className="admin-input" required placeholder="ROLE_CODE" value={code} onChange={e=>setCode(e.target.value.toUpperCase().replace(/\s+/g,"_"))}/><textarea className="admin-input md:col-span-2" placeholder="Description" value={description} onChange={e=>setDescription(e.target.value)}/></div><div className="grid gap-4 border-t p-5 lg:grid-cols-2">{groups.map(([m,ps])=><section key={m} className="rounded-xl border p-4"><b className="capitalize">{m.replace(/-/g," ")}</b>{ps.map(p=><label key={p.id} className="mt-2 flex gap-3"><input type="checkbox" checked={ids.includes(p.id)} onChange={()=>setIds(s=>s.includes(p.id)?s.filter(x=>x!==p.id):[...s,p.id])}/><span><span className="block text-sm">{p.name}</span><span className="text-xs text-gray-500">{p.code}</span></span></label>)}</section>)}</div><div className="flex justify-end border-t p-5"><button disabled={c||u} className="rounded-lg bg-[#303030] px-4 py-2 text-white">{c||u?"Saving...":"Save role"}</button></div></form></div>}
+ </div></main>
+}

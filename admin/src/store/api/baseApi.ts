@@ -429,6 +429,9 @@ export const baseApi =
       "InstagramPosts",
       "PaymentExceptions",
       "PreBooking",
+      "AccessRoles",
+      "AccessUsers",
+
     ],
 
     endpoints: () => ({}),

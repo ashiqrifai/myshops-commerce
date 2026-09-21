@@ -1,0 +1,17 @@
+const express=require('express');
+const authenticate=require('../../middleware/authenticate');
+const authorize=require('../../middleware/authorize');
+const c=require('./accessControl.controller');
+const r=express.Router(); r.use(authenticate);
+r.get('/permissions',authorize('roles.read'),c.listPermissions);
+r.get('/roles',authorize('roles.read'),c.listRoles);
+r.get('/roles/:id',authorize('roles.read'),c.getRole);
+r.post('/roles',authorize('roles.create'),c.createRole);
+r.put('/roles/:id',authorize('roles.update'),c.updateRole);
+r.get('/users',authorize('users.read'),c.listUsers);
+r.get('/users/:id',authorize('users.read'),c.getUser);
+r.post('/users',authorize('users.create'),c.createUser);
+r.put('/users/:id',authorize('users.update'),c.updateUser);
+r.patch('/users/:id/status',authorize('users.disable'),c.updateUserStatus);
+r.patch('/users/:id/password',authorize('users.reset-password'),c.resetUserPassword);
+module.exports=r;

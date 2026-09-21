@@ -4,6 +4,116 @@ const db = require("../models");
 
 const permissions = [
   {
+    module: "payment-exceptions",
+    code: "payment-exceptions.read",
+    name: "View payment exceptions",
+  },
+  {
+    module: "products",
+    code: "products.read",
+    name: "View products",
+  },
+  {
+    module: "products",
+    code: "products.import",
+    name: "Import products",
+  },
+  {
+    module: "categories",
+    code: "categories.read",
+    name: "View categories",
+  },
+  {
+    module: "brands",
+    code: "brands.read",
+    name: "View brands",
+  },
+  {
+    module: "attributes",
+    code: "attributes.read",
+    name: "View attributes",
+  },
+  {
+    module: "collections",
+    code: "collections.read",
+    name: "View collections",
+  },
+  {
+    module: "coupons",
+    code: "coupons.read",
+    name: "View coupons",
+  },
+  {
+    module: "gift-voucher-promotions",
+    code: "gift-voucher-promotions.read",
+    name: "View gift voucher promotions",
+  },
+  {
+    module: "variant-pricing",
+    code: "variant-pricing.read",
+    name: "View variant pricing",
+  },
+  {
+    module: "pricing-center",
+    code: "pricing-center.read",
+    name: "View pricing center",
+  },
+  {
+    module: "media",
+    code: "media.read",
+    name: "View media",
+  },
+  {
+    module: "cms-navigation",
+    code: "cms-navigation.read",
+    name: "View CMS navigation",
+  },
+  {
+    module: "customers",
+    code: "customers.read",
+    name: "View customers",
+  },
+  {
+    module: "kiosk",
+    code: "kiosk.read",
+    name: "View kiosk",
+  },
+  {
+    module: "product-attachments",
+    code: "product-attachments.read",
+    name: "View product attachments",
+  },
+  {
+    module: "pre-booking",
+    code: "pre-booking.read",
+    name: "View pre-booking",
+  },
+  {
+    module: "protection",
+    code: "protection.read",
+    name: "View protection",
+  },
+  {
+    module: "orders",
+    code: "orders.read",
+    name: "View orders",
+  },
+  {
+    module: "orders",
+    code: "orders.update",
+    name: "Update orders",
+  },
+  {
+    module: "orders",
+    code: "orders.fulfill",
+    name: "Manage order fulfillment",
+  },
+  {
+    module: "orders",
+    code: "orders.zoho-retry",
+    name: "Retry Zoho sales orders",
+  },
+  {
     module: "system",
     code: "system.settings.read",
     name: "View system settings",
@@ -32,6 +142,11 @@ const permissions = [
     module: "users",
     code: "users.disable",
     name: "Disable users",
+  },
+  {
+    module: "users",
+    code: "users.reset-password",
+    name: "Reset user passwords",
   },
   {
     module: "roles",
