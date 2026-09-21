@@ -4,6 +4,26 @@ const db = require("../models");
 
 const permissions = [
   {
+    module: "bundle-promotions",
+    code: "bundle-promotions.read",
+    name: "View bundle promotions",
+  },
+  {
+    module: "bundle-promotions",
+    code: "bundle-promotions.create",
+    name: "Create bundle promotions",
+  },
+  {
+    module: "bundle-promotions",
+    code: "bundle-promotions.update",
+    name: "Update bundle promotions",
+  },
+  {
+    module: "bundle-promotions",
+    code: "bundle-promotions.delete",
+    name: "Delete bundle promotions",
+  },
+  {
     module: "payment-exceptions",
     code: "payment-exceptions.read",
     name: "View payment exceptions",

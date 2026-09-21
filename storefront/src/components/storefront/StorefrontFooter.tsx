@@ -853,32 +853,61 @@ export default function StorefrontFooter({
           |--------------------------------------------------------------------------
           */}
 
-          <div className="flex flex-wrap items-center gap-2">
-            {[
-              "PayPal",
-              "VISA",
-              "DISCOVER",
-              "AMEX",
-              "VISA",
-              "XOOM",
-            ].map(
-              (
-                payment,
-                index
-              ) => (
-                <span
-                  key={
-                    `${payment}-${index}`
-                  }
-                  className="inline-flex h-7 items-center rounded border border-[#D1D5DB] bg-white px-2 text-[9px] font-black text-[#111318]"
-                >
-                  {
-                    payment
-                  }
-                </span>
-              )
-            )}
-          </div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              {[
+                {
+                  name: "Visa",
+                  src: "/payment-methods/visa.png",
+                },
+                {
+                  name: "Mastercard",
+                  src: "/payment-methods/master.png",
+                },               
+                {
+                  name: "American Express",
+                  src: "/payment-methods/amex.png",
+                },
+                {
+                  name: "Discover",
+                  src: "/payment-methods/discover.png",
+                },
+                {
+                  name: "JCB",
+                  src: "/payment-methods/jcb.png",
+                },
+                {
+                  name: "Apple Pay",
+                  src: "/payment-methods/applepay.png",
+                },
+                {
+                  name: "Samsung Pay",
+                  src: "/payment-methods/samsungpay.png",
+                },
+              ].map(
+                (
+                  payment
+                ) => (
+                  <div
+                    key={
+                      payment.name
+                    }
+                    title={
+                      payment.name
+                    }
+                    className="flex h-[46px] w-[78px] items-center justify-center rounded-lg border border-[#D1D5DB] bg-white px-2.5"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={
+                        payment.src
+                      }
+                      alt={`${payment.name} accepted`}
+                      className="max-h-[32px] max-w-full object-contain"
+                    />
+                  </div>
+                )
+              )}
+            </div>
         </div>
       </div>
     </footer>

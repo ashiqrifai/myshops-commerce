@@ -661,11 +661,13 @@ export default async function BrandRoute({
                     </p>
                   ) : null}
 
-                  <h1 className="mt-2 text-3xl font-black sm:text-4xl lg:text-5xl">
-                    {
-                      brand.name
-                    }
-                  </h1>
+                  {!logoUrl ? (
+                    <h1 className="mt-2 text-3xl font-black sm:text-4xl lg:text-5xl">
+                      {
+                        brand.name
+                      }
+                    </h1>
+                  ) : null}
 
                   {brand.countryOfOrigin ? (
                     <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-white/75">

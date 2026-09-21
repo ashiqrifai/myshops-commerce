@@ -16,9 +16,24 @@ import type {
   PublicCategory,
 } from "@/types/publicCategory";
 
+/*
+|--------------------------------------------------------------------------
+| Category Image
+|--------------------------------------------------------------------------
+|
+| Prefer the original/public category image so the larger cards do not
+| stretch the SMALL/THUMBNAIL variant unnecessarily.
+|
+|--------------------------------------------------------------------------
+*/
+
 const getImageUrl = (
   category: PublicCategory
 ) =>
+  category.thumbnailAsset
+    ?.publicUrl ||
+  category.image
+    ?.publicUrl ||
   category.thumbnailAsset
     ?.variants?.find(
       (variant) =>
@@ -31,10 +46,6 @@ const getImageUrl = (
         variant.variantType ===
         "THUMBNAIL"
     )?.publicUrl ||
-  category.thumbnailAsset
-    ?.publicUrl ||
-  category.image
-    ?.publicUrl ||
   null;
 
 export default function SubcategoryGrid({
@@ -66,16 +77,11 @@ export default function SubcategoryGrid({
       return;
     }
 
-    /*
-     * Smaller cards mean we can
-     * comfortably move around
-     * 5-6 cards at a time.
-     */
     const scrollAmount =
       Math.min(
         element.clientWidth *
           0.75,
-        680
+        760
       );
 
     element.scrollBy({
@@ -187,11 +193,13 @@ export default function SubcategoryGrid({
                   "group shrink-0",
 
                   /*
-                   * Compact card width
+                   * Keep the wider card
+                   * introduced in the
+                   * previous version.
                    */
-                  "w-[120px]",
-                  "sm:w-[128px]",
-                  "lg:w-[136px]",
+                  "w-[132px]",
+                  "sm:w-[142px]",
+                  "lg:w-[152px]",
 
                   "overflow-hidden",
                   "rounded-xl",
@@ -215,19 +223,37 @@ export default function SubcategoryGrid({
                 |--------------------------------------------------------------------------
                 | Image
                 |--------------------------------------------------------------------------
+                |
+                | The image remains large,
+                | but the image section is
+                | shorter so there is less
+                | empty vertical whitespace
+                | before the category name.
+                |
+                |--------------------------------------------------------------------------
                 */}
 
                 <div
                   className={[
                     "flex",
-                    "h-[76px]",
-                    "items-center",
+
+                    /*
+                     * Reduced from
+                     * 118 / 125 / 132
+                     */
+                    "h-[106px]",
+                    "sm:h-[112px]",
+                    "lg:h-[116px]",
+
+                    /*
+                     * Keep image visually
+                     * closer to the label.
+                     */
+                    "items-end",
                     "justify-center",
+
                     "overflow-hidden",
                     "bg-white",
-
-                    "sm:h-[80px]",
-                    "lg:h-[84px]",
                   ].join(
                     " "
                   )}
@@ -241,14 +267,35 @@ export default function SubcategoryGrid({
                       alt={
                         category.name
                       }
-                      className="h-full w-full object-contain p-2.5 transition duration-200 group-hover:scale-105"
+                      className={[
+                        "h-full",
+                        "w-full",
+
+                        "object-contain",
+
+                        /*
+                         * Small horizontal/top
+                         * breathing room with
+                         * almost no bottom gap.
+                         */
+                        "px-1",
+                        "pt-1",
+                        "pb-0",
+
+                        "transition",
+                        "duration-200",
+
+                        "group-hover:scale-105",
+                      ].join(
+                        " "
+                      )}
                     />
                   ) : (
                     <ImageIcon
                       size={
-                        22
+                        30
                       }
-                      className="text-storefront-muted"
+                      className="mb-2 text-storefront-muted"
                     />
                   )}
                 </div>
@@ -257,9 +304,26 @@ export default function SubcategoryGrid({
                 |--------------------------------------------------------------------------
                 | Label
                 |--------------------------------------------------------------------------
+                |
+                | Reduced label height and
+                | top/bottom padding.
+                |
+                |--------------------------------------------------------------------------
                 */}
 
-                <div className="flex min-h-[44px] items-center justify-center px-2 py-2">
+                <div
+                  className={[
+                    "flex",
+                    "min-h-[40px]",
+                    "items-center",
+                    "justify-center",
+
+                    "px-2",
+                    "py-1",
+                  ].join(
+                    " "
+                  )}
+                >
                   <p className="line-clamp-2 text-center text-[11px] font-bold leading-[14px] text-storefront-text sm:text-xs">
                     {
                       category.name
