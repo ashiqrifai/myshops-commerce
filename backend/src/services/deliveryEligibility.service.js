@@ -62,6 +62,116 @@ const {
   
     return code;
   };
+
+  /*
+|--------------------------------------------------------------------------
+| UAE Express Delivery Cutoffs
+|--------------------------------------------------------------------------
+|
+| Dubai / Sharjah:
+| 2-hour delivery is available before 2:00 PM UAE time.
+|
+| Abu Dhabi:
+| 1-hour delivery is available before 5:00 PM UAE time.
+|
+| IMPORTANT:
+| Always calculate using Asia/Dubai.
+| Never rely on browser/device time.
+|--------------------------------------------------------------------------
+*/
+
+const getUaeExpressCutoffs =
+() => {
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-GB",
+      {
+        timeZone:
+          "Asia/Dubai",
+
+        hour:
+          "2-digit",
+
+        minute:
+          "2-digit",
+
+        hourCycle:
+          "h23",
+      }
+    ).formatToParts(
+      new Date()
+    );
+
+  const hour =
+    Number(
+      parts.find(
+        part =>
+          part.type ===
+          "hour"
+      )?.value || 0
+    );
+
+  const minute =
+    Number(
+      parts.find(
+        part =>
+          part.type ===
+          "minute"
+      )?.value || 0
+    );
+
+  const currentMinutes =
+    hour * 60 +
+    minute;
+
+  const dubaiSharjahCutoffMinutes =
+    14 * 60;
+
+  const abuDhabiCutoffMinutes =
+    17 * 60;
+
+  return {
+    timezone:
+      "Asia/Dubai",
+
+    currentTime:
+      `${String(hour).padStart(
+        2,
+        "0"
+      )}:${String(
+        minute
+      ).padStart(
+        2,
+        "0"
+      )}`,
+
+    dubaiSharjah: {
+      cutoffTime:
+        "14:00",
+
+      cutoffPassed:
+        currentMinutes >=
+        dubaiSharjahCutoffMinutes,
+
+      available:
+        currentMinutes <
+        dubaiSharjahCutoffMinutes,
+    },
+
+    abuDhabi: {
+      cutoffTime:
+        "17:00",
+
+      cutoffPassed:
+        currentMinutes >=
+        abuDhabiCutoffMinutes,
+
+      available:
+        currentMinutes <
+        abuDhabiCutoffMinutes,
+    },
+  };
+};
   
   const getCompany =
     async (
@@ -717,6 +827,77 @@ const {
             })
           : [];
 
+/*
+|--------------------------------------------------------------------------
+| Apply UAE Express Delivery Cutoffs
+|--------------------------------------------------------------------------
+|
+| Remove an express zone once its same-day cutoff has passed.
+|
+| Standard delivery zones remain untouched, allowing the existing
+| allocation logic to fall back naturally to UAE_STANDARD.
+|--------------------------------------------------------------------------
+*/
+
+const expressCutoffs =
+  getUaeExpressCutoffs();
+
+if (
+  hasNonPickupItems &&
+  zones.length >
+    0
+) {
+  zones =
+    zones.filter(
+      zone => {
+        const zoneCode =
+          normalizeCode(
+            zone.code
+          );
+
+        /*
+         * Dubai / Sharjah
+         * 2-hour delivery only before 2:00 PM.
+         */
+
+        if (
+          zoneCode ===
+          "DXB_SHJ_2H"
+        ) {
+          return (
+            expressCutoffs
+              .dubaiSharjah
+              .available ===
+            true
+          );
+        }
+
+        /*
+         * Abu Dhabi
+         * 1-hour delivery only before 5:00 PM.
+         */
+
+        if (
+          zoneCode ===
+          "AUH_1H"
+        ) {
+          return (
+            expressCutoffs
+              .abuDhabi
+              .available ===
+            true
+          );
+        }
+
+        /*
+         * UAE_STANDARD and any other
+         * non-express zones remain available.
+         */
+
+        return true;
+      }
+    );
+}          
       /*
       |--------------------------------------------------------------------------
       | UAE Standard Delivery Fallback
@@ -1428,6 +1609,9 @@ const buildDeliveryEligibility =
       await getCompany(
         companyCode
       );
+    
+      const expressCutoffs =
+      getUaeExpressCutoffs();
 
     const variantMap =
       await getVariantMap({
@@ -1760,16 +1944,30 @@ const buildDeliveryEligibility =
         directDelivery:
           false,
 
-        dubaiSharjah: {
-          eligible:
-            dubaiSharjahAvailable >=
-            requestedQuantity,
-
-          hours:
-            2,
-
-          availableQuantity:
-            dubaiSharjahAvailable,
+          dubaiSharjah: {
+            eligible:
+              expressCutoffs
+                .dubaiSharjah
+                .available ===
+                true &&
+              dubaiSharjahAvailable >=
+                requestedQuantity,
+          
+            hours:
+              2,
+          
+            cutoffTime:
+              expressCutoffs
+                .dubaiSharjah
+                .cutoffTime,
+          
+            cutoffPassed:
+              expressCutoffs
+                .dubaiSharjah
+                .cutoffPassed,
+          
+            availableQuantity:
+              dubaiSharjahAvailable,
 
           locations: {
             DXB_WAREHOUSE:
@@ -1785,19 +1983,28 @@ const buildDeliveryEligibility =
 
         abuDhabi: {
           eligible:
+            expressCutoffs
+              .abuDhabi
+              .available ===
+              true &&
             abuDhabiAvailable >=
-            requestedQuantity,
-
+              requestedQuantity,
+        
           hours:
             1,
-
+        
+          cutoffTime:
+            expressCutoffs
+              .abuDhabi
+              .cutoffTime,
+        
+          cutoffPassed:
+            expressCutoffs
+              .abuDhabi
+              .cutoffPassed,
+        
           availableQuantity:
             abuDhabiAvailable,
-
-          locations: {
-            AUH_SAJ:
-              abuDhabiAvailable,
-          },
         },
 
         reason:
