@@ -129,7 +129,7 @@ const footerGroups = [
   {
     title:
       "HELP",
-
+  
     links: [
       [
         "Contact Us",
@@ -138,6 +138,22 @@ const footerGroups = [
       [
         "Privacy Policy",
         "/privacy",
+      ],
+      [
+        "Terms & Conditions",
+        "/termsandconditions",
+      ],
+      [
+        "Delivery, Cancellation & Returns",
+        "/delivery-cancellation-returns",
+      ],
+      [
+        "Refund Policy",
+        "/refund-policy",
+      ],
+      [
+        "Warranty & After-Sales",
+        "/warranty-after-sales",
       ],
     ],
   },
