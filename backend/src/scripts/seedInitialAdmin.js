@@ -35,6 +35,21 @@ const permissions = [
   },
   {
     module: "products",
+    code: "products.create",
+    name: "Create products",
+  },
+  {
+    module: "products",
+    code: "products.update",
+    name: "Update products",
+  },
+  {
+    module: "products",
+    code: "products.delete",
+    name: "Delete products",
+  },
+  {
+    module: "products",
     code: "products.import",
     name: "Import products",
   },
