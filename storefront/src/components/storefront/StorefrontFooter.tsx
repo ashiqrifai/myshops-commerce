@@ -102,11 +102,7 @@ const footerGroups = [
       [
         "Track Order",
         "/account/orders",
-      ],
-      [
-        "Returns",
-        "/returns",
-      ],
+      ]
     ],
   },
 
@@ -154,6 +150,10 @@ const footerGroups = [
       [
         "Warranty & After-Sales",
         "/warranty-after-sales",
+      ],
+      [
+        "Cookie Policy",
+        "/cookie-policy",
       ],
     ],
   },
