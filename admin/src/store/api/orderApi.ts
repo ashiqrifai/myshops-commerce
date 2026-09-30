@@ -11,6 +11,10 @@ import type {
   TamaraRefundResponse,
   UpdateAdminOrderStatusRequest,
   UpdateAdminShipmentStatusRequest,
+  KioskFulfillmentAssignmentsResponse,
+  KioskFulfillmentLocationsResponse,
+  AssignKioskFulfillmentRequest,
+  AssignKioskFulfillmentResponse,
 } from "@/types/order";
 
 export interface RetryZohoSalesOrderResponse {
@@ -172,6 +176,62 @@ export const orderApi =
               }),
           }),
 
+        getKioskFulfillmentAssignments:
+          builder.query<
+            KioskFulfillmentAssignmentsResponse,
+            string
+          >({
+            query:
+              (
+                orderId
+              ) => ({
+                url:
+                  `/admin/orders/${orderId}/fulfillment-assignments`,
+              }),
+          }),
+
+        getKioskFulfillmentLocations:
+          builder.query<
+            KioskFulfillmentLocationsResponse,
+            {
+              orderId:
+                string;
+
+              assignmentId:
+                string;
+            }
+          >({
+            query:
+              ({
+                orderId,
+                assignmentId,
+              }) => ({
+                url:
+                  `/admin/orders/${orderId}/fulfillment-assignments/${assignmentId}/locations`,
+              }),
+          }),
+
+        assignKioskFulfillmentLocation:
+          builder.mutation<
+            AssignKioskFulfillmentResponse,
+            AssignKioskFulfillmentRequest
+          >({
+            query:
+              ({
+                orderId,
+                assignmentId,
+                body,
+              }) => ({
+                url:
+                  `/admin/orders/${orderId}/fulfillment-assignments/${assignmentId}/assign`,
+
+                method:
+                  "POST",
+
+                body,
+              }),
+          }),
+
         refundTamaraPayment:
           builder.mutation<
             TamaraRefundResponse,
@@ -203,5 +263,8 @@ export const {
   useUpdateAdminOrderStatusMutation,
   useUpdateAdminShipmentStatusMutation,
   useRetryZohoSalesOrderMutation,
+  useGetKioskFulfillmentAssignmentsQuery,
+  useLazyGetKioskFulfillmentLocationsQuery,
+  useAssignKioskFulfillmentLocationMutation,
   useRefundTamaraPaymentMutation,
 } = orderApi;

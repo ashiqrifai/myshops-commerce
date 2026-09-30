@@ -192,11 +192,20 @@ const getCurrentPrice = (
           price.priceList
             .channelCode;
 
+        const allowedChannels =
+          channel === "KIOSK"
+            ? [
+                "KIOSK",
+                "WEBSITE",
+                "ALL",
+              ]
+            : [
+                channel,
+                "ALL",
+              ];
+
         if (
-          ![
-            channel,
-            "ALL",
-          ].includes(
+          !allowedChannels.includes(
             priceListChannel
           )
         ) {
@@ -251,19 +260,46 @@ const getCurrentPrice = (
         );
       })
       .sort((first, second) => {
+        const channelRank =
+          (
+            priceListChannel
+          ) => {
+            if (
+              priceListChannel ===
+              channel
+            ) {
+              return 0;
+            }
+
+            if (
+              channel === "KIOSK" &&
+              priceListChannel ===
+                "WEBSITE"
+            ) {
+              return 1;
+            }
+
+            if (
+              priceListChannel ===
+              "ALL"
+            ) {
+              return 2;
+            }
+
+            return 3;
+          };
+
         const firstChannel =
-          first.priceList
-            .channelCode ===
-          channel
-            ? 0
-            : 1;
+          channelRank(
+            first.priceList
+              .channelCode
+          );
 
         const secondChannel =
-          second.priceList
-            .channelCode ===
-          channel
-            ? 0
-            : 1;
+          channelRank(
+            second.priceList
+              .channelCode
+          );
 
         return (
           firstChannel -
@@ -1458,10 +1494,17 @@ const getRelatedProducts = async ({
                   isActive: true,
 
                   channelCode: {
-                    [Op.in]: [
-                      channel,
-                      "ALL",
-                    ],
+                    [Op.in]:
+                      channel === "KIOSK"
+                        ? [
+                            "KIOSK",
+                            "WEBSITE",
+                            "ALL",
+                          ]
+                        : [
+                            channel,
+                            "ALL",
+                          ],
                   },
                 },
               },
@@ -2269,10 +2312,17 @@ exports.getPublicProduct = async ({
                     true,
 
                   channelCode: {
-                    [Op.in]: [
-                      channel,
-                      "ALL",
-                    ],
+                    [Op.in]:
+                      channel === "KIOSK"
+                        ? [
+                            "KIOSK",
+                            "WEBSITE",
+                            "ALL",
+                          ]
+                        : [
+                            channel,
+                            "ALL",
+                          ],
                   },
                 },
               },

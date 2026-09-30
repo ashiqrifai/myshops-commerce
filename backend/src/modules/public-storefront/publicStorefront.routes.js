@@ -32,6 +32,17 @@ const {
   "./publicCategory.validation"
 );
 
+const publicProductListingController =
+  require(
+    "./publicProductListing.controller"
+  );
+
+const {
+  getPublicProductListingValidation,
+} = require(
+  "./publicProductListing.validation"
+);
+
 const publicProductController =
   require(
     "./publicProduct.controller"
@@ -179,6 +190,26 @@ router.get(
   "/sitemap-data",
   publicSitemapController
     .getSitemapData
+);
+
+/*
+|--------------------------------------------------------------------------
+| Product Carousel View All Listing
+|--------------------------------------------------------------------------
+|
+| Resolves a PRODUCT_CAROUSEL using its CMS viewAllUrl.
+|
+| Example:
+| /product-listing?url=/products/new-arrivals
+|--------------------------------------------------------------------------
+*/
+
+router.get(
+  "/product-listing",
+  getPublicProductListingValidation,
+  validateRequest,
+  publicProductListingController
+    .getPublicProductListing
 );
 
 /*

@@ -166,6 +166,24 @@ const couponAdminRoutes =
     "./routes/adminZohoIntegration.routes"
   );
 
+  const {
+    kioskRouter:
+      kioskDevicePublicRoutes,
+  } = require(
+    "./modules/kiosk-devices/kioskDevice.routes"
+  );
+
+
+const kioskAiRoutes =
+  require(
+    "./modules/kiosk-ai/kioskAi.routes"
+  );
+
+
+const kioskCheckoutRoutes =
+  require(
+    "./modules/kiosk-checkout/kioskCheckout.routes"
+  );
 
 const app =
   express();
@@ -241,6 +259,7 @@ app.use(
   cookieParser()
 );
 
+
 if (
   env.nodeEnv ===
   "development"
@@ -257,6 +276,207 @@ if (
     )
   );
 }
+
+/*
+|--------------------------------------------------------------------------
+| TEMPORARY REQUEST MEMORY MONITOR
+|--------------------------------------------------------------------------
+|
+| Diagnostic only.
+|
+| Tracks API requests so we can identify which request is active when
+| Node heap suddenly grows by hundreds or thousands of MB.
+|
+| Remove after the memory issue has been identified.
+|--------------------------------------------------------------------------
+*/
+
+let memoryRequestSequence =
+  0;
+
+const bytesToMb =
+  (value) =>
+    Math.round(
+      value /
+        1024 /
+        1024
+    );
+
+app.use(
+  (
+    req,
+    res,
+    next
+  ) => {
+    /*
+     * Ignore static media requests. They are numerous and are not useful
+     * for diagnosing JavaScript heap growth.
+     */
+    if (
+      req.path ===
+        "/media" ||
+      req.path.startsWith(
+        "/media/"
+      )
+    ) {
+      next();
+
+      return;
+    }
+
+    memoryRequestSequence +=
+      1;
+
+    const requestId =
+      memoryRequestSequence;
+
+    const startedAt =
+      Date.now();
+
+    const startMemory =
+      process.memoryUsage();
+
+    const startHeapMb =
+      bytesToMb(
+        startMemory.heapUsed
+      );
+
+    const method =
+      req.method;
+
+    const requestUrl =
+      req.originalUrl ||
+      req.url;
+
+    /*
+     * Log the start only once the process is already using substantial
+     * memory. Normal low-memory requests do not need to flood the log.
+     */
+    if (
+      startHeapMb >=
+      250
+    ) {
+      console.warn(
+        "[REQ-MEM START-HIGH]",
+        {
+          requestId,
+          method,
+          url:
+            requestUrl,
+          heapUsedMB:
+            startHeapMb,
+          heapTotalMB:
+            bytesToMb(
+              startMemory.heapTotal
+            ),
+          rssMB:
+            bytesToMb(
+              startMemory.rss
+            ),
+        }
+      );
+    }
+
+    let completed =
+      false;
+
+    const finish =
+      (
+        eventName
+      ) => {
+        if (
+          completed
+        ) {
+          return;
+        }
+
+        completed =
+          true;
+
+        const endMemory =
+          process.memoryUsage();
+
+        const endHeapMb =
+          bytesToMb(
+            endMemory.heapUsed
+          );
+
+        const heapDeltaMb =
+          endHeapMb -
+          startHeapMb;
+
+        const durationMs =
+          Date.now() -
+          startedAt;
+
+        /*
+         * Log requests that:
+         *
+         * 1. Increased heap by at least 50 MB, OR
+         * 2. Finished while total heap usage was >= 250 MB.
+         */
+        if (
+          heapDeltaMb >=
+            50 ||
+          endHeapMb >=
+            250
+        ) {
+          console.warn(
+            "[REQ-MEM HIGH]",
+            {
+              requestId,
+              event:
+                eventName,
+              method,
+              url:
+                requestUrl,
+              statusCode:
+                res.statusCode,
+              durationMs,
+              startHeapMB:
+                startHeapMb,
+              endHeapMB:
+                endHeapMb,
+              heapDeltaMB:
+                heapDeltaMb,
+              heapTotalMB:
+                bytesToMb(
+                  endMemory.heapTotal
+                ),
+              rssMB:
+                bytesToMb(
+                  endMemory.rss
+                ),
+              externalMB:
+                bytesToMb(
+                  endMemory.external
+                ),
+            }
+          );
+        }
+      };
+
+    res.once(
+      "finish",
+      () =>
+        finish(
+          "finish"
+        )
+    );
+
+    res.once(
+      "close",
+      () =>
+        finish(
+          "close"
+        )
+    );
+
+    next();
+  }
+);
+
+
 
 app.get(
   "/",
@@ -326,6 +546,35 @@ app.use(
 app.use(
   "/api/v1",
   apiRoutes
+);
+
+
+/*
+|--------------------------------------------------------------------------
+| Android Kiosk Device API
+|--------------------------------------------------------------------------
+|
+| POST /api/v1/kiosk/activate
+| GET  /api/v1/kiosk/bootstrap
+| POST /api/v1/kiosk/heartbeat
+|
+*/
+
+app.use(
+  "/api/v1/kiosk",
+  kioskDevicePublicRoutes
+);
+
+
+app.use(
+  "/api/v1/kiosk",
+  kioskAiRoutes
+);
+
+
+app.use(
+  "/api/v1/kiosk",
+  kioskCheckoutRoutes
 );
 
 /*

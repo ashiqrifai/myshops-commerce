@@ -40,7 +40,7 @@ const publicPreBookingRoutes =
 const navigationRoutes = require(
     "../modules/navigation/navigation.routes"
 );
-  
+
 const publicNavigationRoutes =
     require(
       "../modules/navigation/publicNavigation.routes"
@@ -122,7 +122,7 @@ const brandImportRoutes =
 require(
   "../modules/brand-import/brandImport.routes"
 );
-  
+
 const collectionImportRoutes =
 require(
   "../modules/collection-import/collectionImport.routes"
@@ -145,6 +145,16 @@ const inventoryImportRoutes =
 
 const tamaraRoutes = require("../routes/tamaraRoutes");
 const tabbyRoutes = require("../routes/tabbyRoutes");
+
+const kioskProfileRoutes = require(
+  "../modules/kiosk-profiles/kioskProfile.routes"
+);
+
+const {
+  adminRouter: kioskDeviceAdminRoutes,
+} = require(
+  "../modules/kiosk-devices/kioskDevice.routes"
+);
 
 const adminOrderRoutes =
   require(
@@ -176,6 +186,7 @@ const adminOrderRoutes =
   require(
     "../modules/public-storefront/publicStorefront.routes"
   );
+
 
 
 const router = express.Router();
@@ -406,5 +417,14 @@ router.use(
   preBookingRoutes
 );
 
+router.use(
+  "/admin/kiosk/profiles",
+  kioskProfileRoutes
+);
+
+router.use(
+  "/admin/kiosk/devices",
+  kioskDeviceAdminRoutes
+);
 
 module.exports = router;

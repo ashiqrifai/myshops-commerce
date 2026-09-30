@@ -2,21 +2,23 @@
 import {FormEvent,useState} from "react";
 import {Eye,EyeOff,Pencil,Plus,UserCog,X} from "lucide-react";
 import {toast} from "sonner";
-import {useChangeAccessUserStatusMutation,useCreateAccessUserMutation,useGetAccessRolesQuery,useGetAccessUsersQuery,useResetAccessUserPasswordMutation,useUpdateAccessUserMutation} from "@/store/api/accessControlApi";
+import {useChangeAccessUserStatusMutation,useCreateAccessUserMutation,useGetAccessLocationsQuery,useGetAccessRolesQuery,useGetAccessUsersQuery,useResetAccessUserPasswordMutation,useUpdateAccessUserMutation} from "@/store/api/accessControlApi";
 import type {AccessUser} from "@/types/accessControl";
 
-const blank=()=>({firstName:"",lastName:"",email:"",username:"",mobile:"",password:"",confirmPassword:"",roleIds:[] as string[]});
+const blank=()=>({firstName:"",lastName:"",email:"",username:"",mobile:"",password:"",confirmPassword:"",roleIds:[] as string[],locationIds:[] as string[]});
 const message=(e:unknown,f:string)=>{const x=e as {data?:{error?:{message?:string};message?:string}};return x?.data?.error?.message||x?.data?.message||f};
 
 export default function UsersPage(){
  const {data,isLoading}=useGetAccessUsersQuery();
  const {data:roleData}=useGetAccessRolesQuery();
+ const {data:locationData,isLoading:locationsLoading}=useGetAccessLocationsQuery();
  const [createUser,{isLoading:creating}]=useCreateAccessUserMutation();
  const [updateUser,{isLoading:updating}]=useUpdateAccessUserMutation();
  const [changeStatus,{isLoading:changing}]=useChangeAccessUserStatusMutation();
  const [resetPassword,{isLoading:resetting}]=useResetAccessUserPasswordMutation();
  const users=data?.data||[];
  const roles=(roleData?.data||[]).filter(r=>!r.isSystemRole&&r.isActive);
+ const locations=locationData?.data||[];
  const [open,setOpen]=useState(false);
  const [editing,setEditing]=useState<AccessUser|null>(null);
  const [form,setForm]=useState(blank());
@@ -25,8 +27,9 @@ export default function UsersPage(){
 
  const close=()=>{setOpen(false);setEditing(null);setForm(blank());setShowPassword(false);setShowConfirm(false)};
  const newUser=()=>{close();setOpen(true)};
- const edit=(u:AccessUser)=>{setEditing(u);setForm({firstName:u.firstName,lastName:u.lastName||"",email:u.email,username:u.username,mobile:u.mobile||"",password:"",confirmPassword:"",roleIds:u.roles.map(r=>r.id)});setOpen(true)};
+ const edit=(u:AccessUser)=>{setEditing(u);setForm({firstName:u.firstName,lastName:u.lastName||"",email:u.email,username:u.username,mobile:u.mobile||"",password:"",confirmPassword:"",roleIds:u.roles.map(r=>r.id),locationIds:u.locationIds||[]});setOpen(true)};
  const roleToggle=(id:string)=>setForm(f=>({...f,roleIds:f.roleIds.includes(id)?f.roleIds.filter(x=>x!==id):[...f.roleIds,id]}));
+ const locationToggle=(id:string)=>setForm(f=>({...f,locationIds:f.locationIds.includes(id)?f.locationIds.filter(x=>x!==id):[...f.locationIds,id]}));
 
  const validPassword=()=>{
    if(!editing&&!form.password){toast.error("Password is required.");return false}
@@ -42,13 +45,13 @@ export default function UsersPage(){
    if(!validPassword())return;
    try{
      if(editing){
-       await updateUser({id:editing.id,body:{firstName:form.firstName,lastName:form.lastName||null,email:form.email,username:form.username,mobile:form.mobile||null,roleIds:form.roleIds}}).unwrap();
+       await updateUser({id:editing.id,body:{firstName:form.firstName,lastName:form.lastName||null,email:form.email,username:form.username,mobile:form.mobile||null,roleIds:form.roleIds,locationIds:form.locationIds}}).unwrap();
        if(form.password){
          await resetPassword({id:editing.id,newPassword:form.password}).unwrap();
          toast.success("User updated and password changed successfully.");
        }else toast.success("User updated successfully.");
      }else{
-       await createUser({firstName:form.firstName,lastName:form.lastName||null,email:form.email,username:form.username,mobile:form.mobile||null,password:form.password,roleIds:form.roleIds}).unwrap();
+       await createUser({firstName:form.firstName,lastName:form.lastName||null,email:form.email,username:form.username,mobile:form.mobile||null,password:form.password,roleIds:form.roleIds,locationIds:form.locationIds}).unwrap();
        toast.success("User created successfully.");
      }
      close();
@@ -89,6 +92,60 @@ export default function UsersPage(){
     <Field label="Confirm Password"><PasswordInput value={form.confirmPassword} show={showConfirm} toggle={()=>setShowConfirm(v=>!v)} onChange={v=>setForm({...form,confirmPassword:v})} required={!editing}/></Field>
    </div>
    <div className="border-t p-5"><p className="mb-3 font-semibold">Roles</p>{roles.length?roles.map(r=><label key={r.id} className="mt-3 flex cursor-pointer gap-3"><input type="checkbox" checked={form.roleIds.includes(r.id)} onChange={()=>roleToggle(r.id)}/><span>{r.name}</span></label>):<p className="text-sm text-gray-500">No assignable roles available.</p>}</div>
+   <div className="border-t p-5">
+    <div className="flex items-start justify-between gap-4">
+     <div>
+      <p className="font-semibold">
+       Store / Location Access
+      </p>
+      <p className="mt-1 text-sm text-gray-500">
+       Select the stores whose kiosk orders this user can access.
+      </p>
+     </div>
+
+     <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+      {form.locationIds.length} selected
+     </span>
+    </div>
+
+    {locationsLoading ? (
+     <p className="mt-4 text-sm text-gray-500">
+      Loading locations...
+     </p>
+    ) : locations.length ? (
+     <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      {locations.map(location => (
+       <label
+        key={location.id}
+        className="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-200 p-3 transition hover:bg-gray-50"
+       >
+        <input
+         type="checkbox"
+         className="mt-1 size-4"
+         checked={form.locationIds.includes(location.id)}
+         onChange={() => locationToggle(location.id)}
+        />
+
+        <span className="min-w-0">
+         <span className="block text-sm font-medium text-gray-900">
+          {location.name}
+         </span>
+
+         <span className="block text-xs text-gray-500">
+          {location.code}
+          {location.city ? ` · ${location.city}` : ""}
+         </span>
+        </span>
+       </label>
+      ))}
+     </div>
+    ) : (
+     <p className="mt-4 text-sm text-gray-500">
+      No active store locations are available.
+     </p>
+    )}
+   </div>
+
    <div className="flex justify-end gap-2 border-t p-5"><button type="button" onClick={close} className="rounded-lg border px-4 py-2">Cancel</button><button disabled={busy} className="rounded-lg bg-[#303030] px-4 py-2 font-semibold text-white disabled:opacity-50">{busy?"Saving...":editing?"Save Changes":"Create User"}</button></div>
   </form></div>}
  </div></main>

@@ -3,6 +3,12 @@ const adminOrderService =
     "../services/adminOrderService"
   );
 
+const kioskFulfillmentAssignmentService =
+  require(
+    "../services/kioskFulfillmentAssignment.service"
+  );
+
+
 const getCompanyId = (
   req
 ) =>
@@ -18,6 +24,12 @@ const getUserId = (
   req.auth?.userId ||
   req.userId ||
   null;
+
+const getIsSuperAdmin = (
+  req
+) =>
+  req.user?.isSuperAdmin ===
+  true;
 
 const sendSuccess = (
   res,
@@ -99,6 +111,12 @@ exports.listOrders =
         await adminOrderService
           .listAdminOrders({
             companyId,
+
+            userId:
+              getUserId(req),
+
+            isSuperAdmin:
+              getIsSuperAdmin(req),
             search:
               req.query.search,
             orderStatus:
@@ -161,6 +179,12 @@ exports.getOrderSummary =
         await adminOrderService
           .getAdminOrderSummary({
             companyId,
+
+            userId:
+              getUserId(req),
+
+            isSuperAdmin:
+              getIsSuperAdmin(req),
           });
 
       return sendSuccess(
@@ -196,6 +220,12 @@ exports.getOrder =
         await adminOrderService
           .getAdminOrderDetail({
             companyId,
+
+            userId:
+              getUserId(req),
+
+            isSuperAdmin:
+              getIsSuperAdmin(req),
             orderId:
               req.params.id,
           });
@@ -216,6 +246,144 @@ exports.getOrder =
       );
     }
   };
+
+exports.getKioskFulfillmentAssignments =
+  async (
+    req,
+    res
+  ) => {
+
+    try {
+
+      const data =
+        await kioskFulfillmentAssignmentService
+          .listAssignments({
+            companyId:
+              getCompanyId(req),
+
+            orderId:
+              req.params.id,
+
+            userId:
+              getUserId(req),
+
+            isSuperAdmin:
+              getIsSuperAdmin(req),
+          });
+
+      return sendSuccess(
+        res,
+        {
+          data,
+        }
+      );
+
+    } catch (error) {
+
+      return sendError(
+        res,
+        error
+      );
+    }
+  };
+
+
+exports.getKioskFulfillmentLocations =
+  async (
+    req,
+    res
+  ) => {
+
+    try {
+
+      const data =
+        await kioskFulfillmentAssignmentService
+          .listCandidateLocations({
+            companyId:
+              getCompanyId(req),
+
+            orderId:
+              req.params.id,
+
+            assignmentId:
+              req.params.assignmentId,
+
+            userId:
+              getUserId(req),
+
+            isSuperAdmin:
+              getIsSuperAdmin(req),
+          });
+
+      return sendSuccess(
+        res,
+        {
+          data,
+        }
+      );
+
+    } catch (error) {
+
+      return sendError(
+        res,
+        error
+      );
+    }
+  };
+
+
+exports.assignKioskFulfillmentLocation =
+  async (
+    req,
+    res
+  ) => {
+
+    try {
+
+      const data =
+        await kioskFulfillmentAssignmentService
+          .assignLocation({
+            companyId:
+              getCompanyId(req),
+
+            orderId:
+              req.params.id,
+
+            assignmentId:
+              req.params.assignmentId,
+
+            fulfillmentLocationId:
+              req.body
+                ?.fulfillmentLocationId,
+
+            notes:
+              req.body
+                ?.notes ||
+              null,
+
+            userId:
+              getUserId(req),
+
+            isSuperAdmin:
+              getIsSuperAdmin(req),
+          });
+
+      return sendSuccess(
+        res,
+        {
+          data,
+        }
+      );
+
+    } catch (error) {
+
+      return sendError(
+        res,
+        error
+      );
+    }
+  };
+
 
 exports.updateOrderStatus =
   async (

@@ -11,6 +11,16 @@ const SystemSetting = require("./SystemSetting");
 const CmsPage = require("./CmsPage");
 const CmsSectionType = require("./CmsSectionType");
 const CmsPageSection = require("./CmsPageSection");
+const KioskProfile = require("./KioskProfile");
+const KioskProfilePage = require("./KioskProfilePage");
+const KioskDevice = require("./KioskDevice");
+const KioskOrder = require("./KioskOrder");
+const KioskFulfillmentAssignment =
+  require(
+    "./KioskFulfillmentAssignment"
+  );
+
+const UserInventoryLocation = require("./UserInventoryLocation");
 const MediaFolder = require("./MediaFolder");
 const MediaAsset = require("./MediaAsset");
 const MediaAssetVariant = require("./MediaAssetVariant");
@@ -219,7 +229,7 @@ const BundlePromotionItem =
 
   const OrderItemBundle = require("./OrderItemBundle");
   const OrderItemBundleItem = require("./OrderItemBundleItem");
-  
+
 
 const db = {
     sequelize,
@@ -234,6 +244,12 @@ const db = {
     CmsPage,
     CmsSectionType,
     CmsPageSection,
+    KioskProfile,
+    KioskProfilePage,
+    KioskDevice,
+    KioskOrder,
+    KioskFulfillmentAssignment,
+    UserInventoryLocation,
     MediaFolder,
     MediaAsset,
     MediaAssetVariant,
@@ -310,10 +326,10 @@ const db = {
     BundlePromotionItem,
     OrderItemBundle,
     OrderItemBundleItem,
-    
+
   };
 
-   
+
 Company.hasMany(User, {
   foreignKey: "companyId",
   as: "users",
@@ -376,17 +392,17 @@ Company.hasMany(SystemSetting, {
     foreignKey: "companyId",
     as: "systemSettings",
   });
-  
+
   SystemSetting.belongsTo(Company, {
     foreignKey: "companyId",
     as: "company",
   });
-  
+
   User.hasMany(SystemSetting, {
     foreignKey: "updatedBy",
     as: "updatedSettings",
   });
-  
+
   SystemSetting.belongsTo(User, {
     foreignKey: "updatedBy",
     as: "updatedByUser",
@@ -396,27 +412,27 @@ Company.hasMany(SystemSetting, {
     foreignKey: "companyId",
     as: "cmsPages",
   });
-  
+
   CmsPage.belongsTo(Company, {
     foreignKey: "companyId",
     as: "company",
   });
-  
+
   User.hasMany(CmsPage, {
     foreignKey: "createdBy",
     as: "createdCmsPages",
   });
-  
+
   CmsPage.belongsTo(User, {
     foreignKey: "createdBy",
     as: "createdByUser",
   });
-  
+
   User.hasMany(CmsPage, {
     foreignKey: "updatedBy",
     as: "updatedCmsPages",
   });
-  
+
   CmsPage.belongsTo(User, {
     foreignKey: "updatedBy",
     as: "updatedByUser",
@@ -426,78 +442,78 @@ Company.hasMany(SystemSetting, {
     foreignKey: "companyId",
     as: "cmsSectionTypes",
   });
-  
+
   CmsSectionType.belongsTo(Company, {
     foreignKey: "companyId",
     as: "company",
   });
-  
+
   Company.hasMany(CmsPageSection, {
     foreignKey: "companyId",
     as: "cmsPageSections",
   });
-  
+
   CmsPageSection.belongsTo(Company, {
     foreignKey: "companyId",
     as: "company",
   });
-  
+
   CmsPage.hasMany(CmsPageSection, {
     foreignKey: "cmsPageId",
     as: "sections",
     onDelete: "CASCADE",
   });
-  
+
   CmsPageSection.belongsTo(CmsPage, {
     foreignKey: "cmsPageId",
     as: "page",
   });
-  
+
   CmsSectionType.hasMany(CmsPageSection, {
     foreignKey: "sectionTypeId",
     as: "pageSections",
   });
-  
+
   CmsPageSection.belongsTo(CmsSectionType, {
     foreignKey: "sectionTypeId",
     as: "sectionType",
   });
-  
+
   User.hasMany(CmsSectionType, {
     foreignKey: "createdBy",
     as: "createdCmsSectionTypes",
   });
-  
+
   CmsSectionType.belongsTo(User, {
     foreignKey: "createdBy",
     as: "createdByUser",
   });
-  
+
   User.hasMany(CmsSectionType, {
     foreignKey: "updatedBy",
     as: "updatedCmsSectionTypes",
   });
-  
+
   CmsSectionType.belongsTo(User, {
     foreignKey: "updatedBy",
     as: "updatedByUser",
   });
-  
+
   User.hasMany(CmsPageSection, {
     foreignKey: "createdBy",
     as: "createdCmsPageSections",
   });
-  
+
   CmsPageSection.belongsTo(User, {
     foreignKey: "createdBy",
     as: "createdByUser",
   });
-  
+
   User.hasMany(CmsPageSection, {
     foreignKey: "updatedBy",
     as: "updatedCmsPageSections",
   });
-  
+
   CmsPageSection.belongsTo(User, {
     foreignKey: "updatedBy",
     as: "updatedByUser",
@@ -507,169 +523,169 @@ Company.hasMany(SystemSetting, {
     foreignKey: "companyId",
     as: "mediaFolders",
   });
-  
+
   MediaFolder.belongsTo(Company, {
     foreignKey: "companyId",
     as: "company",
   });
-  
+
   MediaFolder.hasMany(MediaFolder, {
     foreignKey: "parentFolderId",
     as: "children",
   });
-  
+
   MediaFolder.belongsTo(MediaFolder, {
     foreignKey: "parentFolderId",
     as: "parent",
   });
-  
+
   Company.hasMany(MediaAsset, {
     foreignKey: "companyId",
     as: "mediaAssets",
   });
-  
+
   MediaAsset.belongsTo(Company, {
     foreignKey: "companyId",
     as: "company",
   });
-  
+
   MediaFolder.hasMany(MediaAsset, {
     foreignKey: "folderId",
     as: "assets",
   });
-  
+
   MediaAsset.belongsTo(MediaFolder, {
     foreignKey: "folderId",
     as: "folder",
   });
-  
+
   MediaAsset.hasMany(MediaAssetVariant, {
     foreignKey: "mediaAssetId",
     as: "variants",
     onDelete: "CASCADE",
   });
-  
+
   MediaAssetVariant.belongsTo(MediaAsset, {
     foreignKey: "mediaAssetId",
     as: "asset",
   });
-  
+
   Company.hasMany(MediaAssetVariant, {
     foreignKey: "companyId",
     as: "mediaAssetVariants",
   });
-  
+
   MediaAssetVariant.belongsTo(Company, {
     foreignKey: "companyId",
     as: "company",
   });
-  
+
   MediaAsset.hasMany(MediaAssetUsage, {
     foreignKey: "mediaAssetId",
     as: "usageRecords",
     onDelete: "RESTRICT",
   });
-  
+
   MediaAssetUsage.belongsTo(MediaAsset, {
     foreignKey: "mediaAssetId",
     as: "asset",
   });
-  
+
   Company.hasMany(MediaAssetUsage, {
     foreignKey: "companyId",
     as: "mediaAssetUsageRecords",
   });
-  
+
   MediaAssetUsage.belongsTo(Company, {
     foreignKey: "companyId",
     as: "company",
   });
-  
+
   User.hasMany(MediaFolder, {
     foreignKey: "createdBy",
     as: "createdMediaFolders",
   });
-  
+
   MediaFolder.belongsTo(User, {
     foreignKey: "createdBy",
     as: "createdByUser",
   });
-  
+
   User.hasMany(MediaFolder, {
     foreignKey: "updatedBy",
     as: "updatedMediaFolders",
   });
-  
+
   MediaFolder.belongsTo(User, {
     foreignKey: "updatedBy",
     as: "updatedByUser",
   });
-  
+
   User.hasMany(MediaAsset, {
     foreignKey: "uploadedBy",
     as: "uploadedMediaAssets",
   });
-  
+
   MediaAsset.belongsTo(User, {
     foreignKey: "uploadedBy",
     as: "uploadedByUser",
   });
-  
+
   User.hasMany(MediaAsset, {
     foreignKey: "createdBy",
     as: "createdMediaAssets",
   });
-  
+
   MediaAsset.belongsTo(User, {
     foreignKey: "createdBy",
     as: "createdByUser",
   });
-  
+
   User.hasMany(MediaAsset, {
     foreignKey: "updatedBy",
     as: "updatedMediaAssets",
   });
-  
+
   MediaAsset.belongsTo(User, {
     foreignKey: "updatedBy",
     as: "updatedByUser",
   });
-  
+
   User.hasMany(MediaAssetVariant, {
     foreignKey: "createdBy",
     as: "createdMediaAssetVariants",
   });
-  
+
   MediaAssetVariant.belongsTo(User, {
     foreignKey: "createdBy",
     as: "createdByUser",
   });
-  
+
   User.hasMany(MediaAssetVariant, {
     foreignKey: "updatedBy",
     as: "updatedMediaAssetVariants",
   });
-  
+
   MediaAssetVariant.belongsTo(User, {
     foreignKey: "updatedBy",
     as: "updatedByUser",
   });
-  
+
   User.hasMany(MediaAssetUsage, {
     foreignKey: "createdBy",
     as: "createdMediaAssetUsageRecords",
   });
-  
+
   MediaAssetUsage.belongsTo(User, {
     foreignKey: "createdBy",
     as: "createdByUser",
   });
-  
+
   User.hasMany(MediaAssetUsage, {
     foreignKey: "updatedBy",
     as: "updatedMediaAssetUsageRecords",
   });
-  
+
   MediaAssetUsage.belongsTo(User, {
     foreignKey: "updatedBy",
     as: "updatedByUser",
@@ -4018,7 +4034,260 @@ BundlePromotionItem.belongsTo(
   }
 );
 
-// ASSOCIATIONS: add before module.exports = db;
+// ASSOCIATIONS: add before
+/*
+|--------------------------------------------------------------------------
+| Kiosk Orders
+|--------------------------------------------------------------------------
+*/
+
+Company.hasMany(KioskOrder, {
+  foreignKey: "companyId",
+  as: "kioskOrders",
+});
+
+KioskOrder.belongsTo(Company, {
+  foreignKey: "companyId",
+  as: "company",
+});
+
+
+Order.hasOne(KioskOrder, {
+  foreignKey: "orderId",
+  as: "kioskOrder",
+});
+
+KioskOrder.belongsTo(Order, {
+  foreignKey: "orderId",
+  as: "order",
+});
+
+
+InventoryLocation.hasMany(KioskOrder, {
+  foreignKey: "inventoryLocationId",
+  as: "kioskOrders",
+});
+
+KioskOrder.belongsTo(InventoryLocation, {
+  foreignKey: "inventoryLocationId",
+  as: "inventoryLocation",
+});
+
+
+KioskDevice.hasMany(KioskOrder, {
+  foreignKey: "kioskDeviceId",
+  as: "orders",
+});
+
+KioskOrder.belongsTo(KioskDevice, {
+  foreignKey: "kioskDeviceId",
+  as: "kioskDevice",
+});
+
+
+KioskProfile.hasMany(KioskOrder, {
+  foreignKey: "kioskProfileId",
+  as: "orders",
+});
+
+KioskOrder.belongsTo(KioskProfile, {
+  foreignKey: "kioskProfileId",
+  as: "kioskProfile",
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Kiosk Fulfillment Assignments
+|--------------------------------------------------------------------------
+*/
+
+Company.hasMany(KioskFulfillmentAssignment, {
+  foreignKey:
+    "companyId",
+  as:
+    "kioskFulfillmentAssignments",
+});
+
+KioskFulfillmentAssignment.belongsTo(Company, {
+  foreignKey:
+    "companyId",
+  as:
+    "company",
+});
+
+
+Order.hasMany(KioskFulfillmentAssignment, {
+  foreignKey:
+    "orderId",
+  as:
+    "kioskFulfillmentAssignments",
+});
+
+KioskFulfillmentAssignment.belongsTo(Order, {
+  foreignKey:
+    "orderId",
+  as:
+    "order",
+});
+
+
+OrderItem.hasOne(KioskFulfillmentAssignment, {
+  foreignKey:
+    "orderItemId",
+  as:
+    "kioskFulfillmentAssignment",
+});
+
+KioskFulfillmentAssignment.belongsTo(OrderItem, {
+  foreignKey:
+    "orderItemId",
+  as:
+    "orderItem",
+});
+
+
+ProductVariant.hasMany(KioskFulfillmentAssignment, {
+  foreignKey:
+    "productVariantId",
+  as:
+    "kioskFulfillmentAssignments",
+});
+
+KioskFulfillmentAssignment.belongsTo(ProductVariant, {
+  foreignKey:
+    "productVariantId",
+  as:
+    "productVariant",
+});
+
+
+InventoryLocation.hasMany(KioskFulfillmentAssignment, {
+  foreignKey:
+    "sellingLocationId",
+  as:
+    "kioskSalesFulfillmentAssignments",
+});
+
+KioskFulfillmentAssignment.belongsTo(InventoryLocation, {
+  foreignKey:
+    "sellingLocationId",
+  as:
+    "sellingLocation",
+});
+
+
+InventoryLocation.hasMany(KioskFulfillmentAssignment, {
+  foreignKey:
+    "fulfillmentLocationId",
+  as:
+    "kioskSourceFulfillmentAssignments",
+});
+
+KioskFulfillmentAssignment.belongsTo(InventoryLocation, {
+  foreignKey:
+    "fulfillmentLocationId",
+  as:
+    "fulfillmentLocation",
+});
+
+
+User.hasMany(KioskFulfillmentAssignment, {
+  foreignKey:
+    "assignedBy",
+  as:
+    "assignedKioskFulfillments",
+});
+
+KioskFulfillmentAssignment.belongsTo(User, {
+  foreignKey:
+    "assignedBy",
+  as:
+    "assignedByUser",
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| User Location Access
+|--------------------------------------------------------------------------
+*/
+
+Company.hasMany(UserInventoryLocation, {
+  foreignKey: "companyId",
+  as: "userInventoryLocations",
+});
+
+UserInventoryLocation.belongsTo(Company, {
+  foreignKey: "companyId",
+  as: "company",
+});
+
+
+User.hasMany(UserInventoryLocation, {
+  foreignKey: "userId",
+  as: "inventoryLocationAccess",
+});
+
+UserInventoryLocation.belongsTo(User, {
+  foreignKey: "userId",
+  as: "user",
+});
+
+
+InventoryLocation.hasMany(UserInventoryLocation, {
+  foreignKey: "inventoryLocationId",
+  as: "userAccessAssignments",
+});
+
+UserInventoryLocation.belongsTo(InventoryLocation, {
+  foreignKey: "inventoryLocationId",
+  as: "inventoryLocation",
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| User <-> Inventory Location
+|--------------------------------------------------------------------------
+|
+| Convenience many-to-many associations used by Access Control.
+|
+| User.inventoryLocations
+| InventoryLocation.assignedUsers
+|--------------------------------------------------------------------------
+*/
+
+User.belongsToMany(InventoryLocation, {
+  through:
+    UserInventoryLocation,
+
+  foreignKey:
+    "userId",
+
+  otherKey:
+    "inventoryLocationId",
+
+  as:
+    "inventoryLocations",
+});
+
+InventoryLocation.belongsToMany(User, {
+  through:
+    UserInventoryLocation,
+
+  foreignKey:
+    "inventoryLocationId",
+
+  otherKey:
+    "userId",
+
+  as:
+    "assignedUsers",
+});
+
+
+module.exports = db;
 Order.hasMany(OrderItemBundle,{foreignKey:"orderId",as:"itemBundles"});
 OrderItemBundle.belongsTo(Order,{foreignKey:"orderId",as:"order"});
 OrderItem.hasMany(OrderItemBundle,{foreignKey:"orderItemId",as:"bundles"});
@@ -4034,6 +4303,110 @@ OrderItemBundle.belongsTo(BundlePromotion,{foreignKey:"bundlePromotionId",as:"pr
 BundlePromotionItem.hasMany(OrderItemBundleItem,{foreignKey:"bundlePromotionItemId",as:"orderSnapshots"});
 OrderItemBundleItem.belongsTo(BundlePromotionItem,{foreignKey:"bundlePromotionItemId",as:"promotionItem"});
 
+
+/*
+|--------------------------------------------------------------------------
+| Kiosk Management
+|--------------------------------------------------------------------------
+*/
+
+/*
+|--------------------------------------------------------------------------
+| Company → Kiosk Profiles
+|--------------------------------------------------------------------------
+*/
+
+Company.hasMany(KioskProfile, {
+  foreignKey: "companyId",
+  as: "kioskProfiles",
+});
+
+KioskProfile.belongsTo(Company, {
+  foreignKey: "companyId",
+  as: "company",
+});
+
+/*
+|--------------------------------------------------------------------------
+| Inventory Location → Kiosk Profiles
+|--------------------------------------------------------------------------
+*/
+
+InventoryLocation.hasMany(KioskProfile, {
+  foreignKey: "inventoryLocationId",
+  as: "kioskProfiles",
+});
+
+KioskProfile.belongsTo(InventoryLocation, {
+  foreignKey: "inventoryLocationId",
+  as: "inventoryLocation",
+});
+
+/*
+|--------------------------------------------------------------------------
+| Kiosk Profile → Pages
+|--------------------------------------------------------------------------
+*/
+
+KioskProfile.hasMany(KioskProfilePage, {
+  foreignKey: "kioskProfileId",
+  as: "pages",
+  onDelete: "CASCADE",
+});
+
+KioskProfilePage.belongsTo(KioskProfile, {
+  foreignKey: "kioskProfileId",
+  as: "kioskProfile",
+});
+
+/*
+|--------------------------------------------------------------------------
+| CMS Page → Kiosk Profile Pages
+|--------------------------------------------------------------------------
+*/
+
+CmsPage.hasMany(KioskProfilePage, {
+  foreignKey: "cmsPageId",
+  as: "kioskProfileAssignments",
+});
+
+KioskProfilePage.belongsTo(CmsPage, {
+  foreignKey: "cmsPageId",
+  as: "cmsPage",
+});
+
+/*
+|--------------------------------------------------------------------------
+| Company → Kiosk Devices
+|--------------------------------------------------------------------------
+*/
+
+Company.hasMany(KioskDevice, {
+  foreignKey: "companyId",
+  as: "kioskDevices",
+});
+
+KioskDevice.belongsTo(Company, {
+  foreignKey: "companyId",
+  as: "company",
+});
+
+/*
+|--------------------------------------------------------------------------
+| Kiosk Profile → Devices
+|--------------------------------------------------------------------------
+*/
+
+KioskProfile.hasMany(KioskDevice, {
+  foreignKey: "kioskProfileId",
+  as: "devices",
+  onDelete: "CASCADE",
+});
+
+KioskDevice.belongsTo(KioskProfile, {
+  foreignKey: "kioskProfileId",
+  as: "kioskProfile",
+});
 
 
 module.exports = db;

@@ -849,6 +849,10 @@ export default function OrdersPage() {
                     </TableHead>
 
                     <TableHead>
+                      Store
+                    </TableHead>
+
+                    <TableHead>
                       Date
                     </TableHead>
 
@@ -891,7 +895,7 @@ export default function OrdersPage() {
                     <tr>
                       <td
                         colSpan={
-                          10
+                          11
                         }
                         className="px-6 py-16 text-center"
                       >
@@ -906,7 +910,7 @@ export default function OrdersPage() {
                     <tr>
                       <td
                         colSpan={
-                          10
+                          11
                         }
                         className="px-6 py-12 text-center"
                       >
@@ -929,7 +933,7 @@ export default function OrdersPage() {
                     <tr>
                       <td
                         colSpan={
-                          10
+                          11
                         }
                         className="px-6 py-14 text-center text-sm text-[#6d7175]"
                       >
@@ -956,6 +960,33 @@ export default function OrdersPage() {
                                 order.orderNumber
                               }
                             </Link>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            {order.kiosk?.sellingLocation ? (
+                              <div>
+                                <div className="font-medium text-[#202223]">
+                                  {order.kiosk.sellingLocation.name ||
+                                    "Store"}
+                                </div>
+
+                                <div className="mt-0.5 text-xs text-[#6d7175]">
+                                  {order.kiosk.sellingLocation.code ||
+                                    ""}
+                                  {order.kiosk.kioskDevice?.name
+                                    ? ` · ${order.kiosk.kioskDevice.name}`
+                                    : " · Kiosk"}
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="text-sm text-[#6d7175]">
+                                  {order.channelCode === "WEBSITE"
+                                    ? "Online"
+                                    : order.channelCode || "—"}
+                                </div>
+                              </div>
+                            )}
                           </td>
 
                           <td className="whitespace-nowrap px-5 py-4 text-sm text-[#6d7175]">

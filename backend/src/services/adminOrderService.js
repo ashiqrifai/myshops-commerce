@@ -215,6 +215,51 @@ const {
     channelCode:
       order.channelCode ||
       null,
+
+    kiosk:
+      order.kioskOrder
+        ? {
+            id:
+              order.kioskOrder.id,
+
+            fulfillmentMode:
+              order.kioskOrder.fulfillmentMode,
+
+            collectionStatus:
+              order.kioskOrder.collectionStatus,
+
+            deliveryStatus:
+              order.kioskOrder.deliveryStatus,
+
+            sellingLocation:
+              order.kioskOrder.inventoryLocation
+                ? {
+                    id:
+                      order.kioskOrder.inventoryLocation.id,
+
+                    code:
+                      order.kioskOrder.inventoryLocation.code,
+
+                    name:
+                      order.kioskOrder.inventoryLocation.name,
+                  }
+                : null,
+
+            kioskDevice:
+              order.kioskOrder.kioskDevice
+                ? {
+                    id:
+                      order.kioskOrder.kioskDevice.id,
+
+                    code:
+                      order.kioskOrder.kioskDevice.deviceCode,
+
+                    name:
+                      order.kioskOrder.kioskDevice.deviceName,
+                  }
+                : null,
+          }
+        : null,
   
     currencyCode:
       order.currencyCode ||
@@ -473,6 +518,181 @@ notes:
   
   /*
   |--------------------------------------------------------------------------
+  | Admin Inventory Location Scope
+  |--------------------------------------------------------------------------
+  |
+  | Super admins:
+  |   unrestricted within the company.
+  |
+  | Store admins:
+  |   restricted to inventory locations explicitly assigned
+  |   through UserInventoryLocation.
+  |--------------------------------------------------------------------------
+  */
+
+  const getAdminLocationScope =
+    async ({
+      companyId,
+      userId,
+      isSuperAdmin =
+        false,
+    }) => {
+
+      if (
+        isSuperAdmin ===
+        true
+      ) {
+        return {
+          unrestricted:
+            true,
+
+          locationIds:
+            [],
+        };
+      }
+
+      if (!userId) {
+        throw createServiceError({
+          message:
+            "Authenticated user context is required.",
+          statusCode:
+            401,
+          code:
+            "ADMIN_USER_CONTEXT_REQUIRED",
+        });
+      }
+
+      const assignments =
+        await db.UserInventoryLocation
+          .findAll({
+            where: {
+              companyId,
+              userId,
+            },
+
+            attributes: [
+              "inventoryLocationId",
+            ],
+
+            raw:
+              true,
+          });
+
+      const locationIds =
+        [
+          ...new Set(
+            assignments
+              .map(
+                row =>
+                  row.inventoryLocationId
+              )
+              .filter(
+                Boolean
+              )
+          ),
+        ];
+
+      return {
+        unrestricted:
+          false,
+
+        locationIds,
+      };
+    };
+
+
+  /*
+  |--------------------------------------------------------------------------
+  | Accessible Kiosk Orders For Store Admin
+  |--------------------------------------------------------------------------
+  |
+  | A store user can see a kiosk order when one of their assigned
+  | inventory locations is:
+  |
+  | 1. the selling location, OR
+  | 2. an assigned fulfillment location.
+  |--------------------------------------------------------------------------
+  */
+
+  const getAccessibleKioskOrderIds =
+    async ({
+      companyId,
+      locationIds,
+    }) => {
+
+      if (
+        !Array.isArray(
+          locationIds
+        ) ||
+        locationIds.length ===
+          0
+      ) {
+        return [];
+      }
+
+      const sellingRows =
+        await db.KioskOrder.findAll({
+          where: {
+            companyId,
+
+            inventoryLocationId: {
+              [Op.in]:
+                locationIds,
+            },
+          },
+
+          attributes: [
+            "orderId",
+          ],
+
+          raw:
+            true,
+        });
+
+      const fulfillmentRows =
+        await db.KioskFulfillmentAssignment.findAll({
+          where: {
+            companyId,
+
+            fulfillmentLocationId: {
+              [Op.in]:
+                locationIds,
+            },
+
+            status: {
+              [Op.ne]:
+                "CANCELLED",
+            },
+          },
+
+          attributes: [
+            "orderId",
+          ],
+
+          raw:
+            true,
+        });
+
+      return [
+        ...new Set(
+          [
+            ...sellingRows,
+            ...fulfillmentRows,
+          ]
+            .map(
+              row =>
+                row.orderId
+            )
+            .filter(
+              Boolean
+            )
+        ),
+      ];
+    };
+
+
+  /*
+  |--------------------------------------------------------------------------
   | List Admin Orders
   |--------------------------------------------------------------------------
   */
@@ -480,6 +700,12 @@ notes:
   const listAdminOrders =
     async ({
       companyId,
+
+        userId,
+
+        isSuperAdmin =
+          false,
+
   
       search,
   
@@ -518,7 +744,14 @@ notes:
         });
       }
   
-      const safePage =
+      const locationScope =
+          await getAdminLocationScope({
+            companyId,
+            userId,
+            isSuperAdmin,
+          });
+
+        const safePage =
         Math.max(
           1,
           toNumber(
@@ -566,6 +799,17 @@ notes:
           ? "ASC"
           : "DESC";
   
+      const accessibleOrderIds =
+        locationScope.unrestricted
+          ? null
+          : await getAccessibleKioskOrderIds({
+              companyId,
+
+              locationIds:
+                locationScope.locationIds,
+            });
+
+
       const where =
         buildOrderWhere({
           companyId,
@@ -578,6 +822,16 @@ notes:
           dateFrom,
           dateTo,
         });
+
+
+      if (
+        !locationScope.unrestricted
+      ) {
+        where.id = {
+          [Op.in]:
+            accessibleOrderIds,
+        };
+      }
   
       const {
         rows,
@@ -586,6 +840,64 @@ notes:
         await db.Order
           .findAndCountAll({
             where,
+
+              /*
+               * Authorization is applied through the Order ID
+               * restriction above. This optional include only
+               * loads kiosk selling-store/device metadata.
+               */
+              include: [
+                {
+                  model:
+                    db.KioskOrder,
+
+                  as:
+                    "kioskOrder",
+
+                  required:
+                    false,
+
+                  include: [
+                    {
+                      model:
+                        db.InventoryLocation,
+
+                      as:
+                        "inventoryLocation",
+
+                      required:
+                        false,
+
+                      attributes: [
+                        "id",
+                        "code",
+                        "name",
+                      ],
+                    },
+
+                    {
+                      model:
+                        db.KioskDevice,
+
+                      as:
+                        "kioskDevice",
+
+                      required:
+                        false,
+
+                      attributes: [
+                        "id",
+                        "deviceCode",
+                        "deviceName",
+                      ],
+                    },
+                  ],
+                },
+              ],
+
+              distinct:
+                true,
+
   
             limit:
               safePageSize,
@@ -1213,9 +1525,269 @@ const loadFulfillmentDetail =
   |--------------------------------------------------------------------------
   */
   
-  const getAdminOrderDetail =
+  const loadKioskAdminDetail =
+  async ({
+    companyId,
+    orderId,
+    enrichedItems,
+  }) => {
+
+    const kioskOrder =
+      await db.KioskOrder.findOne({
+        where: {
+          companyId,
+          orderId,
+        },
+
+        include: [
+          {
+            model:
+              db.InventoryLocation,
+
+            as:
+              "inventoryLocation",
+
+            required:
+              false,
+
+            attributes: [
+              "id",
+              "code",
+              "name",
+              "locationType",
+              "emirate",
+              "city",
+            ],
+          },
+
+          {
+            model:
+              db.KioskDevice,
+
+            as:
+              "kioskDevice",
+
+            required:
+              false,
+
+            attributes: [
+              "id",
+              "deviceCode",
+              "deviceName",
+            ],
+          },
+        ],
+      });
+
+    if (!kioskOrder) {
+      return null;
+    }
+
+    const sellingLocation =
+      kioskOrder.inventoryLocation;
+
+    const sourceLocations =
+      Array.from(
+        new Map(
+          (
+            enrichedItems ||
+            []
+          )
+            .filter(
+              item =>
+                item.allocatedLocationId
+            )
+            .map(
+              item => [
+                String(
+                  item.allocatedLocationId
+                ),
+                {
+                  id:
+                    item.allocatedLocationId,
+
+                  code:
+                    item.allocatedLocationCode ||
+                    null,
+
+                  name:
+                    item.allocatedLocationName ||
+                    null,
+                },
+              ]
+            )
+        ).values()
+      );
+
+    const hasRemoteSource =
+      sourceLocations.some(
+        location =>
+          String(
+            location.id
+          ) !==
+          String(
+            kioskOrder.inventoryLocationId
+          )
+      );
+
+    const hasLocalSource =
+      sourceLocations.some(
+        location =>
+          String(
+            location.id
+          ) ===
+          String(
+            kioskOrder.inventoryLocationId
+          )
+      );
+
+    const itemMethods =
+      Array.from(
+        new Set(
+          (
+            enrichedItems ||
+            []
+          )
+            .map(
+              item =>
+                cleanUpper(
+                  item.fulfillmentMethod ||
+                  item.selectedDeliveryMethod
+                )
+            )
+            .filter(Boolean)
+        )
+      );
+
+    let fulfillmentType;
+
+    if (
+      cleanUpper(
+        kioskOrder.fulfillmentMode
+      ) ===
+      "DELIVERY"
+    ) {
+
+      fulfillmentType =
+        "DELIVERY";
+
+    } else if (
+      cleanUpper(
+        kioskOrder.fulfillmentMode
+      ) ===
+      "MIXED"
+    ) {
+
+      fulfillmentType =
+        "MIXED";
+
+    } else if (
+      hasRemoteSource
+    ) {
+
+      fulfillmentType =
+        "AVAILABLE_TO_ORDER";
+
+    } else if (
+      hasLocalSource
+    ) {
+
+      fulfillmentType =
+        "IN_STORE";
+
+    } else if (
+      itemMethods.includes(
+        "DIRECT_DELIVERY"
+      )
+    ) {
+
+      fulfillmentType =
+        "DIRECT_DELIVERY";
+
+    } else {
+
+      /*
+       * IN_STORE kiosk order without a physical
+       * inventory allocation, including an
+       * alwaysAvailableForSale order.
+       */
+      fulfillmentType =
+        "AVAILABLE_TO_ORDER";
+    }
+
+    return {
+      id:
+        kioskOrder.id,
+
+      fulfillmentMode:
+        kioskOrder.fulfillmentMode,
+
+      fulfillmentType,
+
+      collectionStatus:
+        kioskOrder.collectionStatus,
+
+      deliveryStatus:
+        kioskOrder.deliveryStatus,
+
+      deliveryScheduledAt:
+        kioskOrder.deliveryScheduledAt ||
+        null,
+
+      sellingLocation:
+        sellingLocation
+          ? {
+              id:
+                sellingLocation.id,
+
+              code:
+                sellingLocation.code,
+
+              name:
+                sellingLocation.name,
+
+              locationType:
+                sellingLocation.locationType ||
+                null,
+
+              emirate:
+                sellingLocation.emirate ||
+                null,
+
+              city:
+                sellingLocation.city ||
+                null,
+            }
+          : null,
+
+      kioskDevice:
+        kioskOrder.kioskDevice
+          ? {
+              id:
+                kioskOrder.kioskDevice.id,
+
+              code:
+                kioskOrder.kioskDevice.deviceCode,
+
+              name:
+                kioskOrder.kioskDevice.deviceName,
+            }
+          : null,
+
+      sourceLocations,
+    };
+  };
+
+
+const getAdminOrderDetail =
     async ({
       companyId,
+
+      userId,
+
+      isSuperAdmin =
+        false,
+
       orderId,
     }) => {
       if (!companyId) {
@@ -1238,6 +1810,13 @@ const loadFulfillmentDetail =
         });
       }
   
+      const locationScope =
+        await getAdminLocationScope({
+          companyId,
+          userId,
+          isSuperAdmin,
+        });
+
       const order =
         await db.Order
           .findOne({
@@ -1260,6 +1839,51 @@ const loadFulfillmentDetail =
         });
       }
   
+      /*
+       * Store admins may open kiosk orders when one of
+       * their assigned locations is either:
+       *
+       * 1. the selling location, or
+       * 2. an active assigned fulfillment location.
+       */
+      if (
+        !locationScope.unrestricted
+      ) {
+
+        const accessibleOrderIds =
+          await getAccessibleKioskOrderIds({
+            companyId,
+
+            locationIds:
+              locationScope.locationIds,
+          });
+
+        const hasAccess =
+          accessibleOrderIds.some(
+            id =>
+              String(id) ===
+              String(order.id)
+          );
+
+        if (!hasAccess) {
+          /*
+           * Return 404 rather than 403 so another
+           * store cannot discover whether the order exists.
+           */
+          throw createServiceError({
+            message:
+              "Order was not found.",
+
+            statusCode:
+              404,
+
+            code:
+              "ORDER_NOT_FOUND",
+          });
+        }
+      }
+
+
       const [
         items,
         addresses,
@@ -1326,10 +1950,24 @@ const loadFulfillmentDetail =
 
 
   
-      return {
+      const kiosk =
+          await loadKioskAdminDetail({
+            companyId,
+
+            orderId:
+              order.id,
+
+            enrichedItems,
+          });
+
+
+        return {
 
   
         order,
+
+          kiosk,
+
 
 
   
@@ -2458,6 +3096,12 @@ const retryZohoSalesOrder =
   const getAdminOrderSummary =
     async ({
       companyId,
+
+      userId,
+
+      isSuperAdmin =
+        false,
+
     }) => {
       if (!companyId) {
         throw createServiceError({
@@ -2470,6 +3114,39 @@ const retryZohoSalesOrder =
         });
       }
   
+      const locationScope =
+        await getAdminLocationScope({
+          companyId,
+          userId,
+          isSuperAdmin,
+        });
+
+      const accessibleOrderIds =
+        locationScope.unrestricted
+          ? null
+          : await getAccessibleKioskOrderIds({
+              companyId,
+
+              locationIds:
+                locationScope.locationIds,
+            });
+
+
+      const summaryWhere =
+        locationScope.unrestricted
+          ? {
+              companyId,
+            }
+          : {
+              companyId,
+
+              id: {
+                [Op.in]:
+                  accessibleOrderIds,
+              },
+            };
+
+
       const [
         totalOrders,
         pendingOrders,
@@ -2480,14 +3157,14 @@ const retryZohoSalesOrder =
       ] =
         await Promise.all([
           db.Order.count({
-            where: {
-              companyId,
-            },
+            where:
+              summaryWhere,
           }),
   
           db.Order.count({
             where: {
-              companyId,
+              ...summaryWhere,
+
               orderStatus:
                 "PENDING",
             },
@@ -2495,7 +3172,8 @@ const retryZohoSalesOrder =
   
           db.Order.count({
             where: {
-              companyId,
+              ...summaryWhere,
+
               orderStatus:
                 "CONFIRMED",
             },
@@ -2503,7 +3181,8 @@ const retryZohoSalesOrder =
   
           db.Order.count({
             where: {
-              companyId,
+              ...summaryWhere,
+
               paymentStatus:
                 "PAID",
             },
@@ -2511,7 +3190,7 @@ const retryZohoSalesOrder =
   
           db.Order.count({
             where: {
-              companyId,
+              ...summaryWhere,
               fulfillmentStatus:
                 "UNFULFILLED",
             },
@@ -2519,7 +3198,7 @@ const retryZohoSalesOrder =
   
           db.Order.count({
             where: {
-              companyId,
+              ...summaryWhere,
               paymentMethod:
                 "TAMARA",
             },

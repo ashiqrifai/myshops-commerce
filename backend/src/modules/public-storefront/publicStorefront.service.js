@@ -8030,12 +8030,26 @@ const resolveFeaturedGridViewAllLinks =
  * Public storefront page entry point.
  */
 
+const logStorefrontMemory = (stage, slug) => {
+  const m = process.memoryUsage();
+
+  console.log("[STOREFRONT-MEM]", stage, {
+    slug,
+    heapUsedMB: Math.round(m.heapUsed / 1024 / 1024),
+    heapTotalMB: Math.round(m.heapTotal / 1024 / 1024),
+    rssMB: Math.round(m.rss / 1024 / 1024),
+    externalMB: Math.round(m.external / 1024 / 1024),
+  });
+};
+
 const getPublicStorefrontPageUncached = async ({
   companyCode,
   slug = "/",
   channel = "WEBSITE",
   apiBaseUrl,
 }) => {
+  logStorefrontMemory("START", slug);
+
   console.log("========== PUBLIC STOREFRONT START ==========");
 
   const now = new Date();
@@ -8338,6 +8352,8 @@ const getPublicStorefrontPageUncached = async ({
 |--------------------------------------------------------------------------
 */
 
+logStorefrontMemory("BEFORE_NAVIGATION", normalizedSlug);
+
 const navigationResolvedSections =
   await resolveNavigationSections({
     sections:
@@ -8357,6 +8373,9 @@ const navigationResolvedSections =
 |--------------------------------------------------------------------------
 */
 
+logStorefrontMemory("AFTER_NAVIGATION", normalizedSlug);
+logStorefrontMemory("BEFORE_CATEGORY", normalizedSlug);
+
 const categoryResolvedSections =
   await resolveCategoryGridSections({
     sections:
@@ -8374,6 +8393,9 @@ const categoryResolvedSections =
 | Collection Grid
 |--------------------------------------------------------------------------
 */
+
+logStorefrontMemory("AFTER_CATEGORY", normalizedSlug);
+logStorefrontMemory("BEFORE_COLLECTION", normalizedSlug);
 
 const collectionResolvedSections =
   await resolveCollectionGridSections({
@@ -8395,6 +8417,9 @@ const collectionResolvedSections =
 |--------------------------------------------------------------------------
 */
 
+logStorefrontMemory("AFTER_COLLECTION", normalizedSlug);
+logStorefrontMemory("BEFORE_BRAND", normalizedSlug);
+
 const brandResolvedSections =
   await resolveBrandCarouselSections({
     sections:
@@ -8412,6 +8437,9 @@ const brandResolvedSections =
 | Featured Product Grid
 |--------------------------------------------------------------------------
 */
+
+logStorefrontMemory("AFTER_BRAND", normalizedSlug);
+logStorefrontMemory("BEFORE_FEATURED", normalizedSlug);
 
 const featuredResolvedSections =
   await resolveFeaturedProductGridSections({
@@ -8452,6 +8480,9 @@ const featuredViewAllResolvedSections =
 |--------------------------------------------------------------------------
 */
 
+logStorefrontMemory("AFTER_FEATURED", normalizedSlug);
+logStorefrontMemory("BEFORE_PRODUCT_CAROUSEL", normalizedSlug);
+
 const productCarouselResolvedSections =
   await resolveProductCarouselSections({
     sections:
@@ -8474,6 +8505,9 @@ const productCarouselResolvedSections =
 | Flash Deals
 |--------------------------------------------------------------------------
 */
+
+logStorefrontMemory("AFTER_PRODUCT_CAROUSEL", normalizedSlug);
+logStorefrontMemory("BEFORE_FLASH_DEALS", normalizedSlug);
 
 const flashDealsResolvedSections =
   await resolveFlashDealsSections({
@@ -8498,6 +8532,9 @@ const flashDealsResolvedSections =
 |--------------------------------------------------------------------------
 */
 
+logStorefrontMemory("AFTER_FLASH_DEALS", normalizedSlug);
+logStorefrontMemory("BEFORE_PREBOOKING", normalizedSlug);
+
 const sections =
   await resolvePreBookingSections({
     sections:
@@ -8520,12 +8557,17 @@ const sections =
      * Public settings such as branding, contact,
      * header, footer and social configuration.
      */
+    logStorefrontMemory("AFTER_PREBOOKING", normalizedSlug);
+    logStorefrontMemory("BEFORE_SETTINGS", normalizedSlug);
+
     const settings =
       await getPublicSettings({
         companyId: company.id,
         channel:
           normalizedChannel,
       });
+
+    logStorefrontMemory("BEFORE_RETURN", normalizedSlug);
 
     return {
       company: {
@@ -8819,4 +8861,14 @@ try {
 
 module.exports = {
   getPublicStorefrontPage,
+
+  /*
+   * Reused by isolated public listing services.
+   * Exporting these helpers does not change the existing
+   * storefront execution path.
+   */
+  buildPublicProduct,
+  getProductStorefrontIncludes,
+  findStorefrontPriceList,
+  applyGiftVoucherPricingToProducts,
 };

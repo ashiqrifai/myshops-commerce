@@ -10,3 +10,8 @@ storage/temp/*
 
 !storage/media/.gitkeep
 !storage/temp/.gitkeep
+
+# Keep controlled database migrations in Git
+!sql/
+!sql/migrations/
+!sql/migrations/*.sql

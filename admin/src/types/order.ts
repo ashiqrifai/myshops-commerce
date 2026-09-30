@@ -1,3 +1,53 @@
+export interface AdminOrderKioskLocation {
+  id: string;
+  code?: string | null;
+  name?: string | null;
+  locationType?: string | null;
+  emirate?: string | null;
+  city?: string | null;
+}
+
+export interface AdminOrderKioskDevice {
+  id: string;
+  code?: string | null;
+  name?: string | null;
+}
+
+export interface AdminOrderKiosk {
+  id: string;
+
+  fulfillmentMode?:
+    | "IN_STORE"
+    | "DELIVERY"
+    | "MIXED"
+    | string
+    | null;
+
+  fulfillmentType?:
+    | "IN_STORE"
+    | "AVAILABLE_TO_ORDER"
+    | "DIRECT_DELIVERY"
+    | "DELIVERY"
+    | "MIXED"
+    | string
+    | null;
+
+  collectionStatus?: string | null;
+  deliveryStatus?: string | null;
+  deliveryScheduledAt?: string | null;
+
+  sellingLocation?:
+    AdminOrderKioskLocation |
+    null;
+
+  kioskDevice?:
+    AdminOrderKioskDevice |
+    null;
+
+  sourceLocations?:
+    AdminOrderKioskLocation[];
+}
+
 export interface AdminOrder {
   id: string;
 
@@ -8,6 +58,10 @@ export interface AdminOrder {
   customerId?: string | null;
 
   channelCode?: string | null;
+
+  kiosk?:
+    AdminOrderKiosk |
+    null;
 
   customerFirstName?: string | null;
 
@@ -367,6 +421,10 @@ export interface AdminOrderDetailResponse {
     order:
       AdminOrder;
 
+    kiosk:
+      AdminOrderKiosk |
+      null;
+
     customer:
       AdminOrderCustomer |
       null;
@@ -474,4 +532,115 @@ export interface TamaraRefundResponse {
   refund?: unknown;
 
   tamaraOrder?: unknown;
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Kiosk Store Fulfillment Assignment
+|--------------------------------------------------------------------------
+*/
+
+export interface KioskFulfillmentLocation {
+  id: string;
+  code: string;
+  name: string;
+  locationType?: string | null;
+  emirate?: string | null;
+  city?: string | null;
+}
+
+export interface KioskFulfillmentAssignment {
+  id: string;
+  orderId: string;
+  orderItemId: string;
+  productVariantId: string;
+  sku: string;
+  quantity: number;
+
+  status:
+    | "AWAITING_ASSIGNMENT"
+    | "RESERVED"
+    | "PREPARING"
+    | "READY"
+    | "DISPATCHED"
+    | "DELIVERED"
+    | "CANCELLED";
+
+  sellingLocation:
+    KioskFulfillmentLocation;
+
+  fulfillmentLocation:
+    KioskFulfillmentLocation |
+    null;
+
+  assignedAt?: string | null;
+  reservedAt?: string | null;
+  notes?: string | null;
+}
+
+export interface KioskFulfillmentAssignmentsResponse {
+  success: boolean;
+
+  data:
+    KioskFulfillmentAssignment[];
+}
+
+export interface KioskFulfillmentCandidateLocation
+  extends KioskFulfillmentLocation {
+  quantityOnHand: number;
+  quantityReserved: number;
+  available: number;
+  canFulfill: boolean;
+}
+
+export interface KioskFulfillmentLocationsResponse {
+  success: boolean;
+
+  data: {
+    assignmentId: string;
+    sku: string;
+    productVariantId: string;
+    requiredQuantity: number;
+
+    sellingLocation:
+      KioskFulfillmentLocation;
+
+    currentFulfillmentLocation:
+      KioskFulfillmentLocation |
+      null;
+
+    locations:
+      KioskFulfillmentCandidateLocation[];
+  };
+}
+
+export interface AssignKioskFulfillmentRequest {
+  orderId: string;
+  assignmentId: string;
+
+  body: {
+    fulfillmentLocationId: string;
+    notes?: string | null;
+  };
+}
+
+export interface AssignKioskFulfillmentResponse {
+  success: boolean;
+
+  data: {
+    id: string;
+    status: string;
+    sku: string;
+    quantity: number;
+
+    sellingLocation:
+      KioskFulfillmentLocation;
+
+    fulfillmentLocation:
+      KioskFulfillmentLocation;
+
+    shipmentId: string;
+    reserved: boolean;
+  };
 }

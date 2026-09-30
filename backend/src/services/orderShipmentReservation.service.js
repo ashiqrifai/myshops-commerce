@@ -694,6 +694,9 @@ const reserveOrderDelivery =
     order,
     cityCode,
     transaction,
+
+    excludeOrderItemIds =
+      [],
   }) => {
     if (!order) {
       throw new AppError(
@@ -725,7 +728,23 @@ const reserveOrderDelivery =
     |--------------------------------------------------------------------------
     */
 
-    const orderItems =
+    const excludedIds =
+      new Set(
+        (
+          Array.isArray(
+            excludeOrderItemIds
+          )
+            ? excludeOrderItemIds
+            : []
+        )
+          .filter(Boolean)
+          .map(
+            id =>
+              String(id)
+          )
+      );
+
+    const allOrderItems =
       await db.OrderItem.findAll({
         where: {
           companyId:
@@ -738,10 +757,43 @@ const reserveOrderDelivery =
         transaction,
       });
 
+    const orderItems =
+      allOrderItems.filter(
+        item =>
+          !excludedIds.has(
+            String(
+              item.id
+            )
+          )
+      );
+
     if (
       orderItems.length ===
       0
     ) {
+
+      /*
+       * Every line can legitimately be excluded when
+       * an in-store kiosk order is awaiting manual
+       * source-store assignment.
+       */
+      if (
+        excludedIds.size >
+        0
+      ) {
+
+        return {
+          plan:
+            null,
+
+          shipments:
+            [],
+
+          deferred:
+            true,
+        };
+      }
+
       throw new AppError(
         "Order has no items.",
         400,

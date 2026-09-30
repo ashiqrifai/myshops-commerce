@@ -57,6 +57,7 @@ interface HeroCarouselSlide {
 
   desktopAssetId: string | null;
   mobileAssetId: string | null;
+  kioskAssetId: string | null;
 
   slideLinkUrl: string;
   slideLinkNewTab: boolean;
@@ -120,6 +121,7 @@ const createEmptySlide =
 
     desktopAssetId: null,
     mobileAssetId: null,
+    kioskAssetId: null,
 
     slideLinkUrl: "",
     slideLinkNewTab: false,
@@ -318,6 +320,12 @@ const normalizeSlide = (
       typeof source.mobileAssetId ===
       "string"
         ? source.mobileAssetId
+        : null,
+
+    kioskAssetId:
+      typeof source.kioskAssetId ===
+      "string"
+        ? source.kioskAssetId
         : null,
 
     slideLinkUrl:
@@ -774,7 +782,7 @@ export default function HeroCarouselEditor({
 
           <p className="mt-1 text-sm leading-6 text-[#6d7175]">
             Create responsive homepage
-            slides using desktop and mobile
+            slides using desktop, mobile and kiosk
             images or videos from the Digital Asset
             Library.
           </p>
@@ -805,7 +813,7 @@ export default function HeroCarouselEditor({
 
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#6d7175]">
             Add the first slide and select
-            desktop and mobile media from
+            desktop, mobile and kiosk media from
             your media library.
           </p>
 
@@ -938,13 +946,13 @@ export default function HeroCarouselEditor({
                       </h4>
 
                       <p className="mt-1 text-xs text-[#6d7175]">
-                        Desktop media is required. Mobile media
-                        is recommended for portrait screens.
+                        Desktop media is required. Mobile and kiosk
+                        media are optional portrait-specific overrides.
                         Images and MP4 videos are supported.
                       </p>
                     </div>
 
-                    <div className="grid gap-5 lg:grid-cols-2">
+                    <div className="grid gap-5 lg:grid-cols-3">
                       <SlideMediaField
                         label="Desktop media"
                         description="Recommended image size: 1920 × 700 WebP. MP4 video is also supported."
@@ -979,6 +987,26 @@ export default function HeroCarouselEditor({
                             slideIndex,
                             {
                               mobileAssetId:
+                                assetId,
+                            }
+                          )
+                        }
+                      />
+
+                      <SlideMediaField
+                        label="Kiosk media"
+                        description="Recommended image size: 1080 × 1920 WebP. MP4 video is also supported."
+                        value={
+                          slide.kioskAssetId
+                        }
+                        classification="CMS"
+                        onChange={(
+                          assetId
+                        ) =>
+                          handleSlideChange(
+                            slideIndex,
+                            {
+                              kioskAssetId:
                                 assetId,
                             }
                           )

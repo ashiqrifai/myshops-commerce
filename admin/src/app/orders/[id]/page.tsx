@@ -11,6 +11,7 @@ import {
   RefreshCcw,
   RotateCcw,
   ShieldCheck,
+  Store,
   Truck,
   UserRound,
   Webhook,
@@ -36,6 +37,9 @@ import AdminShell from "@/components/admin/AdminShell";
 
 import {
   useGetAdminOrderByIdQuery,
+  useGetKioskFulfillmentAssignmentsQuery,
+  useLazyGetKioskFulfillmentLocationsQuery,
+  useAssignKioskFulfillmentLocationMutation,
   useRefundTamaraPaymentMutation,
   useRetryZohoSalesOrderMutation,
   useUpdateAdminShipmentStatusMutation,
@@ -47,6 +51,7 @@ import {
 
 import type {
   AdminOrderPayment,
+  KioskFulfillmentAssignment,
 } from "@/types/order";
 
 const money = (
@@ -624,6 +629,73 @@ export default function OrderDetailPage() {
   ] =
     useUpdateAdminShipmentStatusMutation();
 
+
+    const [
+      loadFulfillmentLocations,
+      {
+        isFetching:
+          isLoadingFulfillmentLocations,
+      },
+    ] =
+      useLazyGetKioskFulfillmentLocationsQuery();
+
+    const [
+      assignKioskFulfillmentLocation,
+      {
+        isLoading:
+          isAssigningFulfillmentLocation,
+      },
+    ] =
+      useAssignKioskFulfillmentLocationMutation();
+
+    const [
+      assigningAssignmentId,
+      setAssigningAssignmentId,
+    ] =
+      useState<
+        string |
+        null
+      >(
+        null
+      );
+
+    const [
+      fulfillmentLocations,
+      setFulfillmentLocations,
+    ] =
+      useState<
+        Array<{
+          id: string;
+          code: string;
+          name: string;
+          locationType?: string | null;
+          emirate?: string | null;
+          city?: string | null;
+          quantityOnHand: number;
+          quantityReserved: number;
+          available: number;
+          canFulfill: boolean;
+        }>
+      >(
+        []
+      );
+
+    const [
+      selectedFulfillmentLocationId,
+      setSelectedFulfillmentLocationId,
+    ] =
+      useState(
+        ""
+      );
+
+    const [
+      fulfillmentPickerOpen,
+      setFulfillmentPickerOpen,
+    ] =
+      useState(
+        false
+      );
+
   const [
     updatingShipmentId,
     setUpdatingShipmentId,
@@ -640,6 +712,33 @@ export default function OrderDetailPage() {
 
   const order =
     detail?.order;
+
+  const kiosk =
+    detail?.kiosk;
+
+
+    const {
+      data:
+        kioskAssignmentData,
+      isFetching:
+        isFetchingKioskAssignments,
+      refetch:
+        refetchKioskAssignments,
+    } =
+      useGetKioskFulfillmentAssignmentsQuery(
+        orderId,
+        {
+          skip:
+            !accessToken ||
+            !orderId ||
+            !kiosk,
+        }
+      );
+
+    const kioskAssignments:
+      KioskFulfillmentAssignment[] =
+        kioskAssignmentData?.data ||
+        [];
 
   const items =
     detail?.items ||
@@ -837,6 +936,128 @@ export default function OrderDetailPage() {
     };
 
 
+    const openFulfillmentPicker =
+      async (
+        assignmentId:
+          string
+      ) => {
+
+        if (!order) {
+          return;
+        }
+
+        try {
+
+          setAssigningAssignmentId(
+            assignmentId
+          );
+
+          setSelectedFulfillmentLocationId(
+            ""
+          );
+
+          setFulfillmentLocations(
+            []
+          );
+
+          setFulfillmentPickerOpen(
+            true
+          );
+
+          const result =
+            await loadFulfillmentLocations({
+              orderId:
+                order.id,
+
+              assignmentId,
+            }).unwrap();
+
+          setFulfillmentLocations(
+            result.data.locations ||
+            []
+          );
+
+        } catch (error) {
+
+          setFulfillmentPickerOpen(
+            false
+          );
+
+          setAssigningAssignmentId(
+            null
+          );
+
+          toast.error(
+            getApiErrorMessage(
+              error
+            )
+          );
+        }
+      };
+
+
+    const confirmFulfillmentStore =
+      async () => {
+
+        if (
+          !order ||
+          !assigningAssignmentId ||
+          !selectedFulfillmentLocationId
+        ) {
+          return;
+        }
+
+        try {
+
+          await assignKioskFulfillmentLocation({
+            orderId:
+              order.id,
+
+            assignmentId:
+              assigningAssignmentId,
+
+            body: {
+              fulfillmentLocationId:
+                selectedFulfillmentLocationId,
+            },
+          }).unwrap();
+
+          toast.success(
+            "Fulfillment store assigned and stock reserved."
+          );
+
+          setFulfillmentPickerOpen(
+            false
+          );
+
+          setAssigningAssignmentId(
+            null
+          );
+
+          setSelectedFulfillmentLocationId(
+            ""
+          );
+
+          setFulfillmentLocations(
+            []
+          );
+
+          await Promise.all([
+            refetch(),
+            refetchKioskAssignments(),
+          ]);
+
+        } catch (error) {
+
+          toast.error(
+            getApiErrorMessage(
+              error
+            )
+          );
+        }
+      };
+
+
     const updateShipmentStatus =
     async ({
       shipmentId,
@@ -1027,6 +1248,259 @@ export default function OrderDetailPage() {
                   }
                 />
               </div>
+
+              {kiosk && (
+                <div className="mb-5 overflow-hidden rounded-xl border border-[#e1e3e5] bg-white shadow-sm">
+                  <div className="border-b border-[#e1e3e5] px-5 py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h2 className="font-semibold text-[#202223]">
+                          Kiosk Fulfilment
+                        </h2>
+
+                        <p className="mt-1 text-sm text-[#6d7175]">
+                          Selling store and stock fulfilment information for this kiosk order.
+                        </p>
+                      </div>
+
+                      <StatusBadge
+                        value={
+                          kiosk.fulfillmentType ||
+                          kiosk.fulfillmentMode ||
+                          "KIOSK"
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-px bg-[#e1e3e5] sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                    <div className="bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#6d7175]">
+                        Selling Store
+                      </p>
+
+                      <p className="mt-2 text-sm font-semibold text-[#202223]">
+                        {kiosk.sellingLocation?.name ||
+                          "—"}
+                      </p>
+
+                      <p className="mt-1 text-xs text-[#6d7175]">
+                        {kiosk.sellingLocation?.code ||
+                          "—"}
+                      </p>
+                    </div>
+
+                    <div className="bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#6d7175]">
+                        Kiosk
+                      </p>
+
+                      <p className="mt-2 text-sm font-semibold text-[#202223]">
+                        {kiosk.kioskDevice?.name ||
+                          "—"}
+                      </p>
+
+                      <p className="mt-1 text-xs text-[#6d7175]">
+                        {kiosk.kioskDevice?.code ||
+                          "—"}
+                      </p>
+                    </div>
+
+                    <div className="bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#6d7175]">
+                        Fulfilment
+                      </p>
+
+                      <div className="mt-2">
+                        <StatusBadge
+                          value={
+                            kiosk.fulfillmentType ||
+                            kiosk.fulfillmentMode ||
+                            "—"
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#6d7175]">
+                        Source Store
+                      </p>
+
+                      {kiosk.sourceLocations?.length ? (
+                        <div className="mt-2 space-y-2">
+                          {kiosk.sourceLocations.map(
+                            location => (
+                              <div
+                                key={
+                                  location.id
+                                }
+                              >
+                                <p className="text-sm font-semibold text-[#202223]">
+                                  {location.name ||
+                                    "Store"}
+                                </p>
+
+                                <p className="mt-1 text-xs text-[#6d7175]">
+                                  {location.code ||
+                                    "—"}
+                                </p>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-[#6d7175]">
+                          No physical allocation
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#6d7175]">
+                        Collection
+                      </p>
+
+                      <div className="mt-2">
+                        <StatusBadge
+                          value={
+                            kiosk.collectionStatus ||
+                            "PENDING"
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#6d7175]">
+                        Delivery
+                      </p>
+
+                      <div className="mt-2">
+                        <StatusBadge
+                          value={
+                            kiosk.deliveryStatus ||
+                            "NOT_REQUIRED"
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                    <div className="border-t border-[#e1e3e5] p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-semibold text-[#202223]">
+                            Store Fulfillment Assignment
+                          </h3>
+
+                          <p className="mt-1 text-sm text-[#6d7175]">
+                            Select the store that will reserve and fulfill items unavailable at the selling store.
+                          </p>
+                        </div>
+
+                        {isFetchingKioskAssignments ? (
+                          <LoaderCircle className="h-5 w-5 animate-spin text-[#008060]" />
+                        ) : null}
+                      </div>
+
+                      {!isFetchingKioskAssignments &&
+                      !kioskAssignments.length ? (
+                        <div className="mt-4 rounded-lg border border-[#e1e3e5] bg-[#f6f6f7] p-4 text-sm text-[#6d7175]">
+                          No store assignment is required for this order.
+                        </div>
+                      ) : null}
+
+                      {kioskAssignments.length ? (
+                        <div className="mt-4 space-y-3">
+                          {kioskAssignments.map(
+                            assignment => (
+                              <div
+                                key={
+                                  assignment.id
+                                }
+                                className="rounded-xl border border-[#e1e3e5] bg-white p-4"
+                              >
+                                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="font-semibold text-[#202223]">
+                                        {assignment.sku}
+                                      </p>
+
+                                      <StatusBadge
+                                        value={
+                                          assignment.status
+                                        }
+                                      />
+                                    </div>
+
+                                    <p className="mt-2 text-sm text-[#6d7175]">
+                                      Qty{" "}
+                                      <span className="font-semibold text-[#202223]">
+                                        {assignment.quantity}
+                                      </span>
+                                      {" · "}
+                                      Sold at{" "}
+                                      <span className="font-semibold text-[#202223]">
+                                        {assignment.sellingLocation?.name ||
+                                          "—"}
+                                      </span>
+                                    </p>
+
+                                    {assignment.fulfillmentLocation ? (
+                                      <div className="mt-3 flex items-start gap-2 rounded-lg bg-[#f0fdf4] px-3 py-2">
+                                        <Store className="mt-0.5 h-4 w-4 shrink-0 text-[#008060]" />
+
+                                        <div>
+                                          <p className="text-sm font-semibold text-[#202223]">
+                                            {
+                                              assignment
+                                                .fulfillmentLocation
+                                                .name
+                                            }
+                                          </p>
+
+                                          <p className="text-xs text-[#6d7175]">
+                                            {
+                                              assignment
+                                                .fulfillmentLocation
+                                                .code
+                                            }
+                                            {" · Stock reserved"}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <p className="mt-3 text-sm font-medium text-[#916a00]">
+                                        Awaiting fulfillment store selection
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  {assignment.status ===
+                                  "AWAITING_ASSIGNMENT" ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openFulfillmentPicker(
+                                          assignment.id
+                                        )
+                                      }
+                                      className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#008060] px-4 text-sm font-semibold text-white hover:bg-[#006e52]"
+                                    >
+                                      <Store className="h-4 w-4" />
+                                      Select Fulfillment Store
+                                    </button>
+                                  ) : null}
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                </div>
+              )}
 
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
                 <div className="space-y-5">
@@ -1843,6 +2317,228 @@ export default function OrderDetailPage() {
             </>
           )}
         </div>
+
+        {fulfillmentPickerOpen ? (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
+            <div className="max-h-[85vh] w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-[#e1e3e5] px-5 py-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-[#202223]">
+                    Select Fulfillment Store
+                  </h2>
+
+                  <p className="mt-1 text-sm text-[#6d7175]">
+                    Choose the store that will reserve and fulfill this item.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      isAssigningFulfillmentLocation
+                    ) {
+                      return;
+                    }
+
+                    setFulfillmentPickerOpen(
+                      false
+                    );
+
+                    setAssigningAssignmentId(
+                      null
+                    );
+
+                    setSelectedFulfillmentLocationId(
+                      ""
+                    );
+
+                    setFulfillmentLocations(
+                      []
+                    );
+                  }}
+                  disabled={
+                    isAssigningFulfillmentLocation
+                  }
+                  className="rounded-lg p-2 text-[#6d7175] hover:bg-[#f6f6f7] disabled:opacity-50"
+                  aria-label="Close fulfillment store selector"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="max-h-[60vh] overflow-y-auto p-5">
+                {isLoadingFulfillmentLocations ? (
+                  <div className="py-12 text-center">
+                    <LoaderCircle className="mx-auto h-7 w-7 animate-spin text-[#008060]" />
+
+                    <p className="mt-3 text-sm text-[#6d7175]">
+                      Loading live store availability...
+                    </p>
+                  </div>
+                ) : fulfillmentLocations.length ? (
+                  <div className="space-y-3">
+                    {fulfillmentLocations.map(
+                      location => {
+
+                        const selected =
+                          selectedFulfillmentLocationId ===
+                          location.id;
+
+                        return (
+                          <button
+                            key={
+                              location.id
+                            }
+                            type="button"
+                            disabled={
+                              !location.canFulfill ||
+                              isAssigningFulfillmentLocation
+                            }
+                            onClick={() =>
+                              setSelectedFulfillmentLocationId(
+                                location.id
+                              )
+                            }
+                            className={`w-full rounded-xl border p-4 text-left transition ${
+                              selected
+                                ? "border-[#008060] bg-[#f1f8f5] ring-1 ring-[#008060]"
+                                : location.canFulfill
+                                  ? "border-[#d2d5d8] bg-white hover:border-[#8c9196] hover:bg-[#fafbfb]"
+                                  : "cursor-not-allowed border-[#e1e3e5] bg-[#f6f6f7] opacity-60"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex min-w-0 items-start gap-3">
+                                <div
+                                  className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                                    selected
+                                      ? "bg-[#008060] text-white"
+                                      : "bg-[#f1f2f3] text-[#5c5f62]"
+                                  }`}
+                                >
+                                  <Store className="h-4 w-4" />
+                                </div>
+
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-[#202223]">
+                                    {location.name}
+                                  </p>
+
+                                  <p className="mt-1 text-xs text-[#6d7175]">
+                                    {location.code}
+
+                                    {location.city
+                                      ? ` · ${location.city}`
+                                      : ""}
+                                  </p>
+
+                                  <p className="mt-2 text-xs text-[#8c9196]">
+                                    On hand:{" "}
+                                    {location.quantityOnHand}
+                                    {" · "}
+                                    Reserved:{" "}
+                                    {location.quantityReserved}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="shrink-0 text-right">
+                                {location.canFulfill ? (
+                                  <>
+                                    <p className="text-lg font-bold text-[#008060]">
+                                      {location.available}
+                                    </p>
+
+                                    <p className="text-xs font-medium text-[#6d7175]">
+                                      available
+                                    </p>
+                                  </>
+                                ) : (
+                                  <span className="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+                                    Unavailable
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      }
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="font-semibold text-amber-800">
+                      No fulfillment stock is currently available.
+                    </p>
+
+                    <p className="mt-1 text-sm text-amber-700">
+                      Inventory may have changed since the order was placed.
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-4 rounded-lg bg-[#f6f6f7] p-3 text-xs leading-5 text-[#6d7175]">
+                  Stock is checked again when you confirm. If another transaction reserves the selected stock first, the assignment will be rejected and you can choose another store.
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 border-t border-[#e1e3e5] bg-[#fafbfb] px-5 py-4 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  disabled={
+                    isAssigningFulfillmentLocation
+                  }
+                  onClick={() => {
+                    setFulfillmentPickerOpen(
+                      false
+                    );
+
+                    setAssigningAssignmentId(
+                      null
+                    );
+
+                    setSelectedFulfillmentLocationId(
+                      ""
+                    );
+
+                    setFulfillmentLocations(
+                      []
+                    );
+                  }}
+                  className="h-10 rounded-lg border border-[#babfc3] bg-white px-4 text-sm font-semibold text-[#202223] hover:bg-[#f6f6f7] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  disabled={
+                    !selectedFulfillmentLocationId ||
+                    isAssigningFulfillmentLocation ||
+                    isLoadingFulfillmentLocations
+                  }
+                  onClick={
+                    confirmFulfillmentStore
+                  }
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#008060] px-4 text-sm font-semibold text-white hover:bg-[#006e52] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isAssigningFulfillmentLocation ? (
+                    <>
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                      Reserving...
+                    </>
+                  ) : (
+                    <>
+                      <Store className="h-4 w-4" />
+                      Assign & Reserve
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {order &&
         tamaraPayment &&

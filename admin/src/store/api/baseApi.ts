@@ -431,6 +431,7 @@ export const baseApi =
       "PreBooking",
       "AccessRoles",
       "AccessUsers",
+      "KioskDevices",
 
     ],
 

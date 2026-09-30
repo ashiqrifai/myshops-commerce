@@ -131,7 +131,10 @@ const getRequestedProtection = (
 };
 
 const makeOrderNumber =
-  () => {
+  (
+    prefix =
+      "WEB"
+  ) => {
     const stamp =
       new Date()
         .toISOString()
@@ -151,7 +154,15 @@ const makeOrderNumber =
             9000
       );
 
-    return `WEB-${stamp}-${random}`;
+    const safePrefix =
+      String(
+        prefix ||
+          "WEB"
+      )
+        .trim()
+        .toUpperCase();
+
+    return `${safePrefix}-${stamp}-${random}`;
   };
 
 const getActiveCompany =
@@ -203,6 +214,8 @@ const getPublishedVariant =
     companyId,
     productId,
     productVariantId,
+    channelCode =
+      WEBSITE_CHANNEL,
     transaction,
   }) => {
     const variant =
@@ -254,8 +267,7 @@ const getPublishedVariant =
                 where: {
                   companyId,
 
-                  channelCode:
-                    WEBSITE_CHANNEL,
+                  channelCode,
 
                   isVisible:
                     true,
@@ -284,8 +296,7 @@ const getPublishedVariant =
             where: {
               companyId,
 
-              channelCode:
-                WEBSITE_CHANNEL,
+              channelCode,
 
               isVisible:
                 true,
@@ -938,7 +949,9 @@ const validatePayload =
           "PICKUP";
 
     if (
-      hasDeliveryFulfilment
+      hasDeliveryFulfilment &&
+      payload?.kioskAvailableToOrder !==
+        true
     ) {
       const address =
         payload
@@ -1022,7 +1035,53 @@ const createPublicOrder =
     payload,
     authenticatedCustomerId =
       null,
+    channelCode =
+      WEBSITE_CHANNEL,
+    orderNumberPrefix =
+      null,
+    paymentProvider =
+      null,
+
+    deferKioskAvailableToOrder =
+      false,
+
+    withinTransaction =
+      null,
   }) => {
+
+    const normalizedChannel =
+      String(
+        channelCode ||
+          WEBSITE_CHANNEL
+      )
+        .trim()
+        .toUpperCase();
+
+
+    if (
+      ![
+        "WEBSITE",
+        "KIOSK",
+      ].includes(
+        normalizedChannel
+      )
+    ) {
+
+      const error =
+        new Error(
+          "Order channel must be WEBSITE or KIOSK."
+        );
+
+      error.statusCode =
+        400;
+
+      error.code =
+        "INVALID_ORDER_CHANNEL";
+
+      throw error;
+    }
+
+
     validatePayload(
       payload
     );
@@ -1157,6 +1216,9 @@ const createPublicOrder =
                 requestedItem
                   .productVariantId,
 
+              channelCode:
+                normalizedChannel,
+
               transaction,
             });
 
@@ -1184,7 +1246,7 @@ const createPublicOrder =
               quantity,
 
               channelCode:
-                WEBSITE_CHANNEL,
+                normalizedChannel,
 
               currencyCode,
 
@@ -1443,9 +1505,9 @@ const createPublicOrder =
                     .schemeId,
 
                 channelCode:
-                  WEBSITE_CHANNEL,
+                  normalizedChannel,
 
-                currencyCode,
+                currencyCode:
 
                 quantity,
 
@@ -1643,7 +1705,7 @@ const createPublicOrder =
               currencyCode,
 
               channelCode:
-                WEBSITE_CHANNEL,
+                normalizedChannel,
 
               effectiveDate:
                 new Date(),
@@ -1991,9 +2053,9 @@ const createPublicOrder =
               currencyCode,
 
               channelCode:
-                WEBSITE_CHANNEL,
+                normalizedChannel,
 
-              merchandiseTotal,
+              merchandiseTotal:
 
               deliveryAmount,
 
@@ -2074,7 +2136,15 @@ const createPublicOrder =
                       .id,
 
                   orderNumber:
-                    makeOrderNumber(),
+                    makeOrderNumber(
+                      orderNumberPrefix ||
+                        (
+                          normalizedChannel ===
+                          "KIOSK"
+                            ? "KSK"
+                            : "WEB"
+                        )
+                    ),
 
                   customerId:
                     linkedCustomer
@@ -2082,7 +2152,7 @@ const createPublicOrder =
                     null,
 
                   channelCode:
-                    WEBSITE_CHANNEL,
+                    normalizedChannel,
 
                   customerFirstName:
                     String(
@@ -2202,6 +2272,15 @@ const createPublicOrder =
                 transaction,
               }
             );
+
+          /*
+           * Preserve the generated OrderItem ID on the
+           * in-memory line. This lets channel-specific
+           * transaction hooks refer to the exact persisted
+           * order item without another lookup.
+           */
+          line.id =
+            orderItem.id;
 
           if (
             protection
@@ -2555,6 +2634,21 @@ const createPublicOrder =
         |--------------------------------------------------------------------------
         */
 
+        const deferredKioskOrderItemIds =
+          deferKioskAvailableToOrder
+            ? orderLines
+                .filter(
+                  line =>
+                    line.selectedDeliveryMethod !==
+                      "PICKUP" &&
+                    line.id
+                )
+                .map(
+                  line =>
+                    line.id
+                )
+            : [];
+
         let deliveryReservation =
           null;
 
@@ -2574,6 +2668,7 @@ const createPublicOrder =
 
         if (
           hasDeliveryItems &&
+          !deferKioskAvailableToOrder &&
           !shippingCityCode
         ) {
           const error =
@@ -2587,14 +2682,26 @@ const createPublicOrder =
           throw error;
         }
 
+        /*
+         * Normal lines continue through the authoritative
+         * reservation planner.
+         *
+         * Only kiosk lines awaiting manual source-store
+         * assignment are excluded.
+         */
         deliveryReservation =
           await orderShipmentReservationService
             .reserveOrderDelivery({
               order,
+
               cityCode:
                 shippingCityCode ||
                 null,
+
               transaction,
+
+              excludeOrderItemIds:
+                deferredKioskOrderItemIds,
             });
 
         const shippingAddress =
@@ -2718,7 +2825,8 @@ const createPublicOrder =
           }
         );
 
-        await db.OrderPayment.create(
+        const orderPayment =
+          await db.OrderPayment.create(
           {
             companyId:
               company
@@ -2739,13 +2847,19 @@ const createPublicOrder =
             currencyCode,
 
             provider:
-              paymentMethod ===
-              "CARD"
-                ? "NETWORK_INTERNATIONAL"
-                : paymentMethod ===
-                  "TAMARA"
-                  ? "TAMARA"
-                  : "CASH_ON_DELIVERY",
+              paymentProvider ||
+              (
+                paymentMethod ===
+                "CARD"
+                  ? "NETWORK_INTERNATIONAL"
+                  : paymentMethod ===
+                    "TAMARA"
+                    ? "TAMARA"
+                    : paymentMethod ===
+                      "TABBY"
+                      ? "TABBY"
+                      : "CASH_ON_DELIVERY"
+              ),
           },
 
           {
@@ -2780,8 +2894,8 @@ const createPublicOrder =
                 paymentMethod ===
                 "CARD"
                   ? appliedCoupon
-                    ? `Card order created from website checkout using coupon ${appliedCoupon.code}. Awaiting payment.`
-                    : "Card order created from website checkout. Awaiting payment."
+                    ? `Card order created from ${normalizedChannel.toLowerCase()} checkout using coupon ${appliedCoupon.code}. Awaiting payment.`
+                    : `Card order created from ${normalizedChannel.toLowerCase()} checkout. Awaiting payment.`
                   : appliedCoupon
                     ? `Order placed from website checkout using coupon ${appliedCoupon.code}.`
                     : "Order placed from website checkout.",
@@ -2808,7 +2922,10 @@ const createPublicOrder =
                 note:
                 paymentMethod ===
                 "CARD"
-                  ? "Network International card payment pending."
+                  ? `${
+                      paymentProvider ||
+                      "NETWORK_INTERNATIONAL"
+                    } card payment pending.`
                   : paymentMethod ===
                     "TABBY"
                     ? "Tabby payment pending."
@@ -2899,6 +3016,26 @@ const createPublicOrder =
           );
         }
 
+        if (
+          typeof withinTransaction ===
+          "function"
+        ) {
+
+          await withinTransaction({
+            transaction,
+            company,
+            order,
+            orderPayment,
+            orderLines,
+            grandTotal,
+            currencyCode,
+            paymentMethod,
+            channelCode:
+              normalizedChannel,
+          });
+        }
+
+
         return {
           id:
             order
@@ -2923,6 +3060,25 @@ const createPublicOrder =
           paymentMethod:
             order
               .paymentMethod,
+
+          payment: {
+            id:
+              orderPayment.id,
+
+            provider:
+              orderPayment.provider,
+
+            status:
+              orderPayment.status,
+
+            amount:
+              Number(
+                orderPayment.amount
+              ),
+
+            currencyCode:
+              orderPayment.currencyCode,
+          },
 
           deliveryMethod:
             order

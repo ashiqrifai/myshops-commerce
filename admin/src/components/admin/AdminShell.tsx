@@ -51,7 +51,7 @@ const navigation:NavigationItem[]=[
   {name:"Instagram Gallery",href:"/admin/instagram-posts",icon:Images,permission:"instagram-posts.read"},
  ]},
  {name:"Customers",href:"/customers",icon:Users,permission:"customers.read"},
- {name:"Kiosk",href:"/kiosk",icon:MonitorCog,permission:"kiosk.read"},
+ {name:"Kiosk",href:"/admin/kiosk",icon:MonitorCog,permission:"cms.pages.read"},
  {name:"Product Attachments",href:"/admin/product-attachments",icon:Link2,permission:"product-attachments.read"},
  {name:"Pre-booking",href:"/admin/pre-booking",icon:CalendarClock,permission:"pre-booking.read"},
  {name:"Protection",href:"/admin/protection",icon:ShieldCheck,permission:"protection.read"},

@@ -127,6 +127,44 @@ router.post(
 
 /*
 |--------------------------------------------------------------------------
+| Kiosk Fulfillment Assignment
+|--------------------------------------------------------------------------
+*/
+
+router.get(
+  "/:id/fulfillment-assignments",
+  authorize(
+    "orders.read"
+  ),
+  adminOrderController
+    .getKioskFulfillmentAssignments
+);
+
+router.get(
+  "/:id/fulfillment-assignments/:assignmentId/locations",
+  authorize(
+    "orders.fulfill"
+  ),
+  adminOrderController
+    .getKioskFulfillmentLocations
+);
+
+router.post(
+  "/:id/fulfillment-assignments/:assignmentId/assign",
+  authorize(
+    "orders.fulfill"
+  ),
+  express.json({
+    limit:
+      "32kb",
+  }),
+  adminOrderController
+    .assignKioskFulfillmentLocation
+);
+
+
+/*
+|--------------------------------------------------------------------------
 | Get Order Detail
 |--------------------------------------------------------------------------
 |

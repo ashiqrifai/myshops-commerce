@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "migrate": "node src/scripts/runMigrations.js",
     "seed:admin": "node src/scripts/seedInitialAdmin.js",
     "seed:cms-pages": "node src/scripts/seedCmsPages.js",
     "seed:cms-section-types": "node src/scripts/seedCmsSectionTypes.js",

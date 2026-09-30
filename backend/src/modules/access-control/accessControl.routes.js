@@ -8,6 +8,7 @@ r.get('/roles',authorize('roles.read'),c.listRoles);
 r.get('/roles/:id',authorize('roles.read'),c.getRole);
 r.post('/roles',authorize('roles.create'),c.createRole);
 r.put('/roles/:id',authorize('roles.update'),c.updateRole);
+r.get('/locations',authorize('users.read'),c.listUserLocations);
 r.get('/users',authorize('users.read'),c.listUsers);
 r.get('/users/:id',authorize('users.read'),c.getUser);
 r.post('/users',authorize('users.create'),c.createUser);
