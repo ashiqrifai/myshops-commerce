@@ -824,13 +824,57 @@ notes:
         });
 
 
+      /*
+       * Location restrictions apply only to KIOSK orders.
+       *
+       * Normal WEBSITE orders remain visible to users who
+       * already have the Orders permission.
+       *
+       * KIOSK orders require access through either:
+       * 1. selling location, or
+       * 2. assigned fulfillment location.
+       */
       if (
         !locationScope.unrestricted
       ) {
-        where.id = {
-          [Op.in]:
-            accessibleOrderIds,
+        const orderAccessWhere = {
+          [Op.or]: [
+            {
+              channelCode: {
+                [Op.ne]:
+                  "KIOSK",
+              },
+            },
+
+            {
+              id: {
+                [Op.in]:
+                  accessibleOrderIds,
+              },
+            },
+          ],
         };
+
+        if (
+          Array.isArray(
+            where[Op.and]
+          )
+        ) {
+          where[Op.and].push(
+            orderAccessWhere
+          );
+        } else if (
+          where[Op.and]
+        ) {
+          where[Op.and] = [
+            where[Op.and],
+            orderAccessWhere,
+          ];
+        } else {
+          where[Op.and] = [
+            orderAccessWhere,
+          ];
+        }
       }
   
       const {
@@ -1846,8 +1890,18 @@ const getAdminOrderDetail =
        * 1. the selling location, or
        * 2. an active assigned fulfillment location.
        */
+      /*
+       * WEBSITE orders are governed by the normal Orders
+       * permission and are not store-location restricted.
+       *
+       * Location authorization is required only for KIOSK
+       * orders.
+       */
       if (
-        !locationScope.unrestricted
+        !locationScope.unrestricted &&
+        cleanUpper(
+          order.channelCode
+        ) === "KIOSK"
       ) {
 
         const accessibleOrderIds =
