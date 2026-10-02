@@ -19,7 +19,7 @@ const TOOL_DEFINITIONS = [
       "search_products",
 
     description:
-      "Search the live MyShops product catalog. Use this whenever the customer asks what products MyShops has, asks to see products, mentions a brand or product type, or asks for product availability options.",
+      "Search the live MyShops product catalog. ALWAYS use this when the customer asks to find or see products, mentions a brand, model, category or product type, or asks for discounted products, promotions, offers, deals, sale products or special prices. Put brand/category/model/product wording into query. Set discountedOnly=true for discount, promotion, offer, deal, sale or special-price requests.",
 
     parameters: {
       type:
@@ -32,6 +32,22 @@ const TOOL_DEFINITIONS = [
 
           description:
             "The customer's product search, brand, model or product type. Examples: Samsung, iPhone 17 Pro, televisions, washing machines.",
+        },
+
+        brand: {
+          type:
+            "string",
+
+          description:
+            "Optional brand name when the customer specifies a brand. Examples: Ariston, Samsung, Bosch, Apple. Do not include the brand again in query when this parameter is used.",
+        },
+
+        discountedOnly: {
+          type:
+            "boolean",
+
+          description:
+            "Set true when the customer asks for discounted products, promotions, offers, deals, sale items or special prices.",
         },
 
         limit: {
@@ -49,9 +65,7 @@ const TOOL_DEFINITIONS = [
         },
       },
 
-      required: [
-        "query",
-      ],
+      required: [],
 
       additionalProperties:
         false,
@@ -111,6 +125,75 @@ const parseArguments =
 
 /*
 |--------------------------------------------------------------------------
+| AI product-search normalization
+|--------------------------------------------------------------------------
+|
+| The storefront search intentionally performs literal matching.
+| Customers speaking to the kiosk naturally use plural product
+| types such as "washing machines" or "televisions".
+|
+| Normalize only the AI query so website search behaviour remains
+| completely unchanged.
+*/
+
+const normalizeAiProductSearch =
+  value => {
+
+    const search =
+      String(
+        value ||
+        ""
+      )
+        .trim();
+
+    if (
+      !search
+    ) {
+      return "";
+    }
+
+    const words =
+      search.split(
+        /\s+/
+      );
+
+    const lastIndex =
+      words.length - 1;
+
+    const lastWord =
+      words[lastIndex];
+
+    /*
+     * Conservative plural normalization.
+     *
+     * Avoid changing short words or words ending in "ss".
+     */
+    if (
+      lastWord &&
+      lastWord.length >
+        3 &&
+      /s$/i.test(
+        lastWord
+      ) &&
+      !/ss$/i.test(
+        lastWord
+      )
+    ) {
+      words[lastIndex] =
+        lastWord.slice(
+          0,
+          -1
+        );
+    }
+
+    return words.join(
+      " "
+    );
+  };
+
+
+/*
+|--------------------------------------------------------------------------
 | search_products
 |--------------------------------------------------------------------------
 */
@@ -131,21 +214,40 @@ const executeSearchProducts =
       );
 
 
-    const search =
+    const originalSearch =
       String(
         args.query ||
         ""
       )
         .trim();
 
+    const search =
+      normalizeAiProductSearch(
+        originalSearch
+      );
+
+
+    const requestedBrand =
+      String(
+        args.brand ||
+        ""
+      )
+        .trim();
+
+
+    const discountedOnly =
+      args.discountedOnly ===
+      true;
 
     if (
-      !search
+      !search &&
+      !requestedBrand &&
+      !discountedOnly
     ) {
 
       const error =
         new Error(
-          "Product search query is required."
+          "Product search requires a query, brand or discountedOnly=true."
         );
 
       error.statusCode =
@@ -168,6 +270,53 @@ const executeSearchProducts =
       );
 
 
+    const resolvedBrand =
+      requestedBrand
+        ? await publicSearchService
+            .resolveBrandId({
+              companyCode,
+              brandName:
+                requestedBrand,
+            })
+        : null;
+
+
+    /*
+     * A customer explicitly requested a brand that does
+     * not exist in the live MyShops catalogue.
+     *
+     * Return an empty result rather than silently dropping
+     * the brand filter and showing unrelated products.
+     */
+    if (
+      requestedBrand &&
+      !resolvedBrand
+    ) {
+      return {
+        query:
+          originalSearch,
+
+        normalizedQuery:
+          search,
+
+        brand:
+          requestedBrand,
+
+        resolvedBrand:
+          null,
+
+        totalItems:
+          0,
+
+        shownCount:
+          0,
+
+        products:
+          [],
+      };
+    }
+
+
     const result =
       await publicSearchService
         .searchProducts({
@@ -185,6 +334,13 @@ const executeSearchProducts =
 
             pageSize:
               limit,
+
+            discountedOnly,
+
+            brandIds:
+              resolvedBrand
+                ?.id ||
+              undefined,
 
             sort:
               "RELEVANCE",
@@ -323,7 +479,28 @@ const executeSearchProducts =
 
     return {
       query:
+        originalSearch,
+
+      normalizedQuery:
         search,
+
+      brand:
+        requestedBrand ||
+        null,
+
+      resolvedBrand:
+        resolvedBrand
+          ? {
+              id:
+                resolvedBrand.id,
+
+              name:
+                resolvedBrand.name,
+
+              slug:
+                resolvedBrand.slug,
+            }
+          : null,
 
       totalItems,
 

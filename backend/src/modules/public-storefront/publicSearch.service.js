@@ -2932,6 +2932,21 @@ if (
             )
           : null;
   
+      /*
+       * Optional discount / promotion filter.
+       * Existing requests are unchanged unless
+       * discountedOnly=true or onSale=true.
+       */
+      const discountedOnly =
+        String(
+          query.discountedOnly ||
+            query.onSale ||
+            ""
+        )
+          .trim()
+          .toLowerCase() ===
+        "true";
+
       if (
         Number.isFinite(
           minPrice
@@ -2966,6 +2981,60 @@ if (
           );
       }
   
+      if (
+        discountedOnly
+      ) {
+        products =
+          products.filter(
+            product => {
+
+              const sellingPrice =
+                Number(
+                  product.price
+                    ?.sellingPrice
+                );
+
+              const regularPrice =
+                Number(
+                  product.price
+                    ?.regularPrice ??
+                  product.price
+                    ?.compareAtPrice
+                );
+
+              const discountAmount =
+                Number(
+                  product.price
+                    ?.totalDiscountAmount ??
+                  (
+                    Number.isFinite(
+                      regularPrice
+                    ) &&
+                    Number.isFinite(
+                      sellingPrice
+                    )
+                      ? regularPrice -
+                        sellingPrice
+                      : 0
+                  )
+                );
+
+              return (
+                Number.isFinite(
+                  sellingPrice
+                ) &&
+                Number.isFinite(
+                  regularPrice
+                ) &&
+                regularPrice >
+                  sellingPrice &&
+                discountAmount >
+                  0
+              );
+            }
+          );
+      }
+
       const filters =
         buildFilters(
           products
@@ -3172,6 +3241,144 @@ if (
       };
     };
   
+  /*
+   * Resolve a customer-facing brand name to the active
+   * MyShops brand ID.
+   *
+   * Used by kiosk AI for structured searches such as:
+   * "Ariston washing machines".
+   */
+  const resolveBrandId =
+    async ({
+      companyCode,
+      brandName,
+    }) => {
+
+      const name =
+        String(
+          brandName ||
+            ""
+        )
+          .trim();
+
+      if (
+        !name
+      ) {
+        return null;
+      }
+
+      const company =
+        await getCompany(
+          companyCode
+        );
+
+      /*
+       * First try an exact case-insensitive match.
+       */
+      let brand =
+        await db.Brand.findOne({
+          where: {
+            companyId:
+              company.id,
+
+            isActive:
+              true,
+
+            name: {
+              [Op.iLike]:
+                name,
+            },
+          },
+
+          attributes: [
+            "id",
+            "name",
+            "slug",
+          ],
+        });
+
+
+      /*
+       * Fallback to a partial match for natural customer
+       * wording while still keeping the result deterministic.
+       */
+      if (
+        !brand
+      ) {
+
+        brand =
+          await db.Brand.findOne({
+            where: {
+              companyId:
+                company.id,
+
+              isActive:
+                true,
+
+              [Op.or]: [
+                {
+                  name: {
+                    [Op.iLike]:
+                      `%${name}%`,
+                  },
+                },
+
+                {
+                  slug: {
+                    [Op.iLike]:
+                      `%${name}%`,
+                  },
+                },
+              ],
+            },
+
+            attributes: [
+              "id",
+              "name",
+              "slug",
+            ],
+
+            order: [
+              [
+                "name",
+                "ASC",
+              ],
+            ],
+          });
+      }
+
+
+      if (
+        !brand
+      ) {
+        return null;
+      }
+
+
+      const plain =
+        typeof brand.get ===
+          "function"
+          ? brand.get({
+              plain:
+                true,
+            })
+          : brand;
+
+
+      return {
+        id:
+          plain.id,
+
+        name:
+          plain.name,
+
+        slug:
+          plain.slug,
+      };
+    };
+
+
   module.exports = {
     searchProducts,
+    resolveBrandId,
   };
